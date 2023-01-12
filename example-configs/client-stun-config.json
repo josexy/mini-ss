@@ -1,0 +1,31 @@
+{
+    "server": [
+        {
+            "name": "ss",
+            "addr": "127.0.0.1:8388",
+            "password": "12345",
+            "method": "aes-128-cfb",
+            "transport": "default"
+        }
+    ],
+    "local": {
+        "socks_addr": "127.0.0.1:10086",
+        "http_addr": "127.0.0.1:10087",
+        "tcp_tun_addr": [
+            ":10001=127.0.0.1:8001",
+            ":10002=127.0.0.1:8002"
+        ],
+        "udp_tun_addr": [
+            ":10003=127.0.0.1:8003",
+            ":10004=127.0.0.1:8004"
+        ]
+    },
+    "color": true,
+    "verbose": true,
+    "verbose_level": 2,
+    "iface": "en5",
+    "auto_detect_iface": true,
+    "rules": {
+        "mode": "direct"
+    }
+}

@@ -22,7 +22,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/gorilla/websocket"
 	"github.com/josexy/logx"
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 )
 
 const (

@@ -9,7 +9,7 @@ import (
 
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util"
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 )
 
 type QuicServer struct {

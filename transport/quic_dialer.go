@@ -6,7 +6,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 )
 
 type quicDialer struct {

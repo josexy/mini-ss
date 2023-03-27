@@ -2,11 +2,11 @@ package ssr
 
 import (
 	"net"
+	"strconv"
 
 	"github.com/josexy/mini-ss/cipher"
 	"github.com/josexy/mini-ss/ssr/obfs"
 	"github.com/josexy/mini-ss/ssr/protocol"
-	"github.com/josexy/mini-ss/util"
 )
 
 // SSRClientStreamCipher shadowsocks StreamCipher wrapper key
@@ -27,10 +27,11 @@ func NewSSRClientStreamCipher(ciph cipher.StreamCipher, addr string,
 		ivSize = ciph.IVSize()
 	}
 
-	host, port, _ := net.SplitHostPort(addr)
+	host, p, _ := net.SplitHostPort(addr)
+	port, _ := strconv.ParseUint(p, 10, 16)
 	obfs, overHead, err := obfs.GetObfs(obfsName, &obfs.Base{
 		Host:   host,
-		Port:   util.MustStringToInt(port),
+		Port:   int(port),
 		Key:    key,
 		IVSize: ivSize,
 		Param:  obfsParam,

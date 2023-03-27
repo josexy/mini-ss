@@ -6,7 +6,7 @@ import (
 	"net"
 
 	cipherx "github.com/josexy/mini-ss/cipher"
-	"github.com/josexy/mini-ss/socks/constant"
+	"github.com/josexy/mini-ss/constant"
 )
 
 type packetConn struct {

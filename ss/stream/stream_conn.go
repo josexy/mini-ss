@@ -7,10 +7,8 @@ import (
 	"net"
 
 	cipherx "github.com/josexy/mini-ss/cipher"
+	"github.com/josexy/mini-ss/constant"
 )
-
-// uint16 using 2 bytes to store payload size
-const maxPayloadBufferSize = 16 * 1024
 
 type streamReader struct {
 	net.Conn
@@ -22,7 +20,7 @@ func newStreamReader(c net.Conn, cipher cipher.Stream) *streamReader {
 	return &streamReader{
 		Conn:   c,
 		Stream: cipher,
-		buf:    make([]byte, maxPayloadBufferSize),
+		buf:    make([]byte, constant.MaxTcpBufferSize),
 	}
 }
 
@@ -67,7 +65,7 @@ func newStreamWriter(c net.Conn, cipher cipher.Stream) *streamWriter {
 	return &streamWriter{
 		Conn:   c,
 		Stream: cipher,
-		buf:    make([]byte, maxPayloadBufferSize),
+		buf:    make([]byte, constant.MaxTcpBufferSize),
 	}
 }
 

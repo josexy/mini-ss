@@ -2,11 +2,9 @@ package ss
 
 import (
 	"bufio"
-	"context"
 	"net"
 
 	"github.com/josexy/mini-ss/server"
-	"github.com/josexy/mini-ss/socks/constant"
 )
 
 type bufferConn struct {
@@ -29,46 +27,30 @@ type mixedServer struct {
 }
 
 // newMixedServer mixed proxy mode does not support SOCKS and HTTP authentication
-func newMixedServer(ctx context.Context, addr string) server.Server {
+func newMixedServer(addr string) server.Server {
 	return &mixedServer{
 		addr:     addr,
-		socksSrv: newSocksProxyServer(ctx, addr, nil),
-		httpSrv:  newHttpProxyServer(ctx, addr, nil),
+		socksSrv: newSocksProxyServer(addr, nil),
+		httpSrv:  newHttpProxyServer(addr, nil),
 		err:      make(chan error, 1),
 	}
 }
 
 func (s *mixedServer) Build() server.Server {
-	if s.socksSrv.udp {
-		s.socksSrv.udpSrv = server.NewUdpServer(s.addr, s.socksSrv, server.Socks)
-	}
 	// rewrite tcp connection inbound
 	s.Server = server.NewTcpServer(s.addr, server.TcpHandlerFunc(s.handleTCPConn), server.Mixed)
 	return s
 }
 
 func (s *mixedServer) Start() {
-	if s.socksSrv.udp {
-		go s.socksSrv.udpSrv.Start()
-	}
 	s.Server.Start()
 }
 
 func (s *mixedServer) Error() chan error {
-	if s.socksSrv.udp {
-		if udpErr := <-s.socksSrv.udpSrv.Error(); udpErr != nil {
-			s.err <- udpErr
-			return s.err
-		}
-	}
-	s.err = s.Server.Error()
-	return s.err
+	return s.Server.Error()
 }
 
 func (s *mixedServer) Close() error {
-	if s.socksSrv.udp {
-		s.socksSrv.udpSrv.Close()
-	}
 	return s.Server.Close()
 }
 
@@ -83,7 +65,7 @@ func (s *mixedServer) handleTCPConn(conn net.Conn) {
 		return
 	}
 	switch data[0] {
-	case constant.Socks5Version05:
+	case 0x05:
 		s.socksSrv.ServeTCP(br)
 	default:
 		s.httpSrv.ServeTCP(br)

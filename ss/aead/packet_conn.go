@@ -6,7 +6,7 @@ import (
 	"net"
 
 	cipherx "github.com/josexy/mini-ss/cipher"
-	"github.com/josexy/mini-ss/socks/constant"
+	"github.com/josexy/mini-ss/constant"
 )
 
 var _zerononce [128]byte // read-only. 128 bytes is more than enough.

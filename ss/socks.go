@@ -1,119 +1,63 @@
 package ss
 
 import (
-	"context"
 	"io"
 	"net"
 	"net/netip"
 	"strconv"
 
-	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/address"
-	"github.com/josexy/mini-ss/auth"
 	"github.com/josexy/mini-ss/bufferpool"
-	"github.com/josexy/mini-ss/dns"
+	"github.com/josexy/mini-ss/constant"
 	"github.com/josexy/mini-ss/resolver"
+	"github.com/josexy/mini-ss/rule"
+	"github.com/josexy/mini-ss/selector"
 	"github.com/josexy/mini-ss/server"
-	"github.com/josexy/mini-ss/socks/constant"
-	"github.com/josexy/mini-ss/ss/ctxv"
 	"github.com/josexy/mini-ss/transport"
-	"github.com/josexy/mini-ss/util/ordmap"
+	"github.com/josexy/mini-ss/util/logger"
 )
 
 type socks5Server struct {
 	server.Server
-	udpSrv    server.Server
 	addr      string
-	socksAuth *auth.Auth
-	relayers  ordmap.OrderedMap
+	socksAuth *Auth
 	pool      *bufferpool.BufferPool
-	ruler     *dns.Ruler
-	udp       bool
-	err       chan error
 }
 
-func newSocksProxyServer(ctx context.Context, addr string, socksAuth *auth.Auth) *socks5Server {
-	pv := ctx.Value(ctxv.SSLocalContextKey).(*ctxv.ContextPassValue)
-	sp := &socks5Server{
+func newSocksProxyServer(addr string, socksAuth *Auth) *socks5Server {
+	return &socks5Server{
 		addr:      addr,
 		socksAuth: socksAuth,
-		ruler:     pv.R,
-		pool:      bufferpool.NewBufferPool(constant.MaxBufferSize),
-		err:       make(chan error, 1),
+		pool:      bufferpool.NewBufferPool(constant.MaxSocksBufferSize),
 	}
-
-	pv.MAP.Range(func(name, value any) bool {
-		v := value.(ctxv.V)
-		relayer := transport.DstAddrRelayer{
-			DstAddr:          v.Addr,
-			TCPRelayer:       transport.NewTCPRelayer(constant.TCPSSLocalToSSServer, v.Type, v.Options, nil, v.TcpConnBound),
-			TCPDirectRelayer: transport.NewTCPDirectRelayer(),
-		}
-		// UDP relay only supports default transport type
-		if v.Type == transport.Default {
-			relayer.UDPRelayer = transport.NewUDPRelayer(constant.UDPSSLocalToSSServer, v.Type, nil, v.UdpConnBound)
-			relayer.UDPDirectRelayer = transport.NewUDPDirectRelayer()
-			sp.udp = true
-		}
-		sp.relayers.Store(name, relayer)
-		return true
-	})
-
-	if pv.MAP.Size() == 0 && pv.R.RuleMode == dns.Direct {
-		sp.relayers.Store("", transport.DstAddrRelayer{
-			TCPDirectRelayer: transport.NewTCPDirectRelayer(),
-			UDPDirectRelayer: transport.NewUDPDirectRelayer(),
-		})
-	}
-	return sp
 }
 
 func (s *socks5Server) Build() server.Server {
 	s.Server = server.NewTcpServer(s.addr, s, server.Socks)
-	if s.udp {
-		s.udpSrv = server.NewUdpServer(s.addr, s, server.Socks)
-	}
 	return s
 }
 
-func (s *socks5Server) Start() {
-	if s.udp {
-		go s.udpSrv.Start()
-	}
-	s.Server.Start()
-}
+func (s *socks5Server) Start() { s.Server.Start() }
 
-func (s *socks5Server) Error() chan error {
-	if s.udp {
-		if udpErr := <-s.udpSrv.Error(); udpErr != nil {
-			s.err <- udpErr
-			return s.err
-		}
-	}
-	s.err = s.Server.Error()
-	return s.err
-}
+func (s *socks5Server) Error() chan error { return s.Server.Error() }
 
-func (s *socks5Server) Close() error {
-	if s.udp {
-		s.udpSrv.Close()
-	}
-	return s.Server.Close()
-}
+func (s *socks5Server) Close() error { return s.Server.Close() }
 
 func (s *socks5Server) ServeTCP(conn net.Conn) {
 	dstAddr, cmd, err := s.handshake(conn)
-	if err == nil && cmd == constant.Connect {
-		err = s.ruler.Select(&s.relayers, conn, dstAddr)
-	}
 	if err != nil {
-		logx.ErrorBy(err)
+		logger.Logger.ErrorBy(err)
+		return
 	}
-}
-
-func (s *socks5Server) ServeUDP(conn net.PacketConn) {
-	if err := s.ruler.SelectOne(&s.relayers, conn, ""); err != nil {
-		logx.ErrorBy(err)
+	if cmd == constant.Connect {
+		proxy, err := rule.MatchRuler.Select()
+		if err != nil {
+			logger.Logger.ErrorBy(err)
+			return
+		}
+		if err = selector.ProxySelector.Select(proxy)(conn, dstAddr); err != nil {
+			logger.Logger.ErrorBy(err)
+		}
 	}
 }
 
@@ -131,26 +75,26 @@ func (s *socks5Server) negotiate(conn net.Conn) error {
 	// | 1  |    1     | 1 to 255 |
 	// +----+----------+----------+
 	version, nMethods, _ := (*buf)[0], int((*buf)[1]), (*buf)[2:n]
-	if version != constant.Socks5Version05 {
+	if version != 0x05 {
 		return constant.ErrVersion5Invalid
 	}
 	if nMethods < 0 {
 		return constant.ErrUnsupportedMethod
 	}
 
-	method := constant.MethodNoAuthRequired
+	method := 0x00
 	if s.socksAuth != nil {
-		method = constant.MethodUsernamePassword
+		method = 0x02
 	}
 	// +----+--------+
 	// |VER | METHOD |
 	// +----+--------+
 	// | 1  |   1    |
 	// +----+--------+
-	(*buf)[0], (*buf)[1] = constant.Socks5Version05, byte(method)
+	(*buf)[0], (*buf)[1] = 0x05, byte(method)
 	conn.Write((*buf)[:2])
 
-	if method == constant.MethodUsernamePassword {
+	if method == 0x02 {
 		return s.auth(conn, buf)
 	}
 	return nil
@@ -172,7 +116,7 @@ func (s *socks5Server) auth(conn net.Conn, buf *[]byte) error {
 	pLen := int((*buf)[2+uLen])
 	passWd := string((*buf)[n-pLen : n])
 
-	if version != constant.Socks5Version01 {
+	if version != 0x01 {
 		return constant.ErrVersion1Invalid
 	}
 
@@ -181,13 +125,13 @@ func (s *socks5Server) auth(conn net.Conn, buf *[]byte) error {
 	// +----+--------+
 	// | 1  |   1    |
 	// +----+--------+
-	(*buf)[0] = constant.Socks5Version01
+	(*buf)[0] = 0x01
 	if s.socksAuth != nil && s.socksAuth.Validate(uName, passWd) {
-		(*buf)[1] = constant.Succeed
+		(*buf)[1] = 0x00
 		conn.Write((*buf)[:2])
 		return nil
 	}
-	(*buf)[1] = constant.GeneralSocksServerFailure
+	(*buf)[1] = 0x01
 	conn.Write((*buf)[:2])
 	return constant.ErrAuthFailure
 }
@@ -208,17 +152,18 @@ func (s *socks5Server) request(conn net.Conn) (addr string, cmd byte, err error)
 	// +----+-----+-------+------+----------+----------+
 	version, _cmd, dstAddr := (*buf)[0], (*buf)[1], address.ParseAddress3((*buf)[3:n])
 
-	if version != constant.Socks5Version05 {
+	if version != 0x05 {
 		s.pool.Put(buf)
 		err = constant.ErrVersion5Invalid
 		return
 	}
 	cmd = _cmd
 
+	// the host may be a fake ip address or real ip address
 	host := dstAddr.Host()
-	// if tun mode is enabled, use fake dns to reverse lookup domain name from fake ip address
-	if resolver.DefaultResolver.IsFakeIPMode() {
-		// whether the host is a fake ip address
+	// if tun mode is enabled, the host may be a fake ip address
+	// so we need to resolve the domain name
+	if resolver.DefaultResolver.IsEnhancerMode() {
 		if ip, err := netip.ParseAddr(host); err == nil {
 			record := resolver.DefaultResolver.FindByIP(ip)
 			if record != nil {
@@ -227,8 +172,8 @@ func (s *socks5Server) request(conn net.Conn) (addr string, cmd byte, err error)
 		}
 	}
 
-	if s.ruler.Match(&host) {
-		s.handleFail(conn, constant.ConnectionNotAllowedByRuleset)
+	if !rule.MatchRuler.Match(&host) {
+		s.handleFail(conn, 0x02)
 		err = constant.ErrRuleMatchDropped
 		return
 	}
@@ -243,10 +188,9 @@ func (s *socks5Server) request(conn net.Conn) (addr string, cmd byte, err error)
 		if err = s.handleCmdUdpAssociate(conn, buf); err != nil {
 			return
 		}
-	//case constant.Bind:
 	default:
 		s.pool.Put(buf)
-		s.handleFail(conn, constant.CommandNotSupported)
+		s.handleFail(conn, 0x07)
 		err = constant.ErrUnsupportedReqCmd
 		return
 	}
@@ -267,9 +211,7 @@ func (s *socks5Server) handleCmdConnect(conn net.Conn, buf *[]byte) error {
 	// | 1  |  1  | X'00' |  1   | Variable |    2     |
 	// +----+-----+-------+------+----------+----------+
 
-	(*buf)[0] = constant.Socks5Version05
-	(*buf)[1] = constant.Succeed
-	(*buf)[2] = 0x00
+	(*buf)[0], (*buf)[1], (*buf)[2] = 0x05, 0x00, 0x00
 	// the bind address and port should be empty
 	bindAddr := address.ParseAddress0("0.0.0.0", 0)
 	copy((*buf)[3:], bindAddr)
@@ -285,17 +227,23 @@ func (s *socks5Server) handleCmdUdpAssociate(conn net.Conn, buf *[]byte) error {
 	// | 1  |  1  | X'00' |  1   | Variable |    2     |
 	// +----+-----+-------+------+----------+----------+
 
-	(*buf)[0] = constant.Socks5Version05
-	(*buf)[1] = constant.Succeed
-	(*buf)[2] = 0x00
-	bindAddr := address.ParseAddress1(s.addr)
+	dstConn, err := transport.ListenLocalUDP()
+	if err != nil {
+		return err
+	}
+	defer dstConn.Close()
+
+	(*buf)[0], (*buf)[1], (*buf)[2] = 0x05, 0x00, 0x00
+
+	_, port, _ := net.SplitHostPort(dstConn.LocalAddr().String())
+	bindAddr := address.ParseAddress1("127.0.0.1:" + port)
+
 	copy((*buf)[3:], bindAddr)
 	conn.Write((*buf)[:3+len(bindAddr)])
 	s.pool.Put(buf)
 
-	tcpDoneChan := make(chan error)
 	go func() {
-		// wait for tcp connection to closed
+		// wait for the tcp connection to close
 		buf := make([]byte, 1)
 		for {
 			_, err := conn.Read(buf)
@@ -303,15 +251,18 @@ func (s *socks5Server) handleCmdUdpAssociate(conn net.Conn, buf *[]byte) error {
 				if err == io.EOF {
 					err = nil
 				}
-				tcpDoneChan <- err
 				return
 			}
 		}
 	}()
 
-	return <-tcpDoneChan
+	proxy, err := rule.MatchRuler.Select()
+	if err != nil {
+		return err
+	}
+	return selector.ProxySelector.SelectPacket(proxy)(dstConn, "")
 }
 
 func (s *socks5Server) handleFail(conn net.Conn, errno byte) {
-	conn.Write([]byte{constant.Socks5Version05, errno, 0x00})
+	conn.Write([]byte{0x05, errno, 0x00})
 }

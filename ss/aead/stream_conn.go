@@ -9,10 +9,8 @@ import (
 	"net"
 
 	cipherx "github.com/josexy/mini-ss/cipher"
+	"github.com/josexy/mini-ss/constant"
 )
-
-// uint16 using 2 bytes to store payload size
-const maxPayloadBufferSize = 16 * 1024
 
 type streamReader struct {
 	net.Conn
@@ -26,7 +24,7 @@ func newStreamReader(c net.Conn, cipher cipher.AEAD) *streamReader {
 	return &streamReader{
 		Conn:  c,
 		AEAD:  cipher,
-		buf:   make([]byte, maxPayloadBufferSize+cipher.Overhead()),
+		buf:   make([]byte, constant.MaxTcpBufferSize+cipher.Overhead()),
 		nonce: make([]byte, cipher.NonceSize()),
 	}
 }
@@ -46,7 +44,7 @@ func (r *streamReader) read() (int, error) {
 	}
 
 	n := int(buf[0])<<8 | int(buf[1]&0xFF)
-	if n > maxPayloadBufferSize+r.Overhead() {
+	if n > constant.MaxTcpBufferSize+r.Overhead() {
 		return 0, errors.New("payload buffer size overflow")
 	}
 	// reset buffer
@@ -128,7 +126,7 @@ func newStreamWriter(c net.Conn, cipher cipher.AEAD) *streamWriter {
 		AEAD: cipher,
 		// the payload size of 2 bytes is 2+cipher.Overhead() after encryption
 		// the maximum size of encrypted payload data is maxPayloadBufferSize+cipher.Overhead()
-		buf:   make([]byte, 2+cipher.Overhead()+maxPayloadBufferSize+cipher.Overhead()),
+		buf:   make([]byte, 2+cipher.Overhead()+constant.MaxTcpBufferSize+cipher.Overhead()),
 		nonce: make([]byte, cipher.NonceSize()), // nonce size
 	}
 }
@@ -144,7 +142,7 @@ func (w *streamWriter) ReadFrom(r io.Reader) (n int64, err error) {
 		// [size] [payload data]
 		buf := w.buf[:]
 		// buffer to store ciphertext
-		dataBuf := buf[2+w.Overhead() : 2+w.Overhead()+maxPayloadBufferSize]
+		dataBuf := buf[2+w.Overhead() : 2+w.Overhead()+constant.MaxTcpBufferSize]
 		// store payload data into buffer[2:]
 		// the buf[0] and buf[1] store data size
 		nr, er := r.Read(dataBuf)

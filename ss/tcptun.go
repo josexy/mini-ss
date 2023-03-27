@@ -1,48 +1,25 @@
 package ss
 
 import (
-	"context"
 	"net"
 
-	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/dns"
+	"github.com/josexy/mini-ss/rule"
+	"github.com/josexy/mini-ss/selector"
 	"github.com/josexy/mini-ss/server"
-	"github.com/josexy/mini-ss/socks/constant"
-	"github.com/josexy/mini-ss/ss/ctxv"
-	"github.com/josexy/mini-ss/transport"
-	"github.com/josexy/mini-ss/util"
-	"github.com/josexy/mini-ss/util/ordmap"
+	"github.com/josexy/mini-ss/util/logger"
 )
 
 type tcpTunServer struct {
 	server.Server
 	addr       string
 	RemoteAddr string
-	relayers   ordmap.OrderedMap
-	ruler      *dns.Ruler
 }
 
-func newTcpTunServer(ctx context.Context, localAddr, remoteAddr string) server.Server {
-	pv := ctx.Value(ctxv.SSLocalContextKey).(*ctxv.ContextPassValue)
-	tt := &tcpTunServer{
+func newTcpTunServer(localAddr, remoteAddr string) server.Server {
+	return &tcpTunServer{
 		addr:       localAddr,
 		RemoteAddr: remoteAddr,
-		ruler:      pv.R,
 	}
-	pv.MAP.Range(func(name, value any) bool {
-		v := value.(ctxv.V)
-		tt.relayers.Store(name, transport.DstAddrRelayer{
-			DstAddr:          v.Addr,
-			TCPRelayer:       transport.NewTCPRelayer(constant.TCPSSLocalToSSServer, v.Type, v.Options, nil, v.TcpConnBound),
-			TCPDirectRelayer: transport.NewTCPDirectRelayer(),
-		})
-		return true
-	})
-
-	if pv.MAP.Size() == 0 && pv.R.RuleMode == dns.Direct {
-		tt.relayers.Store("", transport.DstAddrRelayer{TCPDirectRelayer: transport.NewTCPDirectRelayer()})
-	}
-	return tt
 }
 
 func (tt *tcpTunServer) Build() server.Server {
@@ -51,11 +28,16 @@ func (tt *tcpTunServer) Build() server.Server {
 }
 
 func (tt *tcpTunServer) ServeTCP(conn net.Conn) {
-	host, _ := util.SplitHostPort(tt.RemoteAddr)
-	if tt.ruler.Match(&host) {
+	host, _, _ := net.SplitHostPort(tt.RemoteAddr)
+	if !rule.MatchRuler.Match(&host) {
 		return
 	}
-	if err := tt.ruler.Select(&tt.relayers, conn, tt.RemoteAddr); err != nil {
-		logx.ErrorBy(err)
+	proxy, err := rule.MatchRuler.Select()
+	if err != nil {
+		logger.Logger.ErrorBy(err)
+		return
+	}
+	if err = selector.ProxySelector.Select(proxy)(conn, tt.RemoteAddr); err != nil {
+		logger.Logger.ErrorBy(err)
 	}
 }

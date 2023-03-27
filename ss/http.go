@@ -3,7 +3,6 @@ package ss
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/base64"
 	"errors"
 	"io"
@@ -11,15 +10,18 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/auth"
-	"github.com/josexy/mini-ss/dns"
+	"github.com/josexy/mini-ss/bufferpool"
+	"github.com/josexy/mini-ss/constant"
+	"github.com/josexy/mini-ss/rule"
+	"github.com/josexy/mini-ss/selector"
 	"github.com/josexy/mini-ss/server"
-	"github.com/josexy/mini-ss/socks/constant"
-	"github.com/josexy/mini-ss/ss/ctxv"
 	"github.com/josexy/mini-ss/sticky"
-	"github.com/josexy/mini-ss/transport"
-	"github.com/josexy/mini-ss/util/ordmap"
+	"github.com/josexy/mini-ss/util/logger"
+)
+
+var (
+	errBadRequest = errors.New("http-proxy: bad request url scheme")
+	errAuthFailed = errors.New("http-proxy: user authentication failed")
 )
 
 var (
@@ -33,7 +35,7 @@ var (
 		"Keep-Alive",
 		"Proxy-Authenticate",
 		"Proxy-Authorization",
-		"Te", // canonicalized version of "TE"
+		"Te",
 		"Trailers",
 		"Transfer-Encoding",
 		"Upgrade",
@@ -41,24 +43,27 @@ var (
 )
 
 type httpReqHandler struct {
-	httpAuth *auth.Auth
-	DstAddr  string
-	*dns.Ruler
+	dstAddr  string
+	httpAuth *Auth
+	pool     *bufferpool.BufferPool
 }
 
-func newhttpReqHandler(auth *auth.Auth) *httpReqHandler {
+func newHttpReqHandler(auth *Auth) *httpReqHandler {
 	return &httpReqHandler{
 		httpAuth: auth,
+		pool:     bufferpool.NewBytesBufferPool(),
 	}
 }
 
 func (r *httpReqHandler) ReadRequest(relayer net.Conn) (net.Conn, error) {
-	rbuf := bytes.Buffer{}
-	req, err := http.ReadRequest(bufio.NewReader(io.TeeReader(relayer, &rbuf)))
+	rbuf := r.pool.GetBytesBuffer()
+	defer r.pool.PutBytesBuffer(rbuf)
+
+	req, err := http.ReadRequest(bufio.NewReader(io.TeeReader(relayer, rbuf)))
 	if err != nil {
 		return relayer, err
 	}
-	return r.readRequest(relayer, req, &rbuf)
+	return r.readRequest(relayer, req, rbuf)
 }
 
 func (r *httpReqHandler) parseHostPort(req *http.Request) (host, port string) {
@@ -78,7 +83,7 @@ func (r *httpReqHandler) parseHostPort(req *http.Request) (host, port string) {
 func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request, rbuf *bytes.Buffer) (net.Conn, error) {
 	host, port := r.parseHostPort(req)
 
-	if r.Ruler.Match(&host) {
+	if !rule.MatchRuler.Match(&host) {
 		return nil, constant.ErrRuleMatchDropped
 	}
 
@@ -86,7 +91,7 @@ func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request, rbuf *byt
 	errResp := &http.Response{
 		ProtoMajor: 1,
 		ProtoMinor: 1,
-		Header:     http.Header{},
+		Header:     make(http.Header),
 	}
 
 	errResp.Header.Add("Proxy-Agent", proxyAgent)
@@ -95,7 +100,7 @@ func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request, rbuf *byt
 	if req.Method != http.MethodConnect && req.URL.Scheme != "http" {
 		errResp.StatusCode = http.StatusBadRequest
 		errResp.Write(conn)
-		return conn, errors.New("http-proxy: bad request url scheme")
+		return conn, errBadRequest
 	}
 
 	val := req.Header.Get("Proxy-Authorization")
@@ -113,7 +118,7 @@ func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request, rbuf *byt
 		errResp.Header.Add("Connection", "close")
 		errResp.Header.Add("Proxy-Connection", "close")
 		errResp.Write(conn)
-		return conn, errors.New("http-proxy: user auth failed")
+		return conn, errAuthFailed
 	}
 
 	if req.Method != http.MethodConnect {
@@ -137,7 +142,7 @@ func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request, rbuf *byt
 		// CONNECT www.example.com:443 HTTP/1.1
 		conn.Write(connectionEstablished)
 	}
-	r.DstAddr = net.JoinHostPort(host, port)
+	r.dstAddr = net.JoinHostPort(host, port)
 	return conn, nil
 }
 
@@ -149,34 +154,15 @@ func delHopReqHeaders(header http.Header) {
 
 type httpProxyServer struct {
 	server.Server
-	addr     string
-	handler  *httpReqHandler
-	relayers ordmap.OrderedMap
-	ruler    *dns.Ruler
+	addr    string
+	handler *httpReqHandler
 }
 
-func newHttpProxyServer(ctx context.Context, addr string, httpAuth *auth.Auth) *httpProxyServer {
-	pv := ctx.Value(ctxv.SSLocalContextKey).(*ctxv.ContextPassValue)
-	hp := &httpProxyServer{
-		ruler:   pv.R,
+func newHttpProxyServer(addr string, httpAuth *Auth) *httpProxyServer {
+	return &httpProxyServer{
 		addr:    addr,
-		handler: newhttpReqHandler(httpAuth),
+		handler: newHttpReqHandler(httpAuth),
 	}
-	hp.handler.Ruler = pv.R
-	pv.MAP.Range(func(name, value any) bool {
-		v := value.(ctxv.V)
-		hp.relayers.Store(name, transport.DstAddrRelayer{
-			DstAddr:          v.Addr,
-			TCPRelayer:       transport.NewTCPRelayer(constant.TCPSSLocalToSSServer, v.Type, v.Options, nil, v.TcpConnBound),
-			TCPDirectRelayer: transport.NewTCPDirectRelayer(),
-		})
-		return true
-	})
-
-	if pv.MAP.Size() == 0 && pv.R.RuleMode == dns.Direct {
-		hp.relayers.Store("", transport.DstAddrRelayer{TCPDirectRelayer: transport.NewTCPDirectRelayer()})
-	}
-	return hp
 }
 
 func (hp *httpProxyServer) Build() server.Server {
@@ -185,14 +171,20 @@ func (hp *httpProxyServer) Build() server.Server {
 }
 
 func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
-	// read the request and parse destination host address
+	// read the request and resolve the target host address
 	var err error
 	if conn, err = hp.handler.ReadRequest(conn); err != nil {
-		logx.ErrorBy(err)
+		logger.Logger.ErrorBy(err)
 		return
 	}
 
-	if err = hp.ruler.Select(&hp.relayers, conn, hp.handler.DstAddr); err != nil {
-		logx.ErrorBy(err)
+	proxy, err := rule.MatchRuler.Select()
+	if err != nil {
+		logger.Logger.ErrorBy(err)
+		return
+	}
+
+	if err = selector.ProxySelector.Select(proxy)(conn, hp.handler.dstAddr); err != nil {
+		logger.Logger.ErrorBy(err)
 	}
 }

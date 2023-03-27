@@ -3,11 +3,11 @@ package ss
 import (
 	"time"
 
-	"github.com/josexy/mini-ss/auth"
 	"github.com/josexy/mini-ss/dns"
+	"github.com/josexy/mini-ss/enhancer"
+	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/ssr"
 	"github.com/josexy/mini-ss/transport"
-	"github.com/josexy/mini-ss/tun"
 )
 
 type serverOptions struct {
@@ -16,23 +16,22 @@ type serverOptions struct {
 	method    string
 	password  string
 	transport transport.Type
+	udp       bool
 	opts      transport.Options
 	ssr       bool
 	ssrOpt    ssr.ShadowsocksROption
 }
 
 type localOptions struct {
-	socksAddr   string
-	httpAddr    string
-	mixedAddr   string
-	socksAuth   *auth.Auth
-	httpAuth    *auth.Auth
-	tcpTunAddr  [][]string
-	udpTunAddr  [][]string
-	systemProxy bool
-	enableTun   bool
-	tunCfg      tun.TunConfig
-	ruler       *dns.Ruler
+	socksAddr      string
+	httpAddr       string
+	mixedAddr      string
+	socksAuth      *Auth
+	httpAuth       *Auth
+	tcpTunAddr     [][]string
+	systemProxy    bool
+	enableTun      bool
+	enhancerConfig enhancer.EnhancerConfig
 }
 
 type ssOptions struct {
@@ -55,25 +54,25 @@ func WithEnableTun() SSOption {
 
 func WithTunName(name string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.tunCfg.Name = name
+		so.localOpts.enhancerConfig.Tun.Name = name
 	})
 }
 
 func WithTunCIDR(cidr string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.tunCfg.Addr = cidr
+		so.localOpts.enhancerConfig.Tun.Addr = cidr
 	})
 }
 
 func WithTunMTU(mtu uint32) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.tunCfg.MTU = mtu
+		so.localOpts.enhancerConfig.Tun.MTU = mtu
 	})
 }
 
 func WithFakeDnsServer(addr string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.tunCfg.FakeDnsAddr = addr
+		so.localOpts.enhancerConfig.FakeDNS = addr
 	})
 }
 
@@ -119,6 +118,12 @@ func WithServerName(name string) SSOption {
 func WithServerAddr(addr string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.serverOpts[0].addr = addr
+	})
+}
+
+func WithUDPRelay(enable bool) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].udp = enable
 	})
 }
 
@@ -182,9 +187,9 @@ func WithPassword(password string) SSOption {
 	})
 }
 
-func WithRuler(ruler *dns.Ruler) SSOption {
+func WithRuler(ruler *rule.Ruler) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.ruler = ruler
+		rule.MatchRuler = ruler
 	})
 }
 
@@ -197,7 +202,7 @@ func WithSystemProxy() SSOption {
 
 func WithSocksUserInfo(username, password string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.socksAuth = auth.NewAuth(username, password)
+		so.localOpts.socksAuth = NewAuth(username, password)
 	})
 }
 
@@ -215,7 +220,7 @@ func WithHttpAddr(addr string) SSOption {
 
 func WithHttpUserInfo(username, password string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.httpAuth = auth.NewAuth(username, password)
+		so.localOpts.httpAuth = NewAuth(username, password)
 	})
 }
 
@@ -229,12 +234,6 @@ func WithMixedAddr(addr string) SSOption {
 func WithTcpTunAddr(addrs [][]string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.localOpts.tcpTunAddr = addrs
-	})
-}
-
-func WithUdpTunAddr(addrs [][]string) SSOption {
-	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.udpTunAddr = addrs
 	})
 }
 
@@ -252,15 +251,9 @@ func WithObfsHost(host string) SSOption {
 	})
 }
 
-func WithObfsTLS() SSOption {
-	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.ObfsOptions).TLS = true
-	})
-}
-
 func WithKcpTransport() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].transport = transport.KCP
+		so.serverOpts[0].transport = transport.Kcp
 		clone := *transport.DefaultKcpOptions
 		so.serverOpts[0].opts = &clone
 	})
@@ -398,7 +391,7 @@ func WithKcpConns(conns int) SSOption {
 
 func WithQuicTransport() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].transport = transport.QUIC
+		so.serverOpts[0].transport = transport.Quic
 		clone := *transport.DefaultQuicOptions
 		so.serverOpts[0].opts = &clone
 	})

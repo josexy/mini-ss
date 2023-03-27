@@ -6,13 +6,10 @@ import (
 	"github.com/oschwald/geoip2-golang"
 )
 
-var (
-	db   *geoip2.Reader
-	Data []byte
-)
+var db *geoip2.Reader
 
-func OpenDB() (err error) {
-	db, err = geoip2.FromBytes(Data)
+func OpenDB(path string) (err error) {
+	db, err = geoip2.Open(path)
 	if err != nil {
 		return err
 	}

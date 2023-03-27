@@ -16,18 +16,14 @@ func GenCertificate() (tls.Certificate, error) {
 	if err != nil {
 		return tls.Certificate{}, err
 	}
-	serialNumber, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	template := x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Organization: []string{
-				"mini-ss",
-			},
-		},
+		SerialNumber:          big.NewInt(int64(time.Now().UnixNano())),
+		Subject:               pkix.Name{Organization: []string{"mini-ss"}},
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().Add(time.Hour * 24 * 365),
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		SignatureAlgorithm:    x509.SHA256WithRSA,
 		BasicConstraintsValid: true,
 	}
 	certBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priKey.PublicKey, priKey)

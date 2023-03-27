@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# configure local DNS server manually
 function updateDNS {
     case "$1" in
     g | google)

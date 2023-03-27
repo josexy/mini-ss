@@ -1,10 +1,11 @@
 package main
 
 import (
+	"log"
 	"net"
 	"os"
 
-	"github.com/josexy/logx"
+	"github.com/josexy/mini-ss/relay"
 	"github.com/josexy/mini-ss/server"
 	"github.com/josexy/mini-ss/transport"
 )
@@ -12,14 +13,14 @@ import (
 type customSrv struct{}
 
 func (customSrv) ServeQUIC(conn net.Conn) {
-	logx.Info("%s", conn.RemoteAddr().String())
+	log.Println(conn.RemoteAddr().String())
 	tcpConn, err := transport.DialTCP("127.0.0.1:10002")
 	if err != nil {
-		logx.ErrorBy(err)
+		log.Println(err)
 		return
 	}
 	defer tcpConn.Close()
-	transport.RelayTCP(conn, tcpConn)
+	relay.RelayTCP(conn, tcpConn)
 }
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 	go srv.Start()
 
 	if err := <-srv.Error(); err != nil {
-		logx.FatalBy(err)
+		panic(err)
 	}
 
 	<-interrupt

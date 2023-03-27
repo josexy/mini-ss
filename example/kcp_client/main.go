@@ -1,10 +1,11 @@
 package main
 
 import (
+	"log"
 	"net"
 	"os"
 
-	"github.com/josexy/logx"
+	"github.com/josexy/mini-ss/relay"
 	"github.com/josexy/mini-ss/server"
 	"github.com/josexy/mini-ss/transport"
 )
@@ -12,17 +13,18 @@ import (
 type echoSrv struct{}
 
 // multiplexing kcp dialer
-var dialer = transport.NewDialer(transport.KCP, transport.DefaultKcpOptions)
+var dialer = transport.NewDialer(transport.Kcp, transport.DefaultKcpOptions)
 
 func (echoSrv) ServeTCP(conn net.Conn) {
-	logx.Info("%s", conn.RemoteAddr().String())
+	log.Println(conn.RemoteAddr().String())
 	kcpConn, err := dialer.Dial("127.0.0.1:10001")
 	if err != nil {
-		logx.FatalBy(err)
+		log.Println(err)
+		return
 	}
 	// the Close() don't close the raw kcp connection, it only closes the smux.Stream()
 	defer kcpConn.Close()
-	transport.RelayTCP(conn, kcpConn)
+	relay.RelayTCP(conn, kcpConn)
 }
 
 func main() {
@@ -32,7 +34,7 @@ func main() {
 	go srv.Start()
 
 	if err := <-srv.Error(); err != nil {
-		logx.FatalBy(err)
+		panic(err)
 	}
 
 	<-interrupt

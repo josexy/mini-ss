@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/socks"
+	"github.com/josexy/mini-ss/client"
 	"github.com/josexy/mini-ss/transport"
 )
 
@@ -43,9 +42,11 @@ func main() {
 func udpTunMain() {
 	conn, err := transport.DialUDP(os.Args[2])
 	if err != nil {
-		logx.FatalBy(err)
+		panic(err)
 	}
 	done := make(chan error)
+	defer conn.Close()
+
 	go func() {
 		buf := make([]byte, 65535)
 		for {
@@ -55,52 +56,52 @@ func udpTunMain() {
 				done <- err
 				return
 			}
-			fmt.Println(string(buf[:n]))
+			log.Println(string(buf[:n]))
 		}
 	}()
 	for i := 0; i < 10; i++ {
 		conn.SetWriteDeadline(time.Now().Add(time.Second * 2))
 		_, err = conn.Write([]byte("hello server " + time.Now().String()))
 		if err != nil {
-			logx.ErrorBy(err)
+			log.Println(err)
 			return
 		}
 	}
 	err = <-done
-	logx.ErrorBy(err)
+	log.Println(err)
 }
 
 // go run main.go sock 127.0.0.1:10086 127.0.0.1:2003
 
 func socksMain() {
-	proxyCli := socks.NewSocks5Client(os.Args[2])
+	proxyCli := client.NewSocks5Client(os.Args[2])
+	proxyCli.SetSocksAuth("123", "123")
 	defer proxyCli.Close()
-
 	conn, err := proxyCli.DialUDP(context.Background(), os.Args[3])
 	if err != nil {
-		logx.FatalBy(err)
+		panic(err)
 	}
 	done := make(chan error)
 	go func() {
 		buf := make([]byte, 65535)
 		for {
-			conn.SetReadDeadline(time.Now().Add(time.Second * 2))
+			conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 			n, err := conn.Read(buf)
 			if err != nil {
 				done <- err
 				return
 			}
-			fmt.Println(string(buf[:n]))
+			log.Println(string(buf[:n]))
 		}
 	}()
 	for i := 0; i < 10; i++ {
-		conn.SetWriteDeadline(time.Now().Add(time.Second * 2))
+		conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		_, err = conn.Write([]byte("hello server " + time.Now().String()))
 		if err != nil {
-			logx.ErrorBy(err)
+			log.Println(err)
 			return
 		}
 	}
 	err = <-done
-	logx.ErrorBy(err)
+	log.Println(err)
 }

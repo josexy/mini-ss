@@ -5,9 +5,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/geoip"
+	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/server"
 	"github.com/josexy/mini-ss/ss"
 )
@@ -16,8 +15,10 @@ func main() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	ruler := dns.NewRuler(dns.Global, "", "", nil)
-	geoip.Data, _ = os.ReadFile("Country.mmdb")
+	ruler := rule.NewRuler(rule.Global, "", "", nil)
+	if err := geoip.OpenDB("Country.mmdb"); err != nil {
+		panic(err)
+	}
 
 	srv := ss.NewShadowsocksClient(
 		ss.WithServerCompose(
@@ -33,7 +34,7 @@ func main() {
 	done := make(chan struct{})
 	go func() {
 		if err := srv.Start(); err != nil && err != server.ErrServerClosed {
-			logx.ErrorBy(err)
+			panic(err)
 		}
 		done <- struct{}{}
 	}()

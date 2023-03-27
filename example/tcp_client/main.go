@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -10,8 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/socks"
+	"github.com/josexy/mini-ss/client"
 	"github.com/josexy/mini-ss/transport"
 )
 
@@ -52,17 +52,17 @@ func main() {
 func tcpTunMain() {
 	conn, err := transport.DialTCP(os.Args[2])
 	if err != nil {
-		logx.FatalBy(err)
+		panic(err)
 	}
 	defer conn.Close()
 	for i := 0; i < 10; i++ {
 		n, err := conn.Write([]byte("hello tcp server\n"))
-		logx.Debug("sent bytes: %d, err: %v", n, err)
+		log.Printf("sent bytes: %d, err: %v", n, err)
 	}
 }
 
 func socksMain() {
-	proxyCli := socks.NewSocks5Client("127.0.0.1:10086")
+	proxyCli := client.NewSocks5Client("127.0.0.1:10086")
 	proxyCli.SetSocksAuth("test", "12345678")
 	defer proxyCli.Close()
 
@@ -78,12 +78,12 @@ func socksMain() {
 	fn := func(url string) {
 		resp, err := cli.Get(url)
 		if err != nil {
-			logx.ErrorBy(err)
+			log.Println(err)
 			return
 		}
 		defer resp.Body.Close()
 		data, _ := io.ReadAll(resp.Body)
-		logx.Debug("=> data [%s] len: %d\n", data[:20], len(data))
+		log.Printf("=> data [%s] len: %d\n", data[:20], len(data))
 	}
 	urls := []string{
 		"https://www.baidu.com",
@@ -112,12 +112,12 @@ func httpMain() {
 		}
 		resp, err := cli.Get(u)
 		if err != nil {
-			logx.ErrorBy(err)
+			log.Println(err)
 			return
 		}
 		defer resp.Body.Close()
 		data, _ := io.ReadAll(resp.Body)
-		logx.Debug("url: %s => code [%s] len: %d\n", u, resp.StatusCode, len(data))
+		log.Printf("url: %s => code [%d] len: %d", u, resp.StatusCode, len(data))
 	}
 	urls := []string{
 		"http://httpbin.org/get",
@@ -134,7 +134,7 @@ func httpMain() {
 func echoMain() {
 	conn, err := transport.DialTCP("127.0.0.1:10000")
 	if err != nil {
-		logx.FatalBy(err)
+		panic(err)
 	}
 
 	wg := sync.WaitGroup{}

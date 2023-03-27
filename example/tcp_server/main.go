@@ -2,10 +2,10 @@ package main
 
 import (
 	"bytes"
+	"log"
 	"net"
 	"os"
 
-	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/server"
 )
 
@@ -16,16 +16,16 @@ func main() {
 type echoSrv struct{}
 
 func (echoSrv) ServeTCP(conn net.Conn) {
-	logx.Info("%s", conn.RemoteAddr().String())
+	log.Println(conn.RemoteAddr().String())
 	buf := make([]byte, 1024)
 	for {
 		n, err := conn.Read(buf)
 		if err != nil {
-			logx.ErrorBy(err)
+			log.Println(err)
 			break
 		}
 		xbuf := buf[:n]
-		logx.Info("-> %d %s", n, string(xbuf))
+		log.Printf("-> %d %s", n, string(xbuf))
 		conn.Write(append(bytes.TrimRight(xbuf, "\r\n"), " <-- echo from server\n"...))
 	}
 }
@@ -39,7 +39,7 @@ func echoMain() {
 	go srv.Start()
 
 	if err := <-srv.Error(); err != nil {
-		logx.FatalBy(err)
+		panic(err)
 	}
 
 	<-interrupt

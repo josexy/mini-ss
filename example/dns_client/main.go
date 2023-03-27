@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/josexy/logx"
 	"github.com/miekg/dns"
 )
 
@@ -65,16 +65,16 @@ func httpMain() {
 	resp, err := httpClient.Get(domain)
 
 	if err != nil {
-		logx.FatalBy(err)
+		panic(err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logx.FatalBy(err)
+		panic(err)
 	}
 
-	logx.Debug(string(body))
+	log.Println(string(body))
 }
 
 func queryMain() {
@@ -87,12 +87,12 @@ func queryMain() {
 
 	r, _, err := c.Exchange(m, os.Args[2])
 	if err != nil {
-		logx.FatalBy(err)
+		panic(err)
 	}
 	if r.Rcode != dns.RcodeSuccess {
 		return
 	}
 	for _, x := range r.Answer {
-		logx.Info(x.String())
+		log.Println(x.String())
 	}
 }

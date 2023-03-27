@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/ssr/tools"
 )
 
@@ -53,8 +52,6 @@ func (a *authAES128) initUserData() {
 		if userID, err := strconv.ParseUint(params[0], 10, 32); err == nil {
 			binary.LittleEndian.PutUint32(a.userID[:], uint32(userID))
 			a.userKey = a.hashDigest([]byte(params[1]))
-		} else {
-			logx.Debug("Wrong protocol-param for %s, only digits are expected before ':'", a.salt)
 		}
 	}
 	if len(a.userKey) == 0 {

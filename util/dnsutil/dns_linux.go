@@ -3,8 +3,8 @@ package dnsutil
 import (
 	"net"
 
-	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/util"
+	"github.com/josexy/mini-ss/util/logger"
 	"github.com/miekg/dns"
 )
 
@@ -19,7 +19,7 @@ echo "nameserver ` + addr + `" | sudo tee /etc/resolv.conf
 	if out, err := util.ExeShell(shell); err == nil {
 		oldDnsValue = out
 	} else {
-		logx.ErrorBy(err)
+		logger.Logger.ErrorBy(err)
 	}
 }
 

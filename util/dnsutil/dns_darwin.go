@@ -3,8 +3,8 @@ package dnsutil
 import (
 	"net"
 
-	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/util"
+	"github.com/josexy/mini-ss/util/logger"
 	"github.com/miekg/dns"
 )
 
@@ -34,7 +34,7 @@ updateDNS
 flushCache
 `
 	if _, err := util.ExeShell(shell); err != nil {
-		logx.ErrorBy(err)
+		logger.Logger.ErrorBy(err)
 	}
 }
 

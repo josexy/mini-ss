@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/josexy/logx"
 	cipherx "github.com/josexy/mini-ss/cipher"
 )
 
@@ -63,7 +62,6 @@ func (a *authData) putEncryptedData(b *bytes.Buffer, userKey []byte, paddings [2
 	cipherKey := cipherx.Kdf(base64.StdEncoding.EncodeToString(userKey)+salt, 16)
 	block, err := aes.NewCipher(cipherKey)
 	if err != nil {
-		logx.Warn("New cipher error: %s", err.Error())
 		return err
 	}
 	iv := bytes.Repeat([]byte{0}, 16)

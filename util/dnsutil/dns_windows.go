@@ -6,8 +6,8 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/util"
+	"github.com/josexy/mini-ss/util/logger"
 )
 
 var oldTunName string
@@ -16,7 +16,7 @@ func SetLocalDnsServer(tunName string) {
 	oldTunName = tunName
 	cmd := `netsh interface ipv4 add dnsserver "` + tunName + `" 127.0.0.1 index=1`
 	if err := util.ExeCmd(cmd); err != nil {
-		logx.ErrorBy(err)
+		logger.Logger.ErrorBy(err)
 	}
 }
 

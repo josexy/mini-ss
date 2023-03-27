@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/jaytaylor/go-hostsfile"
-	"github.com/josexy/logx"
+	"github.com/josexy/mini-ss/util/logger"
 )
 
 var (
@@ -18,11 +18,11 @@ func initHostsMap() {
 	hostsMap = make(map[string][]netip.Addr)
 	mp, err := hostsfile.ParseHosts(hostsfile.ReadHostsFile())
 	if err != nil {
-		logx.ErrorBy(err)
+		logger.Logger.ErrorBy(err)
 	}
 	for ip, hosts := range mp {
 		for _, host := range hosts {
-			logx.Info("read hosts record: [%s]->[%s]", ip, host)
+			logger.Logger.Infof("read hosts record: [%s]->[%s]", ip, host)
 			hostsMap[host] = append(hostsMap[host], netip.MustParseAddr(ip))
 		}
 	}

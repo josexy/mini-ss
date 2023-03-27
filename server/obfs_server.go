@@ -38,11 +38,7 @@ func (s *ObfsServer) Type() ServerType { return s.srv.typ }
 func (s *ObfsServer) Serve(*Conn) {}
 
 func (s *ObfsServer) serveTCP(c net.Conn) {
-	if s.opts.TLS {
-		c = transport.NewObfsTLSConn(c, s.opts.Host, true)
-	} else {
-		c = transport.NewObfsConn(c, s.opts.Host, true)
-	}
+	c = transport.NewObfsConn(c, s.opts.Host, true)
 	if s.Handler != nil {
 		s.Handler.ServeOBFS(c)
 	}

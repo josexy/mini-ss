@@ -95,7 +95,7 @@ func (s *WsServer) wsUpgrade(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	conn := newConn(transport.NewWebsocketConn(c), nil, s)
+	conn := newConn(transport.NewWebsocketConn(c), s)
 	go conn.serve()
 }
 

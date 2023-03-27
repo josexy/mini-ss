@@ -1,67 +1,59 @@
 package server
 
 import (
+	"errors"
 	"net"
 	"runtime"
+	"sync/atomic"
 
 	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/statistic"
+	"github.com/josexy/mini-ss/util/logger"
 )
 
-type Conn struct {
-	conn       net.Conn
-	packetConn net.PacketConn
-	server     Server
-	isPacket   bool
+var errClosed = errors.New("connection closed")
+
+type onceCloseConn struct {
+	net.Conn
+	closed uint32
 }
 
-func newConn(conn net.Conn, packetConn net.PacketConn, server Server) Conn {
-	if statistic.DefaultManager != nil {
-		if conn != nil {
-			// tcp tracker
-			conn = statistic.NewTcpTracker(conn,
-				conn.RemoteAddr().String(),
-				conn.LocalAddr().String(),
-				statistic.LazyContext{},
-				statistic.DefaultManager)
-		} else {
-			// udp tracker
-			packetConn = statistic.NewUdpTracker(packetConn,
-				"",
-				packetConn.LocalAddr().String(),
-				statistic.LazyContext{},
-				statistic.DefaultManager)
-		}
+func (c *onceCloseConn) Close() error {
+	if atomic.LoadUint32(&c.closed) != 0 {
+		return errClosed
 	}
-	c := Conn{
-		conn:       conn,
-		packetConn: packetConn,
-		server:     server,
-	}
-	if packetConn != nil {
-		c.isPacket = true
-	}
+	atomic.StoreUint32(&c.closed, 1)
+	return c.Conn.Close()
+}
 
-	return c
+type Conn struct {
+	conn   *onceCloseConn
+	server Server
+}
+
+func newConn(conn net.Conn, server Server) Conn {
+	return Conn{
+		conn:   &onceCloseConn{Conn: conn},
+		server: server,
+	}
 }
 
 func (c *Conn) close() error {
-	if c.isPacket {
-		return c.packetConn.Close()
-	}
 	return c.conn.Close()
 }
 
 func (c *Conn) serve() {
-	if !c.isPacket {
-		defer func() {
-			if err := recover(); err != nil {
-				buf := stackTraceBufferPool.Get()
-				n := runtime.Stack(*buf, false)
-				logx.Error("%v\n%s", err, (*buf)[:n])
-				stackTraceBufferPool.Put(buf)
-			}
-		}()
-	}
+	defer func() {
+		// if an error occurs, close the client connection
+		c.close()
+		if err := recover(); err != nil {
+			buf := stackTraceBufferPool.Get()
+			n := runtime.Stack(*buf, false)
+			logger.Logger.Error("connection recovery",
+				logx.Error("err", err.(error)),
+				logx.String("stackbuf", string((*buf)[:n])),
+			)
+			stackTraceBufferPool.Put(buf)
+		}
+	}()
 	c.server.Serve(c)
 }

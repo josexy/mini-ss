@@ -128,7 +128,7 @@ func (s *KcpServer) serve(conn net.Conn) {
 			Stream: stream,
 		}
 
-		conn := newConn(cc, nil, s)
+		conn := newConn(cc, s)
 		go conn.serve()
 	}
 }

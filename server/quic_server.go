@@ -105,7 +105,7 @@ func (s *QuicServer) serve(c quic.Connection) {
 		if err != nil {
 			return
 		}
-		conn := newConn(transport.NewQuicConn(stream, c.LocalAddr(), c.RemoteAddr()), nil, s)
+		conn := newConn(transport.NewQuicConn(stream, c.LocalAddr(), c.RemoteAddr()), s)
 		go conn.serve()
 	}
 }

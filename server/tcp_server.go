@@ -87,7 +87,7 @@ func (s *TcpServer) Start() {
 			}
 			continue
 		}
-		conn := newConn(rwc, nil, s)
+		conn := newConn(rwc, s)
 		go conn.serve()
 	}
 }

@@ -3,8 +3,6 @@ package resolver
 import (
 	"hash/adler32"
 	"net/netip"
-
-	"github.com/josexy/mini-ss/util"
 )
 
 type fakeIPPool struct {
@@ -16,7 +14,7 @@ type fakeIPPool struct {
 func newFakeIPPool(cidr string) *fakeIPPool {
 	subnet := netip.MustParsePrefix(cidr)
 	ip := subnet.Addr()
-	base := util.IPToInt(ip) + 1
+	base := ipToInt(ip) + 1
 
 	// the number of hosts
 	var mask uint32 = (0xFFFFFFFF << (32 - subnet.Bits())) & 0xFFFFFFFF
@@ -29,7 +27,7 @@ func newFakeIPPool(cidr string) *fakeIPPool {
 	flags := make([]bool, space)
 
 	// ip is used by tun
-	index := util.IPToInt(ip) - base
+	index := ipToInt(ip) - base
 	if index < space {
 		flags[index] = true
 	}
@@ -46,12 +44,12 @@ func (pool *fakeIPPool) Capacity() int {
 }
 
 func (pool *fakeIPPool) Contains(ip netip.Addr) bool {
-	index := util.IPToInt(ip) - pool.base
+	index := ipToInt(ip) - pool.base
 	return index < pool.space
 }
 
 func (pool *fakeIPPool) Release(ip netip.Addr) {
-	index := util.IPToInt(ip) - pool.base
+	index := ipToInt(ip) - pool.base
 	if index < pool.space {
 		pool.flags[index] = false
 	}
@@ -72,5 +70,14 @@ func (pool *fakeIPPool) Alloc(host string) netip.Addr {
 		return netip.Addr{}
 	}
 	pool.flags[index] = true
-	return util.IntToIP(pool.base + index)
+	return intToIP(pool.base + index)
+}
+
+func intToIP(v uint32) netip.Addr {
+	return netip.AddrFrom4([4]byte{byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)})
+}
+
+func ipToInt(ip netip.Addr) uint32 {
+	v := ip.As4()
+	return (uint32(v[0]) << 24) | (uint32(v[1]) << 16) | (uint32(v[2]) << 8) | uint32(v[3])
 }

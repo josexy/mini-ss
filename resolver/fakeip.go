@@ -47,10 +47,6 @@ func newFakeIPResolver(cidr string) *fakeIPResolver {
 	return r
 }
 
-func (r *fakeIPResolver) IsFakeIPMode() bool {
-	return r.pool != nil
-}
-
 func (r *fakeIPResolver) onReleaseFakeIP(_ any, value any) {
 	r.pool.Release(value.(*Record).FakeIP)
 }

@@ -9,10 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/util"
 	"github.com/josexy/mini-ss/util/dnsutil"
 	"github.com/josexy/mini-ss/util/hostsutil"
+	"github.com/josexy/mini-ss/util/logger"
 	"github.com/miekg/dns"
 )
 
@@ -30,17 +29,17 @@ func NewDnsResolver(nameservers []string) *Resolver {
 	nameservers = append(localDnsList, nameservers...)
 	var ns []string
 	for i := 0; i < len(nameservers); i++ {
-		host, _ := util.SplitHostPort(nameservers[i])
+		host, _, _ := net.SplitHostPort(nameservers[i])
 		if ip, err := netip.ParseAddr(host); err == nil && ip.Is4() {
 			ns = append(ns, nameservers[i])
 		}
 	}
 	for i := 0; i < len(ns); i++ {
-		host, port := util.SplitHostPort(ns[i])
+		host, port, _ := net.SplitHostPort(ns[i])
 		if port == "" {
 			ns[i] = net.JoinHostPort(host, "53")
 		}
-		logx.Info("dns nameserver: %s", ns[i])
+		logger.Logger.Infof("dns nameserver: %s", ns[i])
 	}
 
 	return &Resolver{
@@ -55,11 +54,11 @@ func NewDnsResolver(nameservers []string) *Resolver {
 	}
 }
 
-func (r *Resolver) IsFakeIPMode() bool {
+func (r *Resolver) IsEnhancerMode() bool {
 	return r.fakeIPResolver != nil
 }
 
-func (r *Resolver) EnableFakeIP(tunCIDR string) {
+func (r *Resolver) EnableEnhancerMode(tunCIDR string) {
 	r.fakeIPResolver = newFakeIPResolver(tunCIDR)
 }
 

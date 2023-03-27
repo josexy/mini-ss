@@ -5,37 +5,35 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strconv"
 	"time"
 
 	"github.com/josexy/mini-ss/resolver"
-	"github.com/josexy/mini-ss/util"
+	"github.com/josexy/netstackgo/bind"
 )
 
 const (
-	Default Type = iota // default TCP/UDP
-	KCP
-	QUIC
+	Tcp Type = iota // default
+	Kcp
+	Quic
 	Websocket
 	Obfs
 )
 
 const dialTimeout = 5 * time.Second
 
-// Type transport type between ss-local and ss-server
-// supports TCP/KCP/QUIC/WS protocol
-// for UDP relay, only the default transport type is supported
-type Type byte
+type Type uint8
 
 func (t Type) String() string {
 	switch t {
-	case Default:
+	case Tcp:
 		return "tcp"
-	case KCP:
+	case Kcp:
 		return "kcp"
-	case QUIC:
+	case Quic:
 		return "quic"
 	case Websocket:
-		return "ws"
+		return "websocket"
 	case Obfs:
 		return "obfs"
 	default:
@@ -52,13 +50,13 @@ type xDialer struct{ d Dialer }
 func NewDialer(tr Type, opt Options) Dialer {
 	d := new(xDialer)
 	switch tr {
-	case Default:
+	case Tcp:
 		d.d = &tcpDialer{}
-	case KCP:
+	case Kcp:
 		d.d = &kcpDialer{Opts: opt.(*KcpOptions)}
 	case Websocket:
 		d.d = &wsDialer{Opts: opt.(*WsOptions)}
-	case QUIC:
+	case Quic:
 		d.d = &quicDialer{Opts: opt.(*QuicOptions)}
 	case Obfs:
 		d.d = &obfsDialer{Opts: opt.(*ObfsOptions)}
@@ -66,14 +64,12 @@ func NewDialer(tr Type, opt Options) Dialer {
 	return d
 }
 
-func (d *xDialer) Dial(addr string) (net.Conn, error) {
-	return d.d.Dial(addr)
-}
+func (d *xDialer) Dial(addr string) (net.Conn, error) { return d.d.Dial(addr) }
 
 func resolveIP(host string) netip.Addr {
 	var ip netip.Addr
 	var err error
-	// the host is ip address or domain name
+	// the host may be a ip address or domain name
 	if ip, err = netip.ParseAddr(host); err != nil {
 		ip = resolver.DefaultResolver.ResolveHost(host)
 	}
@@ -81,7 +77,7 @@ func resolveIP(host string) netip.Addr {
 }
 
 func resolveUDPAddr(addr string) (*net.UDPAddr, error) {
-	host, port, err := net.SplitHostPort(addr)
+	host, p, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -89,9 +85,10 @@ func resolveUDPAddr(addr string) (*net.UDPAddr, error) {
 	if !ip.IsValid() {
 		return nil, fmt.Errorf("can not lookup host: %s", addr)
 	}
+	port, _ := strconv.ParseUint(p, 10, 16)
 	return &net.UDPAddr{
 		IP:   ip.AsSlice(),
-		Port: util.MustStringToInt(port),
+		Port: int(port),
 	}, nil
 }
 
@@ -100,14 +97,13 @@ func DialTCP(addr string) (net.Conn, error) {
 	return d.Dial(addr)
 }
 
-// DialLocalUDP create an unconnected udp connection
-func DialLocalUDP() (net.PacketConn, error) {
+// ListenLocalUDP create an unconnected udp connection
+func ListenLocalUDP() (net.PacketConn, error) {
 	if DefaultDialerOutboundOption.Interface == "" {
 		return net.ListenPacket("udp", "")
 	}
 	var lc net.ListenConfig
-	// bind outbound interface to a packet socket
-	addr, err := bindIfaceToListenConfig(DefaultDialerOutboundOption.Interface, &lc, "udp", "")
+	addr, err := bind.BindToDeviceForUDP(DefaultDialerOutboundOption.Interface, &lc, "udp", "")
 	if err != nil {
 		return nil, err
 	}

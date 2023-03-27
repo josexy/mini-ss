@@ -12,9 +12,5 @@ func (d *obfsDialer) Dial(addr string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	// obfs-tls
-	if d.Opts.TLS {
-		return NewObfsTLSConn(conn, d.Opts.Host, false), nil
-	}
 	return NewObfsConn(conn, d.Opts.Host, false), nil
 }

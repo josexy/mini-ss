@@ -68,7 +68,7 @@ func (d *kcpDialer) waitForDial(addr string) *mux.MuxBindSession {
 }
 
 func (d *kcpDialer) dialWithOptions(addr string) (*kcp.UDPSession, error) {
-	conn, err := DialLocalUDP()
+	conn, err := ListenLocalUDP()
 	if err != nil {
 		return nil, err
 	}

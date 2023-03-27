@@ -42,7 +42,7 @@ func (d *quicDialer) dial(addr string) (quic.EarlyConnection, error) {
 	if tlsConfig == nil {
 		tlsConfig = &tls.Config{InsecureSkipVerify: true}
 	}
-	conn, err := DialLocalUDP()
+	conn, err := ListenLocalUDP()
 	if err != nil {
 		return nil, err
 	}

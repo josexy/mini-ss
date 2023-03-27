@@ -65,7 +65,6 @@ var DefaultWsOptions = &WsOptions{
 
 var DefaultObfsOptions = &ObfsOptions{
 	Host: "www.baidu.com",
-	TLS:  false,
 }
 
 type KcpOptions struct {
@@ -155,7 +154,6 @@ func (opts *WsOptions) Update() {}
 
 type ObfsOptions struct {
 	Host string
-	TLS  bool // support tls
 }
 
 func (opts *ObfsOptions) Update() {}

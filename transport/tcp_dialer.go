@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+
+	"github.com/josexy/netstackgo/bind"
 )
 
 type tcpDialer struct{}
@@ -39,7 +41,7 @@ func dialSingle(ctx context.Context, network string, addr string) (net.Conn, err
 		return nil, fmt.Errorf("can not look up host: %s", addr)
 	}
 
-	if err := bindIfaceToDialer(DefaultDialerOutboundOption.Interface, dialer, network, ip); err != nil {
+	if err := bind.BindToDeviceForTCP(DefaultDialerOutboundOption.Interface, dialer, network, ip); err != nil {
 		return nil, err
 	}
 	return dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))

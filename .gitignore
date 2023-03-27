@@ -20,10 +20,4 @@ bin
 # vendor/
 
 # Go workspace file
-go.work
-
-mini-ss
-
-build/bin
-node_modules
-frontend/dist
+go.work*

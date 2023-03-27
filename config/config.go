@@ -1,161 +1,161 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/dns"
+	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/ss"
+	"github.com/josexy/mini-ss/util/logger"
+	"gopkg.in/yaml.v3"
 )
 
 type KcpOption struct {
-	Crypt    string `json:"crypt"`
-	Key      string `json:"key"`
-	Mode     string `json:"mode"`
-	Compress bool   `json:"compress"`
-	Conns    int    `json:"conns"`
+	Crypt    string `yaml:"crypt"`
+	Key      string `yaml:"key"`
+	Mode     string `yaml:"mode"`
+	Compress bool   `yaml:"compress"`
+	Conns    int    `yaml:"conns"`
 }
 
 type WsOption struct {
-	Host     string `json:"host"`
-	Path     string `json:"path"`
-	Compress bool   `json:"compress"`
-	TLS      bool   `json:"tls"`
+	Host     string `yaml:"host"`
+	Path     string `yaml:"path"`
+	Compress bool   `yaml:"compress"`
+	TLS      bool   `yaml:"tls"`
 }
 
 type ObfsOption struct {
-	Host string `json:"host"`
-	TLS  bool   `json:"tls"`
+	Host string `yaml:"host"`
 }
 
 type QuicOption struct {
-	Conns int `json:"conns"`
+	Conns int `yaml:"conns"`
 }
 
 type SSROption struct {
-	Protocol      string `json:"protocol"`
-	ProtocolParam string `json:"protocol_param"`
-	Obfs          string `json:"obfs"`
-	ObfsParam     string `json:"obfs_param"`
+	Protocol      string `yaml:"protocol"`
+	ProtocolParam string `yaml:"protocol_param"`
+	Obfs          string `yaml:"obfs"`
+	ObfsParam     string `yaml:"obfs_param"`
 }
 
-type ServerJsonConfig struct {
-	Disable   bool        `json:"disable"`
-	Type      string      `json:"type,omitempty"`
-	Name      string      `json:"name"`
-	Addr      string      `json:"addr"`
-	Password  string      `json:"password"`
-	Method    string      `json:"method"`
-	Transport string      `json:"transport"`
-	Kcp       *KcpOption  `json:"kcp,omitempty"`
-	Ws        *WsOption   `json:"ws,omitempty"`
-	Obfs      *ObfsOption `json:"obfs,omitempty"`
-	Quic      *QuicOption `json:"quic,omitempty"`
-	SSR       *SSROption  `json:"ssr,omitempty"`
+type ServerConfig struct {
+	Disable   bool        `yaml:"disable"`
+	Type      string      `yaml:"type,omitempty"`
+	Name      string      `yaml:"name"`
+	Addr      string      `yaml:"addr"`
+	Password  string      `yaml:"password"`
+	Method    string      `yaml:"method"`
+	Transport string      `yaml:"transport"`
+	Udp       bool        `yaml:"udp"`
+	Kcp       *KcpOption  `yaml:"kcp,omitempty"`
+	Ws        *WsOption   `yaml:"ws,omitempty"`
+	Obfs      *ObfsOption `yaml:"obfs,omitempty"`
+	Quic      *QuicOption `yaml:"quic,omitempty"`
+	SSR       *SSROption  `yaml:"ssr,omitempty"`
 }
 
 type TunOption struct {
-	Name string `json:"name"`
-	Cidr string `json:"cidr"`
-	Mtu  int    `json:"mtu"`
+	Name string `yaml:"name"`
+	Cidr string `yaml:"cidr"`
+	Mtu  int    `yaml:"mtu"`
 }
 
 type FakeDnsOption struct {
-	Listen      string   `json:"listen"`
-	Nameservers []string `json:"nameservers"`
+	Listen      string   `yaml:"listen"`
+	Nameservers []string `yaml:"nameservers"`
 }
 
-type LocalJsonConfig struct {
-	SocksAddr   string         `json:"socks_addr"`
-	HTTPAddr    string         `json:"http_addr"`
-	SocksAuth   string         `json:"socks_auth"`
-	HTTPAuth    string         `json:"http_auth"`
-	MixedAddr   string         `json:"mixed_addr"`
-	TCPTunAddr  []string       `json:"tcp_tun_addr"`
-	UDPTunAddr  []string       `json:"udp_tun_addr"`
-	SystemProxy bool           `json:"system_proxy"`
-	EnableTun   bool           `json:"enable_tun"`
-	Tun         *TunOption     `json:"tun,omitempty"`
-	FakeDNS     *FakeDnsOption `json:"fake_dns,omitempty"`
+type LocalConfig struct {
+	SocksAddr   string         `yaml:"socks_addr"`
+	HTTPAddr    string         `yaml:"http_addr"`
+	SocksAuth   string         `yaml:"socks_auth"`
+	HTTPAuth    string         `yaml:"http_auth"`
+	MixedAddr   string         `yaml:"mixed_addr"`
+	TCPTunAddr  []string       `yaml:"tcp_tun_addr"`
+	SystemProxy bool           `yaml:"system_proxy"`
+	
+	EnableTun   bool           `yaml:"enable_tun"`
+	Tun         *TunOption     `yaml:"tun,omitempty"`
+	FakeDNS     *FakeDnsOption `yaml:"fake_dns,omitempty"`
 }
 
 type Domain struct {
-	Proxy  string   `json:"proxy"`
-	Action string   `json:"action"`
-	Value  []string `json:"value"`
+	Proxy  string   `yaml:"proxy"`
+	Action string   `yaml:"action"`
+	Value  []string `yaml:"value"`
 }
 
 type DomainKeyword struct {
-	Proxy  string   `json:"proxy"`
-	Action string   `json:"action"`
-	Value  []string `json:"value"`
+	Proxy  string   `yaml:"proxy"`
+	Action string   `yaml:"action"`
+	Value  []string `yaml:"value"`
 }
 
 type DomainSuffix struct {
-	Proxy  string   `json:"proxy"`
-	Action string   `json:"action"`
-	Value  []string `json:"value"`
+	Proxy  string   `yaml:"proxy"`
+	Action string   `yaml:"action"`
+	Value  []string `yaml:"value"`
 }
 
 type GeoIP struct {
-	Resolve bool     `json:"resolve"`
-	Proxy   string   `json:"proxy"`
-	Action  string   `json:"action"`
-	Value   []string `json:"value"`
+	Resolve bool     `yaml:"resolve"`
+	Proxy   string   `yaml:"proxy"`
+	Action  string   `yaml:"action"`
+	Value   []string `yaml:"value"`
 }
 
 type IPCidr struct {
-	Resolve bool     `json:"resolve"`
-	Proxy   string   `json:"proxy"`
-	Action  string   `json:"action"`
-	Value   []string `json:"value"`
+	Resolve bool     `yaml:"resolve"`
+	Proxy   string   `yaml:"proxy"`
+	Action  string   `yaml:"action"`
+	Value   []string `yaml:"value"`
 }
 
 type Match struct {
-	Others         string           `json:"others,omitempty"`
-	Domains        []*Domain        `json:"domain,omitempty"`
-	DomainKeywords []*DomainKeyword `json:"domain_keyword,omitempty"`
-	DomainSuffixs  []*DomainSuffix  `json:"domain_suffix,omitempty"`
-	GeoIPs         []*GeoIP         `json:"geoip,omitempty"`
-	IPCidrs        []*IPCidr        `json:"ipcidr,omitempty"`
+	Others         string           `yaml:"others,omitempty"`
+	Domains        []*Domain        `yaml:"domain,omitempty"`
+	DomainKeywords []*DomainKeyword `yaml:"domain_keyword,omitempty"`
+	DomainSuffixs  []*DomainSuffix  `yaml:"domain_suffix,omitempty"`
+	GeoIPs         []*GeoIP         `yaml:"geoip,omitempty"`
+	IPCidrs        []*IPCidr        `yaml:"ipcidr,omitempty"`
 }
 
 type Rules struct {
-	Mode     string `json:"mode"`
-	DirectTo string `json:"direct_to"`
-	GlobalTo string `json:"global_to"`
-	Match    *Match `json:"match,omitempty"`
+	Mode     string `yaml:"mode"`
+	DirectTo string `yaml:"direct_to"`
+	GlobalTo string `yaml:"global_to"`
+	Match    *Match `yaml:"match,omitempty"`
 }
 
-type JsonConfig struct {
-	Server          []*ServerJsonConfig `json:"server,omitempty"`
-	Local           *LocalJsonConfig    `json:"local,omitempty"`
-	Color           bool                `json:"color"`
-	Verbose         bool                `json:"verbose"`
-	VerboseLevel    int                 `json:"verbose_level"`
-	Iface           string              `json:"iface"`
-	AutoDetectIface bool                `json:"auto_detect_iface"`
-	Rules           *Rules              `json:"rules"`
+type Config struct {
+	Server          []*ServerConfig `yaml:"server,omitempty"`
+	Local           *LocalConfig    `yaml:"local,omitempty"`
+	Color           bool            `yaml:"color"`
+	Verbose         bool            `yaml:"verbose"`
+	VerboseLevel    int             `yaml:"verbose_level"`
+	Iface           string          `yaml:"iface"`
+	AutoDetectIface bool            `yaml:"auto_detect_iface"`
+	Rules           *Rules          `yaml:"rules"`
 }
 
-func ParseJsonConfigFile(path string) (*JsonConfig, string, error) {
+func ParseConfigFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
-	cfg := new(JsonConfig)
-	if err = json.Unmarshal(data, cfg); err != nil {
-		return nil, "", err
+	cfg := new(Config)
+	if err = yaml.Unmarshal(data, cfg); err != nil {
+		return nil, err
 	}
-	return cfg, string(data), nil
+	return cfg, nil
 }
 
-func (jsonCfg *JsonConfig) DeleteServerConfig(name string) {
+func (cfg *Config) DeleteServerConfig(name string) {
 	index := -1
-	for i, c := range jsonCfg.Server {
+	for i, c := range cfg.Server {
 		if c.Name == name {
 			index = i
 			break
@@ -164,75 +164,74 @@ func (jsonCfg *JsonConfig) DeleteServerConfig(name string) {
 	if index == -1 {
 		return
 	}
-	jsonCfg.Server = append(jsonCfg.Server[:index], jsonCfg.Server[index+1:]...)
+	cfg.Server = append(cfg.Server[:index], cfg.Server[index+1:]...)
 }
 
-func (jsonCfg *JsonConfig) BuildRuler() *dns.Ruler {
-	var mode dns.RuleMode
-	switch jsonCfg.Rules.Mode {
+func (cfg *Config) BuildRuler() *rule.Ruler {
+	var mode rule.RuleMode
+	switch cfg.Rules.Mode {
 	case "global":
-		mode = dns.Global
+		mode = rule.Global
 	case "direct":
-		mode = dns.Direct
+		mode = rule.Direct
 	default:
-		mode = dns.Match
+		mode = rule.Match
 	}
 
-	if mode == dns.Global || mode == dns.Direct {
-		// glob and direct patterns do not require matching rules
-		return dns.NewRuler(mode, "", "", nil)
+	if mode == rule.Global || mode == rule.Direct {
+		return rule.NewRuler(mode, cfg.Rules.DirectTo, cfg.Rules.GlobalTo, nil)
 	}
 
 	// match mode
 	var (
-		domainRules        []dns.Rule
-		domainKeywordRules []dns.Rule
-		domainSuffixRules  []dns.Rule
-		geoipRules         []dns.Rule
-		ipcidrRules        []dns.Rule
-		otherRules         []dns.Rule
+		domainRules        []*rule.RuleItem
+		domainKeywordRules []*rule.RuleItem
+		domainSuffixRules  []*rule.RuleItem
+		geoipRules         []*rule.RuleItem
+		ipcidrRules        []*rule.RuleItem
+		otherRules         []*rule.RuleItem
 	)
-	for _, r := range jsonCfg.Rules.Match.Domains {
-		domainRules = append(domainRules, dns.Rule{
-			RuleMode: dns.Match,
-			RuleType: dns.RuleDomain,
+	for _, r := range cfg.Rules.Match.Domains {
+		domainRules = append(domainRules, &rule.RuleItem{
+			RuleMode: rule.Match,
+			RuleType: rule.RuleDomain,
 			Proxy:    r.Proxy,
 			Accept:   r.Action == "accept",
 			Value:    r.Value,
 		})
 	}
-	for _, r := range jsonCfg.Rules.Match.DomainKeywords {
-		domainKeywordRules = append(domainKeywordRules, dns.Rule{
-			RuleMode: dns.Match,
-			RuleType: dns.RuleDomainKeyword,
+	for _, r := range cfg.Rules.Match.DomainKeywords {
+		domainKeywordRules = append(domainKeywordRules, &rule.RuleItem{
+			RuleMode: rule.Match,
+			RuleType: rule.RuleDomainKeyword,
 			Proxy:    r.Proxy,
 			Accept:   r.Action == "accept",
 			Value:    r.Value,
 		})
 	}
-	for _, r := range jsonCfg.Rules.Match.DomainSuffixs {
-		domainSuffixRules = append(domainSuffixRules, dns.Rule{
-			RuleMode: dns.Match,
-			RuleType: dns.RuleDomainSuffix,
+	for _, r := range cfg.Rules.Match.DomainSuffixs {
+		domainSuffixRules = append(domainSuffixRules, &rule.RuleItem{
+			RuleMode: rule.Match,
+			RuleType: rule.RuleDomainSuffix,
 			Proxy:    r.Proxy,
 			Accept:   r.Action == "accept",
 			Value:    r.Value,
 		})
 	}
-	for _, r := range jsonCfg.Rules.Match.GeoIPs {
-		geoipRules = append(geoipRules, dns.Rule{
-			RuleMode: dns.Match,
-			RuleType: dns.RuleGeoIP,
+	for _, r := range cfg.Rules.Match.GeoIPs {
+		geoipRules = append(geoipRules, &rule.RuleItem{
+			RuleMode: rule.Match,
+			RuleType: rule.RuleGeoIP,
 			Resolve:  r.Resolve,
 			Proxy:    r.Proxy,
 			Accept:   r.Action == "accept",
 			Value:    r.Value,
 		})
 	}
-	for _, r := range jsonCfg.Rules.Match.IPCidrs {
-		ipcidrRules = append(ipcidrRules, dns.Rule{
-			RuleMode: dns.Match,
-			RuleType: dns.RuleIPCIDR,
+	for _, r := range cfg.Rules.Match.IPCidrs {
+		ipcidrRules = append(ipcidrRules, &rule.RuleItem{
+			RuleMode: rule.Match,
+			RuleType: rule.RuleIPCIDR,
 			Resolve:  r.Resolve,
 			Proxy:    r.Proxy,
 			Accept:   r.Action == "accept",
@@ -240,11 +239,11 @@ func (jsonCfg *JsonConfig) BuildRuler() *dns.Ruler {
 		})
 	}
 
-	var rules [][]dns.Rule
-	otherRules = append(otherRules, dns.Rule{
-		RuleMode: dns.Match,
-		Proxy:    jsonCfg.Rules.Match.Others,
-		RuleType: dns.RuleOthers,
+	var rules [][]*rule.RuleItem
+	otherRules = append(otherRules, &rule.RuleItem{
+		RuleMode: rule.Match,
+		Proxy:    cfg.Rules.Match.Others,
+		RuleType: rule.RuleOthers,
 		Accept:   true,
 	})
 	rules = append(rules, domainRules)
@@ -253,19 +252,19 @@ func (jsonCfg *JsonConfig) BuildRuler() *dns.Ruler {
 	rules = append(rules, geoipRules)
 	rules = append(rules, ipcidrRules)
 	rules = append(rules, otherRules)
-	return dns.NewRuler(mode, jsonCfg.Rules.DirectTo, jsonCfg.Rules.GlobalTo, rules)
+	return rule.NewRuler(mode, cfg.Rules.DirectTo, cfg.Rules.GlobalTo, rules)
 }
 
-func (jsonCfg *JsonConfig) BuildSSLocalOptions() []ss.SSOption {
-	opts := jsonCfg.BuildServerOptions()
-	opts = append(opts, jsonCfg.BuildLocalOptions()...)
+func (cfg *Config) BuildSSLocalOptions() []ss.SSOption {
+	opts := cfg.BuildServerOptions()
+	opts = append(opts, cfg.BuildLocalOptions()...)
 	return opts
 }
 
-func (jsonCfg *JsonConfig) BuildServerOptions() []ss.SSOption {
+func (cfg *Config) BuildServerOptions() []ss.SSOption {
 	var res []ss.SSOption
 
-	for _, opt := range jsonCfg.Server {
+	for _, opt := range cfg.Server {
 		if opt.Disable {
 			continue
 		}
@@ -294,13 +293,11 @@ func (jsonCfg *JsonConfig) BuildServerOptions() []ss.SSOption {
 		case "obfs":
 			opts = append(opts, ss.WithObfsTransport())
 			opts = append(opts, ss.WithObfsHost(opt.Obfs.Host))
-			if opt.Obfs.TLS {
-				opts = append(opts, ss.WithObfsTLS())
-			}
 		case "quic":
 			opts = append(opts, ss.WithQuicTransport())
 			opts = append(opts, ss.WithQuicConns(opt.Quic.Conns))
 		case "default":
+			opts = append(opts, ss.WithUDPRelay(opt.Udp))
 			// whether to support ssr
 			if opt.Type == "ssr" {
 				opts = append(opts, ss.WithEnableSSR())
@@ -321,58 +318,51 @@ func (jsonCfg *JsonConfig) BuildServerOptions() []ss.SSOption {
 	}
 
 	// outbound interface
-	res = append(res, ss.WithOutboundInterface(jsonCfg.Iface))
+	res = append(res, ss.WithOutboundInterface(cfg.Iface))
 	// auto detect interface
-	res = append(res, ss.WithAutoDetectInterface(jsonCfg.AutoDetectIface))
+	res = append(res, ss.WithAutoDetectInterface(cfg.AutoDetectIface))
 	return res
 }
 
-func (jsonCfg *JsonConfig) BuildLocalOptions() []ss.SSOption {
+func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 	var opts []ss.SSOption
 
-	if jsonCfg.Local.SocksAddr != "" {
-		opts = append(opts, ss.WithSocksAddr(jsonCfg.Local.SocksAddr))
-		opts = append(opts, ss.WithSocksUserInfo(splitAuthInfo(jsonCfg.Local.SocksAuth)))
+	if cfg.Local.SocksAddr != "" {
+		opts = append(opts, ss.WithSocksAddr(cfg.Local.SocksAddr))
+		opts = append(opts, ss.WithSocksUserInfo(splitAuthInfo(cfg.Local.SocksAuth)))
 	}
 
-	if jsonCfg.Local.HTTPAddr != "" {
-		opts = append(opts, ss.WithHttpAddr(jsonCfg.Local.HTTPAddr))
-		opts = append(opts, ss.WithHttpUserInfo(splitAuthInfo(jsonCfg.Local.HTTPAuth)))
+	if cfg.Local.HTTPAddr != "" {
+		opts = append(opts, ss.WithHttpAddr(cfg.Local.HTTPAddr))
+		opts = append(opts, ss.WithHttpUserInfo(splitAuthInfo(cfg.Local.HTTPAuth)))
 	}
 
-	opts = append(opts, ss.WithMixedAddr(jsonCfg.Local.MixedAddr))
+	opts = append(opts, ss.WithMixedAddr(cfg.Local.MixedAddr))
 
 	// simple tcp tun address
 	var tcpTunAddr [][]string
-	for _, addr := range jsonCfg.Local.TCPTunAddr {
+	for _, addr := range cfg.Local.TCPTunAddr {
 		lr, _ := splitTunAddrInfo(addr)
 		tcpTunAddr = append(tcpTunAddr, lr)
 	}
 	opts = append(opts, ss.WithTcpTunAddr(tcpTunAddr))
 
-	// simple udp tun address
-	var udpTunAddr [][]string
-	for _, addr := range jsonCfg.Local.UDPTunAddr {
-		lr, _ := splitTunAddrInfo(addr)
-		udpTunAddr = append(udpTunAddr, lr)
-	}
-	opts = append(opts, ss.WithUdpTunAddr(udpTunAddr))
-	opts = append(opts, ss.WithRuler(jsonCfg.BuildRuler()))
+	opts = append(opts, ss.WithRuler(cfg.BuildRuler()))
 
-	if jsonCfg.Local.EnableTun {
-		if jsonCfg.Local.FakeDNS == nil {
-			logx.Fatal("if tun mode is enabled, the fake dns configuration must exist")
+	if cfg.Local.EnableTun {
+		if cfg.Local.FakeDNS == nil {
+			logger.Logger.Fatal("if tun mode is enabled, the fake dns configuration must exist")
 		}
 		opts = append(opts, ss.WithEnableTun())
-		opts = append(opts, ss.WithTunName(jsonCfg.Local.Tun.Name))
-		opts = append(opts, ss.WithTunCIDR(jsonCfg.Local.Tun.Cidr))
-		opts = append(opts, ss.WithTunMTU(uint32(jsonCfg.Local.Tun.Mtu)))
+		opts = append(opts, ss.WithTunName(cfg.Local.Tun.Name))
+		opts = append(opts, ss.WithTunCIDR(cfg.Local.Tun.Cidr))
+		opts = append(opts, ss.WithTunMTU(uint32(cfg.Local.Tun.Mtu)))
 
 		// fake dns server
-		opts = append(opts, ss.WithFakeDnsServer(jsonCfg.Local.FakeDNS.Listen))
-		opts = append(opts, ss.WithDefaultDnsNameservers(jsonCfg.Local.FakeDNS.Nameservers))
+		opts = append(opts, ss.WithFakeDnsServer(cfg.Local.FakeDNS.Listen))
+		opts = append(opts, ss.WithDefaultDnsNameservers(cfg.Local.FakeDNS.Nameservers))
 	}
-	if jsonCfg.Local.SystemProxy {
+	if cfg.Local.SystemProxy {
 		opts = append(opts, ss.WithSystemProxy())
 	}
 

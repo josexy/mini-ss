@@ -5,8 +5,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/ss"
+	"github.com/josexy/mini-ss/util/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -18,30 +18,30 @@ var serverCmd = &cobra.Command{
 		defer func() {
 			if err := recover(); err != nil {
 				if e, ok := err.(error); ok {
-					logx.FatalBy(e)
+					logger.Logger.FatalBy(e)
 				}
 			}
 		}()
-		if len(jsonCfg.Server) == 0 {
-			logx.Fatal("server node is empty")
+		if len(cfg.Server) == 0 {
+			logger.Logger.Fatal("server node is empty")
 		}
-		if jsonCfg.Server[0].Addr == "" {
+		if cfg.Server[0].Addr == "" {
 			cmd.Help()
 			return
 		}
 		if err := startServer(); err != nil {
-			logx.FatalBy(err)
+			logger.Logger.FatalBy(err)
 		}
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
-	serverCmd.Flags().StringVarP(&jsonCfg.Server[0].Addr, "server", "s", "", "server listening address")
+	serverCmd.Flags().StringVarP(&cfg.Server[0].Addr, "server", "s", "", "server listening address")
 }
 
 func startServer() error {
-	opts := jsonCfg.BuildServerOptions()
+	opts := cfg.BuildServerOptions()
 
 	srv := ss.NewShadowsocksServer(opts...)
 

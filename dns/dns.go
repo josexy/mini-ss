@@ -2,15 +2,15 @@ package dns
 
 import (
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/josexy/mini-ss/resolver"
-	"github.com/josexy/mini-ss/util"
 	"github.com/miekg/dns"
 )
 
 var (
-	// default dns nameservers
+	// DefaultDnsNameservers default dns nameservers
 	DefaultDnsNameservers = []string{
 		"114.114.114.114",
 		"8.8.8.8",
@@ -24,18 +24,12 @@ type DnsServer struct {
 }
 
 func NewDnsServer(addr string) *DnsServer {
-	var port int
 	_, p, _ := net.SplitHostPort(addr)
 	if p == "" {
-		port = 53
-	} else {
-		port = util.MustStringToInt(p)
+		p = "53"
 	}
-	s := &DnsServer{
-		Addr: addr,
-		Port: port,
-	}
-
+	port, _ := strconv.ParseUint(p, 10, 16)
+	s := &DnsServer{Addr: addr, Port: int(port)}
 	// local dns server
 	dnsServer := &dns.Server{
 		Addr:         addr,

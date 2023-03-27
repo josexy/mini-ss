@@ -1,0 +1,14 @@
+server:
+  - name: ss
+    addr: ':8388'
+    password: '12345'
+    method: chacha20-ietf-poly1305
+    transport: ws
+    ws:
+      host: www.baidu.com
+      path: /ws
+      compress: true
+      tls: true
+color: true
+verbose: true
+verbose_level: 2

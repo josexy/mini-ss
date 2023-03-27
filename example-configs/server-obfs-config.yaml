@@ -1,0 +1,11 @@
+server:
+  - name: ss
+    addr: ':8388'
+    password: '12345'
+    method: none
+    transport: obfs
+    obfs:
+      host: www.bing.cn
+color: true
+verbose: true
+verbose_level: 2

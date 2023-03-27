@@ -1,0 +1,15 @@
+server:
+  - name: ss
+    addr: ':8388'
+    password: '12345'
+    method: chacha20-ietf-poly1305
+    transport: kcp
+    kcp:
+      crypt: aes-128
+      key: '12345'
+      mode: fast2
+      compress: false
+      conns: 3
+color: true
+verbose: true
+verbose_level: 2

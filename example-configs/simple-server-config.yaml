@@ -1,0 +1,9 @@
+server:
+  - name: ss
+    addr: ':8388'
+    password: '12345'
+    method: aes-128-cfb
+    transport: default
+color: true
+verbose: true
+verbose_level: 2

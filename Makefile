@@ -36,4 +36,4 @@ releases: linux-amd64 linux-arm64 macos-amd64 macos-arm64 win-amd64 win-arm64
 	zip -m -j $(BINDIR)/$(NAME)-win-arm64.zip $(BINDIR)/$(NAME)-win-arm64.exe
 
 clean:
-	rm $(BINDIR)/*
+	rm $(BINDIR)/mini-ss-*

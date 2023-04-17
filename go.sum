@@ -49,8 +49,8 @@ github.com/jaytaylor/go-hostsfile v0.0.0-20220426042432-61485ac1fa6c h1:kbTQ8oGf
 github.com/jaytaylor/go-hostsfile v0.0.0-20220426042432-61485ac1fa6c/go.mod h1:k6+89xKz7BSMJ+DzIerBdtpEUeTlBMugO/hcVSzahog=
 github.com/josexy/logx v0.0.0-20230324112249-f8b9650162fc h1:kPyNkYp+uhNZJu7tPuFyAUQXMS99S6deNfw9/PrwBEs=
 github.com/josexy/logx v0.0.0-20230324112249-f8b9650162fc/go.mod h1:9M6/uEIK2TFk24csjhayNVnGfZCzesbwefzNr0fGP4s=
-github.com/josexy/netstackgo v0.0.0-20230326125642-a05e96ef92bd h1:/aJpGM4ZrzPW5sohBYGO73/zJgzVXQ+3SQeEeVeLZmU=
-github.com/josexy/netstackgo v0.0.0-20230326125642-a05e96ef92bd/go.mod h1:h8CoWlzlHVgnDrG21yEkI2w+7Joa9AvE40hS3CV/5A0=
+github.com/josexy/netstackgo v0.0.0-20230417164337-89aaee52e7bf h1:IEWScJCPcLJXB+Yfo8YcqQLWVT8N/Z6F9HXkO9T8jTc=
+github.com/josexy/netstackgo v0.0.0-20230417164337-89aaee52e7bf/go.mod h1:h8CoWlzlHVgnDrG21yEkI2w+7Joa9AvE40hS3CV/5A0=
 github.com/josexy/proxyutil v0.0.0-20230321142224-a6e70ef9e37c h1:6+sPVaYY+mtxs+QcheOGTGda2hDhZjWbRbU20rITJI4=
 github.com/josexy/proxyutil v0.0.0-20230321142224-a6e70ef9e37c/go.mod h1:+Ox49VTIsAT1JvST8BfaEhZZcaymfSrBN5KlLVLTZxM=
 github.com/klauspost/cpuid/v2 v2.1.1 h1:t0wUqjowdm8ezddV5k0tLWVklVuvLJpoHeb4WBdydm0=

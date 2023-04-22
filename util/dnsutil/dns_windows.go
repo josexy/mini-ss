@@ -5,25 +5,11 @@ import (
 	"net"
 	"syscall"
 	"unsafe"
-
-	"github.com/josexy/mini-ss/util"
-	"github.com/josexy/mini-ss/util/logger"
 )
 
-var oldTunName string
+func SetLocalDnsServer(string) {}
 
-func SetLocalDnsServer(tunName string) {
-	oldTunName = tunName
-	cmd := `netsh interface ipv4 add dnsserver "` + tunName + `" 127.0.0.1 index=1`
-	if err := util.ExeCmd(cmd); err != nil {
-		logger.Logger.ErrorBy(err)
-	}
-}
-
-func UnsetLocalDnsServer() {
-	cmd := `netsh interface ipv4 delete dnsservers "` + oldTunName + `" all`
-	util.ExeCmd(cmd)
-}
+func UnsetLocalDnsServer() {}
 
 const MAX_HOSTNAME_LEN = 128
 const MAX_DOMAIN_NAME_LEN = 128

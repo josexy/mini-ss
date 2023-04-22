@@ -12,9 +12,9 @@ var oldDnsValue string
 
 func SetLocalDnsServer(addr string) {
 	shell := `
-olddns=$(cat /etc/resolv.conf |grep nameserver| cut -d ' ' -f 2)
-echo $olddns
-echo "nameserver ` + addr + `" | sudo tee /etc/resolv.conf
+olddns="$(cat /etc/resolv.conf)"
+echo "nameserver ` + addr + `" | sudo tee /etc/resolv.conf 1>/dev/null 2>&1
+echo "$olddns"
 `
 	if out, err := util.ExeShell(shell); err == nil {
 		oldDnsValue = out
@@ -25,11 +25,12 @@ echo "nameserver ` + addr + `" | sudo tee /etc/resolv.conf
 
 func UnsetLocalDnsServer() {
 	shell := `
-echo "nameserver ` + oldDnsValue + `" | sudo tee /etc/resolv.conf
-`
-	if out, err := util.ExeShell(shell); err == nil {
-		oldDnsValue = out
-	}
+cat << EOF | sudo tee /etc/resolv.conf
+` +
+		oldDnsValue + `
+
+EOF`
+	util.ExeShell(shell)
 }
 
 func GetLocalDnsList() []string {

@@ -55,6 +55,8 @@ func NewShadowsocksServer(opts ...SSOption) *ShadowsocksServer {
 		s.srvs = append(s.srvs, server.NewQuicServer(opt.addr, s, opt.opts).Build())
 	case transport.Obfs:
 		s.srvs = append(s.srvs, server.NewObfsServer(opt.addr, s, opt.opts).Build())
+	case transport.Grpc:
+		s.srvs = append(s.srvs, server.NewGrpcServer(opt.addr, s, opt.opts).Build())
 	default:
 	}
 
@@ -69,9 +71,10 @@ func (ss *ShadowsocksServer) Start() error {
 		return nil
 	}
 
-	go func() {
-		ss.udpRelayer.start()
-	}()
+	// whether enable start udp relayer
+	if ss.udpRelayer != nil {
+		go func() { ss.udpRelayer.start() }()
+	}
 
 	for i := 0; i < n; i++ {
 		logger.Logger.Infof("start [%s] server: %s", ss.srvs[i].Type().String(), ss.srvs[i].LocalAddr())
@@ -122,6 +125,12 @@ func (ss *ShadowsocksServer) ServeKCP(conn net.Conn) {
 }
 
 func (ss *ShadowsocksServer) ServeTCP(conn net.Conn) {
+	if err := ss.tcpRelayer.RelayServerToRemote(conn); err != nil {
+		logger.Logger.ErrorBy(err)
+	}
+}
+
+func (ss *ShadowsocksServer) ServeGRPC(conn net.Conn) {
 	if err := ss.tcpRelayer.RelayServerToRemote(conn); err != nil {
 		logger.Logger.ErrorBy(err)
 	}

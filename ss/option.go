@@ -465,3 +465,48 @@ func WithWsTLS() SSOption {
 		so.serverOpts[0].opts.(*transport.WsOptions).TLS = true
 	})
 }
+
+func WithGrpcTransport() SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].transport = transport.Grpc
+		clone := *transport.DefaultGrpcOptions
+		so.serverOpts[0].opts = &clone
+	})
+}
+
+func WithGrpcHostname(hostname string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.GrpcOptions).Hostname = hostname
+	})
+}
+
+func WithGrpcTLS() SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.GrpcOptions).TLS = true
+	})
+}
+
+func WithGrpcCertPath(certPath string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.GrpcOptions).CertPath = certPath
+	})
+}
+
+func WithGrpcKeyPath(keyPath string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.GrpcOptions).KeyPath = keyPath
+	})
+}
+
+func WithGrpcCAPath(caPath string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.GrpcOptions).CAPath = caPath
+	})
+}
+
+func WithGrpcSndRevBuffer(sndBuffer, revBuffer int) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.GrpcOptions).SndBuffer = sndBuffer
+		so.serverOpts[0].opts.(*transport.GrpcOptions).RevBuffer = revBuffer
+	})
+}

@@ -34,6 +34,14 @@ type QuicOption struct {
 	Conns int `yaml:"conns"`
 }
 
+type GrpcOption struct {
+	Hostname string `yaml:"hostname"`
+	KeyPath  string `yaml:"key_path"`
+	CertPath string `yaml:"cert_path"`
+	CAPath   string `yaml:"ca_path"`
+	TLS      bool   `yaml:"tls"`
+}
+
 type SSROption struct {
 	Protocol      string `yaml:"protocol"`
 	ProtocolParam string `yaml:"protocol_param"`
@@ -54,6 +62,7 @@ type ServerConfig struct {
 	Ws        *WsOption   `yaml:"ws,omitempty"`
 	Obfs      *ObfsOption `yaml:"obfs,omitempty"`
 	Quic      *QuicOption `yaml:"quic,omitempty"`
+	Grpc      *GrpcOption `yaml:"grpc,omitempty"`
 	SSR       *SSROption  `yaml:"ssr,omitempty"`
 }
 
@@ -76,7 +85,6 @@ type LocalConfig struct {
 	MixedAddr   string         `yaml:"mixed_addr"`
 	TCPTunAddr  []string       `yaml:"tcp_tun_addr"`
 	SystemProxy bool           `yaml:"system_proxy"`
-	
 	EnableTun   bool           `yaml:"enable_tun"`
 	Tun         *TunOption     `yaml:"tun,omitempty"`
 	FakeDNS     *FakeDnsOption `yaml:"fake_dns,omitempty"`
@@ -296,6 +304,15 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 		case "quic":
 			opts = append(opts, ss.WithQuicTransport())
 			opts = append(opts, ss.WithQuicConns(opt.Quic.Conns))
+		case "grpc":
+			opts = append(opts, ss.WithGrpcTransport())
+			opts = append(opts, ss.WithGrpcHostname(opt.Grpc.Hostname))
+			opts = append(opts, ss.WithGrpcCertPath(opt.Grpc.CertPath))
+			opts = append(opts, ss.WithGrpcKeyPath(opt.Grpc.KeyPath))
+			opts = append(opts, ss.WithGrpcCAPath(opt.Grpc.CAPath))
+			if opt.Grpc.TLS {
+				opts = append(opts, ss.WithGrpcTLS())
+			}
 		case "default":
 			opts = append(opts, ss.WithUDPRelay(opt.Udp))
 			// whether to support ssr

@@ -58,8 +58,8 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 	// init the global default dns resolver
 	resolver.DefaultResolver = resolver.NewDnsResolver(dns.DefaultDnsNameservers)
 
-	// only one proxy node
-	if len(s.Opts.serverOpts) == 1 {
+	// only one proxy node with command line
+	if len(s.Opts.serverOpts) == 1 && s.Opts.serverOpts[0].name == "" && rule.MatchRuler.GlobalTo == "" {
 		s.Opts.serverOpts[0].name = "<Default>"
 		rule.MatchRuler.GlobalTo = "<Default>"
 	}

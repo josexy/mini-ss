@@ -27,6 +27,7 @@ var (
 			Ws:   &config.WsOption{},
 			Quic: &config.QuicOption{},
 			Obfs: &config.ObfsOption{},
+			Grpc: &config.GrpcOption{},
 			SSR:  &config.SSROption{},
 		}},
 		Local: &config.LocalConfig{
@@ -74,6 +75,12 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Obfs.Host, "obfs-host", "www.baidu.com", "obfs host")
 	// quic options
 	rootCmd.PersistentFlags().IntVar(&cfg.Server[0].Quic.Conns, "quic-max-conn", 3, "maximum number of quic connections")
+	// grpc options
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Grpc.Hostname, "grpc-host", "", "grpc hostname")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Grpc.KeyPath, "grpc-key-path", "", "grpc mTLS key path")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Grpc.CertPath, "grpc-cert-path", "", "grpc mTLS cert path")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Grpc.CAPath, "grpc-ca-path", "", "grpc mTLS CA path")
+	rootCmd.PersistentFlags().BoolVar(&cfg.Server[0].Grpc.TLS, "grpc-tls", false, "enable grpc mTLS")
 }
 
 func initConfig() {
@@ -96,6 +103,7 @@ func initConfig() {
 		logx.WithColor(cfg.Color),
 		logx.WithLevel(true, true),
 		logx.WithJsonEncoder(),
+		logx.WithEscapeQuote(true),
 	}
 
 	switch cfg.VerboseLevel {

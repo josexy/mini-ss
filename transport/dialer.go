@@ -18,6 +18,7 @@ const (
 	Quic
 	Websocket
 	Obfs
+	Grpc
 )
 
 const dialTimeout = 5 * time.Second
@@ -36,6 +37,8 @@ func (t Type) String() string {
 		return "websocket"
 	case Obfs:
 		return "obfs"
+	case Grpc:
+		return "grpc"
 	default:
 		return "unknown"
 	}
@@ -60,6 +63,8 @@ func NewDialer(tr Type, opt Options) Dialer {
 		d.d = &quicDialer{Opts: opt.(*QuicOptions)}
 	case Obfs:
 		d.d = &obfsDialer{Opts: opt.(*ObfsOptions)}
+	case Grpc:
+		d.d = &grpcDialer{Opts: opt.(*GrpcOptions)}
 	}
 	return d
 }

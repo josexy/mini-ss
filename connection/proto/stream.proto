@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "github.com/josexy/mini-ss/connection/proto";
+
+message PacketData { bytes data = 1; }
+
+service StreamService {
+  rpc Transfer(stream PacketData) returns (stream PacketData) {}
+}

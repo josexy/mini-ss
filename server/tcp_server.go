@@ -25,7 +25,7 @@ type TcpServer struct {
 	Handler  TcpHandler
 	typ      ServerType
 	mu       sync.Mutex
-	closed   int32
+	closed   uint32
 	doneChan chan struct{}
 	err      chan error
 }
@@ -50,12 +50,12 @@ func (s *TcpServer) Error() chan error { return s.err }
 func (s *TcpServer) Build() Server { return s }
 
 func (s *TcpServer) Close() error {
-	if atomic.LoadInt32(&s.closed) != 0 {
+	if atomic.LoadUint32(&s.closed) != 0 {
 		return ErrServerClosed
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	atomic.StoreInt32(&s.closed, 1)
+	atomic.StoreUint32(&s.closed, 1)
 	close(s.doneChan)
 
 	return s.ln.Close()
@@ -75,7 +75,7 @@ func (s *TcpServer) Start() {
 	s.ln = &tcpKeepAliveListener{ln}
 
 	s.err <- nil
-	atomic.StoreInt32(&s.closed, 0)
+	atomic.StoreUint32(&s.closed, 0)
 	defer s.Close()
 	for {
 		rwc, err := ln.Accept()

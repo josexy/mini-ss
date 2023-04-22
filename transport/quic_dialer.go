@@ -6,6 +6,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/josexy/mini-ss/connection"
 	"github.com/quic-go/quic-go"
 )
 
@@ -77,7 +78,7 @@ func (d *quicDialer) openStreamConn(session quic.Connection) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewQuicConn(
+	return connection.NewQuicConn(
 		stream,
 		session.LocalAddr(),
 		session.RemoteAddr(),

@@ -19,6 +19,7 @@ const (
 	Obfs
 	Quic
 	Mixed
+	Grpc
 )
 
 func (t ServerType) String() string {
@@ -39,6 +40,8 @@ func (t ServerType) String() string {
 		return "obfs"
 	case Quic:
 		return "quic"
+	case Grpc:
+		return "grpc"
 	case Mixed:
 		return "mixed-socks-http"
 	}
@@ -65,11 +68,13 @@ type (
 	WsHandler       interface{ ServeWS(net.Conn) }
 	ObfsHandler     interface{ ServeOBFS(net.Conn) }
 	QuicHandler     interface{ ServeQUIC(net.Conn) }
+	GrpcHandler     interface{ ServeGRPC(net.Conn) }
 	TcpHandlerFunc  func(net.Conn)
 	KcpHandlerFunc  func(net.Conn)
 	WsHandlerFunc   func(net.Conn)
 	ObfsHandlerFunc func(net.Conn)
 	QuicHandlerFunc func(net.Conn)
+	GrpcHandlerFunc func(net.Conn)
 )
 
 func (f TcpHandlerFunc) ServeTCP(conn net.Conn)   { f(conn) }
@@ -77,3 +82,4 @@ func (f KcpHandlerFunc) ServeKCP(conn net.Conn)   { f(conn) }
 func (f WsHandlerFunc) ServeWS(conn net.Conn)     { f(conn) }
 func (f ObfsHandlerFunc) ServeOBFS(conn net.Conn) { f(conn) }
 func (f QuicHandlerFunc) ServeQUIC(conn net.Conn) { f(conn) }
+func (f GrpcHandlerFunc) ServeGRPC(conn net.Conn) { f(conn) }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util"
 )
@@ -95,7 +96,7 @@ func (s *WsServer) wsUpgrade(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	conn := newConn(transport.NewWebsocketConn(c), s)
+	conn := newConn(connection.NewWebsocketConn(c), s)
 	go conn.serve()
 }
 

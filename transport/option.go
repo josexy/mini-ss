@@ -67,6 +67,8 @@ var DefaultObfsOptions = &ObfsOptions{
 	Host: "www.baidu.com",
 }
 
+var DefaultGrpcOptions = &GrpcOptions{}
+
 type KcpOptions struct {
 	Key         string
 	Crypt       string
@@ -166,3 +168,15 @@ type QuicOptions struct {
 }
 
 func (opts *QuicOptions) Update() {}
+
+type GrpcOptions struct {
+	SndBuffer int
+	RevBuffer int
+	TLS       bool
+	Hostname  string
+	CAPath    string
+	CertPath  string
+	KeyPath   string
+}
+
+func (opts *GrpcOptions) Update() {}

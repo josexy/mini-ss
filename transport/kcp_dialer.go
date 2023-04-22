@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/mux"
 	"github.com/xtaci/kcp-go"
 	"github.com/xtaci/smux"
@@ -98,7 +99,7 @@ func (d *kcpDialer) dial(addr string) (*mux.MuxBindSession, error) {
 
 	var cc net.Conn = conn
 	if !d.Opts.NoCompress {
-		cc = NewCompressConn(conn)
+		cc = connection.NewCompressConn(conn)
 	}
 	sess, err := smux.Client(cc, d.cfg)
 	if err != nil {

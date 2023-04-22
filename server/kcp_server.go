@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/mux"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/xtaci/kcp-go"
@@ -17,7 +18,7 @@ type KcpServer struct {
 	Addr       string
 	Handler    KcpHandler
 	mu         sync.Mutex
-	closed     int32
+	closed     uint32
 	doneChan   chan struct{}
 	smuxConfig *smux.Config
 	once       sync.Once
@@ -41,12 +42,12 @@ func (s *KcpServer) LocalAddr() string { return s.Addr }
 func (s *KcpServer) Type() ServerType { return Kcp }
 
 func (s *KcpServer) Close() error {
-	if atomic.LoadInt32(&s.closed) != 0 {
+	if atomic.LoadUint32(&s.closed) != 0 {
 		return ErrServerClosed
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	atomic.StoreInt32(&s.closed, 1)
+	atomic.StoreUint32(&s.closed, 1)
 	close(s.doneChan)
 
 	return s.Listener.Close()
@@ -73,7 +74,7 @@ func (s *KcpServer) Start() {
 	ln.SetWriteBuffer(s.opts.SockBuf)
 
 	s.err <- nil
-	atomic.StoreInt32(&s.closed, 0)
+	atomic.StoreUint32(&s.closed, 0)
 	defer s.Close()
 	for {
 		sess, err := ln.AcceptKCP()
@@ -107,7 +108,7 @@ func (s *KcpServer) serve(conn net.Conn) {
 	})
 
 	if !s.opts.NoCompress {
-		conn = transport.NewCompressConn(conn)
+		conn = connection.NewCompressConn(conn)
 	}
 
 	// connection multiplexing

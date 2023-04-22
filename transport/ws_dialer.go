@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/josexy/mini-ss/connection"
 )
 
 type wsDialer struct {
@@ -47,5 +48,5 @@ func (d *wsDialer) Dial(addr string) (net.Conn, error) {
 		return nil, err
 	}
 	resp.Body.Close()
-	return NewWebsocketConn(conn), nil
+	return connection.NewWebsocketConn(conn), nil
 }

@@ -3,6 +3,7 @@ package server
 import (
 	"net"
 
+	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/transport"
 )
 
@@ -38,7 +39,7 @@ func (s *ObfsServer) Type() ServerType { return s.srv.typ }
 func (s *ObfsServer) Serve(*Conn) {}
 
 func (s *ObfsServer) serveTCP(c net.Conn) {
-	c = transport.NewObfsConn(c, s.opts.Host, true)
+	c = connection.NewObfsConn(c, s.opts.Host, true)
 	if s.Handler != nil {
 		s.Handler.ServeOBFS(c)
 	}

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util"
 	"github.com/quic-go/quic-go"
@@ -105,7 +106,7 @@ func (s *QuicServer) serve(c quic.Connection) {
 		if err != nil {
 			return
 		}
-		conn := newConn(transport.NewQuicConn(stream, c.LocalAddr(), c.RemoteAddr()), s)
+		conn := newConn(connection.NewQuicConn(stream, c.LocalAddr(), c.RemoteAddr()), s)
 		go conn.serve()
 	}
 }

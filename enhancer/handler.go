@@ -89,8 +89,14 @@ func (handler *enhancerHandler) HandleTCPConn(info *netstackgo.ConnTuple, conn n
 }
 
 func (handler *enhancerHandler) HandleUDPConn(info *netstackgo.ConnTuple, conn net.PacketConn) {
+	// relay dns packet
 	if info.DstPort == uint16(handler.owner.fakeDns.Port) && info.DstIP.Compare(handler.owner.nameserver) == 0 {
 		handler.relayFakeDnsRequest(conn)
+		return
+	}
+
+	// discard udp fake ip
+	if handler.owner.config.tunCidr.Contains(info.DstIP) {
 		return
 	}
 

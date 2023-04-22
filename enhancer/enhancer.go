@@ -16,6 +16,7 @@ import (
 type EnhancerConfig struct {
 	Tun     tun.TunConfig
 	FakeDNS string
+	tunCidr netip.Prefix
 }
 
 type Enhancer struct {
@@ -53,14 +54,13 @@ func (eh *Enhancer) Start() (err error) {
 		}
 	}()
 
+	eh.config.tunCidr = netip.MustParsePrefix(eh.config.Tun.Addr)
+	ip := eh.config.tunCidr.Masked().Addr()
+	ip = ip.Next().Next()
+	eh.nameserver = ip
+
 	// set local dns server configuration
-	if runtime.GOOS == "windows" {
-		eh.nameserver = netip.MustParseAddr("127.0.0.1")
-		dnsutil.SetLocalDnsServer(eh.config.Tun.Name)
-	} else {
-		ip := netip.MustParsePrefix(eh.config.Tun.Addr).Masked().Addr()
-		ip = ip.Next().Next()
-		eh.nameserver = ip
+	if runtime.GOOS != "windows" {
 		dnsutil.SetLocalDnsServer(eh.nameserver.String())
 	}
 

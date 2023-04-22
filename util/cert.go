@@ -7,8 +7,12 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"math/big"
+	"os"
 	"time"
+
+	"google.golang.org/grpc/credentials"
 )
 
 func GenCertificate() (tls.Certificate, error) {
@@ -33,4 +37,44 @@ func GenCertificate() (tls.Certificate, error) {
 	rawCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
 	rawKey := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priKey)})
 	return tls.X509KeyPair(rawCert, rawKey)
+}
+
+func LoadClientMTLSCertificate(certPath, keyPath, caPath, hostname string) (credentials.TransportCredentials, error) {
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		return nil, err
+	}
+	certPool := x509.NewCertPool()
+	ca, err := os.ReadFile(caPath)
+	if err != nil {
+		return nil, err
+	}
+	if ok := certPool.AppendCertsFromPEM(ca); !ok {
+		return nil, errors.New("failed to append certs")
+	}
+	return credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ServerName:   hostname, // must equal to Common Name
+		RootCAs:      certPool,
+	}), nil
+}
+
+func LoadServerMTLSCertificate(certPath, keyPath, caPath, hostname string) (credentials.TransportCredentials, error) {
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		return nil, err
+	}
+	certPool := x509.NewCertPool()
+	ca, err := os.ReadFile(caPath)
+	if err != nil {
+		return nil, err
+	}
+	if ok := certPool.AppendCertsFromPEM(ca); !ok {
+		return nil, errors.New("failed to append certs")
+	}
+	return credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientAuth:   tls.RequireAndVerifyClientCert, // NOTE: this is optional!
+		ClientCAs:    certPool,
+	}), nil
 }

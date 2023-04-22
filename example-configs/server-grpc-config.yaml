@@ -1,0 +1,14 @@
+server:
+  - name: ss
+    addr: ':8388'
+    password: "12345"
+    method: chacha20-ietf-poly1305
+    transport: grpc
+    grpc:
+      tls: true
+      cert_path: "certs/server.crt"
+      key_path: "certs/server.key"
+      ca_path: "certs/ca.crt"
+color: true
+verbose: true
+verbose_level: 2

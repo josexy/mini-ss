@@ -1,0 +1,25 @@
+server:
+  - name: ss
+    addr: 127.0.0.1:8388
+    password: "12345" 
+    method: chacha20-ietf-poly1305
+    transport: grpc
+    grpc:
+      tls: true
+      hostname: www.helloworld.com
+      cert_path: "certs/client.crt"
+      key_path: "certs/client.key"
+      ca_path: "certs/ca.crt"
+local:
+  socks_addr: 127.0.0.1:10086
+  http_addr: 127.0.0.1:10087
+color: true
+verbose: true
+verbose_level: 2
+iface: en5
+auto_detect_iface: true
+rules:
+  mode: global
+  global_to: 'ss'
+  direct_to: ''
+

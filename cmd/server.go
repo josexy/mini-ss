@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,22 +16,8 @@ var serverCmd = &cobra.Command{
 	Short:   "ss-server subcommand options",
 	Example: "  mini-ss server -s :8388 -m aes-128-cfb -p 123456 -CV",
 	Run: func(cmd *cobra.Command, args []string) {
-		defer func() {
-			if err := recover(); err != nil {
-				if e, ok := err.(error); ok {
-					logger.Logger.FatalBy(e)
-				}
-			}
-		}()
-		if len(cfg.Server) == 0 {
-			logger.Logger.Fatal("server node is empty")
-		}
-		if cfg.Server[0].Addr == "" {
+		if err := StartServer(); err != nil {
 			cmd.Help()
-			return
-		}
-		if err := startServer(); err != nil {
-			logger.Logger.FatalBy(err)
 		}
 	},
 }
@@ -38,6 +25,23 @@ var serverCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(serverCmd)
 	serverCmd.Flags().StringVarP(&cfg.Server[0].Addr, "server", "s", "", "server listening address")
+}
+
+func StartServer() error {
+	if len(cfg.Server) == 0 || cfg.Server[0].Addr == "" {
+		return errors.New("server node is empty")
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			if e, ok := err.(error); ok {
+				logger.Logger.FatalBy(e)
+			}
+		}
+	}()
+	if err := startServer(); err != nil {
+		logger.Logger.FatalBy(err)
+	}
+	return nil
 }
 
 func startServer() error {

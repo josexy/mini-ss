@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,27 +21,8 @@ var localCmd = &cobra.Command{
 	Short:   "ss-local subcommand options",
 	Example: "  mini-ss client -s 127.0.0.1:8388 -l :10086 -x :10087 -m aes-128-cfb -p 123456 -CV",
 	Run: func(cmd *cobra.Command, args []string) {
-		defer func() {
-			if err := recover(); err != nil {
-				if e, ok := err.(error); ok {
-					logger.Logger.FatalBy(e)
-				}
-			}
-			if cfg.Local.EnableTun {
-				dnsutil.UnsetLocalDnsServer()
-			}
-			if cfg.Local.SystemProxy {
-				proxyutil.UnsetSystemProxy()
-			}
-		}()
-
-		if len(cfg.Server) > 0 && cfg.Server[0].Addr == "" {
+		if err := StartLocal(); err != nil {
 			cmd.Help()
-			return
-		}
-
-		if err := startLocal(); err != nil {
-			logger.Logger.FatalBy(err)
 		}
 	},
 }
@@ -78,6 +60,29 @@ func init() {
 	// interface
 	localCmd.PersistentFlags().StringVar(&cfg.Iface, "iface", "", "bind outbound interface")
 	localCmd.PersistentFlags().BoolVar(&cfg.AutoDetectIface, "auto-detect-iface", false, "enable auto-detect interface")
+}
+
+func StartLocal() error {
+	if len(cfg.Server) == 0 || cfg.Server[0].Addr == "" {
+		return errors.New("server node is empty")
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			if e, ok := err.(error); ok {
+				logger.Logger.FatalBy(e)
+			}
+		}
+		if cfg.Local.EnableTun {
+			dnsutil.UnsetLocalDnsServer()
+		}
+		if cfg.Local.SystemProxy {
+			proxyutil.UnsetSystemProxy()
+		}
+	}()
+	if err := startLocal(); err != nil {
+		logger.Logger.FatalBy(err)
+	}
+	return nil
 }
 
 func startLocal() error {

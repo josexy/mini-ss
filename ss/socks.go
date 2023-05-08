@@ -13,6 +13,7 @@ import (
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
 	"github.com/josexy/mini-ss/server"
+	"github.com/josexy/mini-ss/statistic"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/logger"
 )
@@ -55,6 +56,20 @@ func (s *socks5Server) ServeTCP(conn net.Conn) {
 			logger.Logger.ErrorBy(err)
 			return
 		}
+
+		if statistic.EnableStatistic {
+			tcpTracker := statistic.NewTCPTracker(conn, statistic.Context{
+				Src:     conn.RemoteAddr().String(),
+				Dst:     dstAddr,
+				Network: "TCP",
+				Type:    "SOCKS",
+				Proxy:   proxy,
+				Rule:    string(rule.MatchRuler.MatcherResult().RuleType),
+			})
+			defer statistic.DefaultManager.Remove(tcpTracker)
+			conn = tcpTracker
+		}
+
 		if err = selector.ProxySelector.Select(proxy)(conn, dstAddr); err != nil {
 			logger.Logger.ErrorBy(err)
 		}
@@ -259,6 +274,18 @@ func (s *socks5Server) handleCmdUdpAssociate(conn net.Conn, buf *[]byte) error {
 	proxy, err := rule.MatchRuler.Select()
 	if err != nil {
 		return err
+	}
+	if statistic.EnableStatistic {
+		udpTracker := statistic.NewUDPTracker(dstConn, statistic.Context{
+			Src:     bindAddr.String(),
+			Dst:     "-",
+			Network: "UDP",
+			Type:    "SOCKS",
+			Rule:    string(rule.MatchRuler.MatcherResult().RuleType),
+			Proxy:   proxy,
+		})
+		defer statistic.DefaultManager.Remove(udpTracker)
+		dstConn = udpTracker
 	}
 	return selector.ProxySelector.SelectPacket(proxy)(dstConn, "")
 }

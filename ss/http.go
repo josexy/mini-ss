@@ -15,6 +15,7 @@ import (
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
 	"github.com/josexy/mini-ss/server"
+	"github.com/josexy/mini-ss/statistic"
 	"github.com/josexy/mini-ss/sticky"
 	"github.com/josexy/mini-ss/util/logger"
 )
@@ -183,7 +184,18 @@ func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 		logger.Logger.ErrorBy(err)
 		return
 	}
-
+	if statistic.EnableStatistic {
+		tcpTracker := statistic.NewTCPTracker(conn, statistic.Context{
+			Src:     conn.RemoteAddr().String(),
+			Dst:     hp.handler.dstAddr,
+			Network: "TCP",
+			Type:    "HTTP",
+			Proxy:   proxy,
+			Rule:    string(rule.MatchRuler.MatcherResult().RuleType),
+		})
+		// defer statistic.DefaultManager.Remove(tcpTracker)
+		conn = tcpTracker
+	}
 	if err = selector.ProxySelector.Select(proxy)(conn, hp.handler.dstAddr); err != nil {
 		logger.Logger.ErrorBy(err)
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
+	"github.com/josexy/mini-ss/statistic"
 	"github.com/josexy/mini-ss/util/logger"
 	"github.com/josexy/netstackgo"
 	"github.com/miekg/dns"
@@ -83,6 +84,18 @@ func (handler *enhancerHandler) HandleTCPConn(info *netstackgo.ConnTuple, conn n
 		logx.String("remote", remoteAddr),
 	)
 
+	if statistic.EnableStatistic {
+		tcpTracker := statistic.NewTCPTracker(conn, statistic.Context{
+			Src:     info.Src(),
+			Dst:     remoteAddr,
+			Type:    "TCP-TUN",
+			Network: "TCP",
+			Rule:    string(rule.MatchRuler.MatcherResult().RuleType),
+			Proxy:   proxy,
+		})
+		defer statistic.DefaultManager.Remove(tcpTracker)
+		conn = tcpTracker
+	}
 	if err := selector.ProxySelector.Select(proxy)(conn, remoteAddr); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
@@ -114,5 +127,17 @@ func (handler *enhancerHandler) HandleUDPConn(info *netstackgo.ConnTuple, conn n
 
 	logger.Logger.Debug("udp-tun", logx.String("src", info.Src()), logx.String("dst", info.Dst()))
 
+	if statistic.EnableStatistic {
+		udpTracker := statistic.NewUDPTracker(conn, statistic.Context{
+			Src:     info.Src(),
+			Dst:     info.Dst(),
+			Type:    "UDP-TUN",
+			Network: "UDP",
+			Rule:    string(rule.MatchRuler.MatcherResult().RuleType),
+			Proxy:   proxy,
+		})
+		defer statistic.DefaultManager.Remove(udpTracker)
+		conn = udpTracker
+	}
 	selector.ProxySelector.SelectPacket(proxy)(conn, info.Dst())
 }

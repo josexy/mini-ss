@@ -385,6 +385,9 @@ func WithKcpKeepAlive(second int) SSOption {
 
 func WithKcpConns(conns int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
+		if conns <= 0 {
+			return
+		}
 		so.serverOpts[0].opts.(*transport.KcpOptions).Conns = conns
 	})
 }
@@ -417,6 +420,9 @@ func WithQuicMaxIdleTimeout(timeout time.Duration) SSOption {
 
 func WithQuicConns(conns int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
+		if conns <= 0 {
+			return
+		}
 		so.serverOpts[0].opts.(*transport.QuicOptions).Conns = conns
 	})
 }

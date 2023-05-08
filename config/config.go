@@ -12,141 +12,141 @@ import (
 )
 
 type KcpOption struct {
-	Crypt    string `yaml:"crypt"`
-	Key      string `yaml:"key"`
-	Mode     string `yaml:"mode"`
-	Compress bool   `yaml:"compress"`
-	Conns    int    `yaml:"conns"`
+	Crypt    string `yaml:"crypt" json:"crypt"`
+	Key      string `yaml:"key" json:"key"`
+	Mode     string `yaml:"mode" json:"mode"`
+	Compress bool   `yaml:"compress,omitempty" json:"compress,omitempty"`
+	Conns    int    `yaml:"conns" json:"conns"`
 }
 
 type WsOption struct {
-	Host     string `yaml:"host"`
-	Path     string `yaml:"path"`
-	Compress bool   `yaml:"compress"`
-	TLS      bool   `yaml:"tls"`
+	Path     string `yaml:"path" json:"path"`
+	Host     string `yaml:"host,omitempty" json:"host,omitempty"`
+	Compress bool   `yaml:"compress,omitempty" json:"compress,omitempty"`
+	TLS      bool   `yaml:"tls,omitempty" json:"tls,omitempty"`
 }
 
 type ObfsOption struct {
-	Host string `yaml:"host"`
+	Host string `yaml:"host,omitempty" json:"host,omitempty"`
 }
 
 type QuicOption struct {
-	Conns int `yaml:"conns"`
+	Conns int `yaml:"conns" json:"conns"`
 }
 
 type GrpcOption struct {
-	Hostname string `yaml:"hostname"`
-	KeyPath  string `yaml:"key_path"`
-	CertPath string `yaml:"cert_path"`
-	CAPath   string `yaml:"ca_path"`
-	TLS      bool   `yaml:"tls"`
+	Hostname string `yaml:"hostname,omitempty" json:"hostname,omitempty"`
+	KeyPath  string `yaml:"key_path,omitempty" json:"key_path,omitempty"`
+	CertPath string `yaml:"cert_path,omitempty" json:"cert_path,omitempty"`
+	CAPath   string `yaml:"ca_path,omitempty" json:"ca_path,omitempty"`
+	TLS      bool   `yaml:"tls,omitempty" json:"tls,omitempty"`
 }
 
 type SSROption struct {
-	Protocol      string `yaml:"protocol"`
-	ProtocolParam string `yaml:"protocol_param"`
-	Obfs          string `yaml:"obfs"`
-	ObfsParam     string `yaml:"obfs_param"`
+	Protocol      string `yaml:"protocol" json:"protocol"`
+	ProtocolParam string `yaml:"protocol_param,omitempty" json:"protocol_param,omitempty"`
+	Obfs          string `yaml:"obfs" json:"obfs"`
+	ObfsParam     string `yaml:"obfs_param,omitempty" json:"obfs_param,omitempty"`
 }
 
 type ServerConfig struct {
-	Disable   bool        `yaml:"disable"`
-	Type      string      `yaml:"type,omitempty"`
-	Name      string      `yaml:"name"`
-	Addr      string      `yaml:"addr"`
-	Password  string      `yaml:"password"`
-	Method    string      `yaml:"method"`
-	Transport string      `yaml:"transport"`
-	Udp       bool        `yaml:"udp"`
-	Kcp       *KcpOption  `yaml:"kcp,omitempty"`
-	Ws        *WsOption   `yaml:"ws,omitempty"`
-	Obfs      *ObfsOption `yaml:"obfs,omitempty"`
-	Quic      *QuicOption `yaml:"quic,omitempty"`
-	Grpc      *GrpcOption `yaml:"grpc,omitempty"`
-	SSR       *SSROption  `yaml:"ssr,omitempty"`
+	Disable   bool        `yaml:"disable,omitempty" json:"disable,omitempty"`
+	Type      string      `yaml:"type,omitempty" json:"type,omitempty"`
+	Name      string      `yaml:"name" json:"name"`
+	Addr      string      `yaml:"addr" json:"addr"`
+	Password  string      `yaml:"password" json:"password"`
+	Method    string      `yaml:"method" json:"method"`
+	Transport string      `yaml:"transport" json:"transport"`
+	Udp       bool        `yaml:"udp,omitempty" json:"udp,omitempty"`
+	Kcp       *KcpOption  `yaml:"kcp,omitempty" json:"kcp,omitempty"`
+	Ws        *WsOption   `yaml:"ws,omitempty" json:"ws,omitempty"`
+	Obfs      *ObfsOption `yaml:"obfs,omitempty" json:"obfs,omitempty"`
+	Quic      *QuicOption `yaml:"quic,omitempty" json:"quic,omitempty"`
+	Grpc      *GrpcOption `yaml:"grpc,omitempty" json:"grpc,omitempty"`
+	SSR       *SSROption  `yaml:"ssr,omitempty" json:"ssr,omitempty"`
 }
 
 type TunOption struct {
-	Name string `yaml:"name"`
-	Cidr string `yaml:"cidr"`
-	Mtu  int    `yaml:"mtu"`
+	Name string `yaml:"name" json:"name"`
+	Cidr string `yaml:"cidr" json:"cidr"`
+	Mtu  int    `yaml:"mtu" json:"mtu"`
 }
 
 type FakeDnsOption struct {
-	Listen      string   `yaml:"listen"`
-	Nameservers []string `yaml:"nameservers"`
+	Listen      string   `yaml:"listen" json:"listen"`
+	Nameservers []string `yaml:"nameservers" json:"nameservers"`
 }
 
 type LocalConfig struct {
-	SocksAddr   string         `yaml:"socks_addr"`
-	HTTPAddr    string         `yaml:"http_addr"`
-	SocksAuth   string         `yaml:"socks_auth"`
-	HTTPAuth    string         `yaml:"http_auth"`
-	MixedAddr   string         `yaml:"mixed_addr"`
-	TCPTunAddr  []string       `yaml:"tcp_tun_addr"`
-	SystemProxy bool           `yaml:"system_proxy"`
-	EnableTun   bool           `yaml:"enable_tun"`
-	Tun         *TunOption     `yaml:"tun,omitempty"`
-	FakeDNS     *FakeDnsOption `yaml:"fake_dns,omitempty"`
+	SocksAddr   string         `yaml:"socks_addr,omitempty" json:"socks_addr,omitempty"`
+	HTTPAddr    string         `yaml:"http_addr,omitempty" json:"http_addr,omitempty"`
+	SocksAuth   string         `yaml:"socks_auth,omitempty" json:"socks_auth,omitempty"`
+	HTTPAuth    string         `yaml:"http_auth,omitempty" json:"http_auth,omitempty"`
+	MixedAddr   string         `yaml:"mixed_addr,omitempty" json:"mixed_addr,omitempty"`
+	TCPTunAddr  []string       `yaml:"tcp_tun_addr,omitempty" json:"tcp_tun_addr,omitempty"`
+	SystemProxy bool           `yaml:"system_proxy,omitempty" json:"system_proxy,omitempty"`
+	EnableTun   bool           `yaml:"enable_tun,omitempty" json:"enable_tun,omitempty"`
+	Tun         *TunOption     `yaml:"tun,omitempty" json:"tun,omitempty"`
+	FakeDNS     *FakeDnsOption `yaml:"fake_dns,omitempty" json:"fake_dns,omitempty"`
 }
 
 type Domain struct {
-	Proxy  string   `yaml:"proxy"`
-	Action string   `yaml:"action"`
-	Value  []string `yaml:"value"`
+	Proxy  string   `yaml:"proxy" json:"proxy"`
+	Action string   `yaml:"action" json:"action"`
+	Value  []string `yaml:"value" json:"value"`
 }
 
 type DomainKeyword struct {
-	Proxy  string   `yaml:"proxy"`
-	Action string   `yaml:"action"`
-	Value  []string `yaml:"value"`
+	Proxy  string   `yaml:"proxy" json:"proxy"`
+	Action string   `yaml:"action" json:"action"`
+	Value  []string `yaml:"value" json:"value"`
 }
 
 type DomainSuffix struct {
-	Proxy  string   `yaml:"proxy"`
-	Action string   `yaml:"action"`
-	Value  []string `yaml:"value"`
+	Proxy  string   `yaml:"proxy" json:"proxy"`
+	Action string   `yaml:"action" json:"action"`
+	Value  []string `yaml:"value" json:"value"`
 }
 
 type GeoIP struct {
-	Resolve bool     `yaml:"resolve"`
-	Proxy   string   `yaml:"proxy"`
-	Action  string   `yaml:"action"`
-	Value   []string `yaml:"value"`
+	Resolve bool     `yaml:"resolve,omitempty" json:"resolve,omitempty"`
+	Proxy   string   `yaml:"proxy" json:"proxy"`
+	Action  string   `yaml:"action" json:"action"`
+	Value   []string `yaml:"value" json:"value"`
 }
 
 type IPCidr struct {
-	Resolve bool     `yaml:"resolve"`
-	Proxy   string   `yaml:"proxy"`
-	Action  string   `yaml:"action"`
-	Value   []string `yaml:"value"`
+	Resolve bool     `yaml:"resolve,omitempty" json:"resolve,omitempty"`
+	Proxy   string   `yaml:"proxy" json:"proxy"`
+	Action  string   `yaml:"action" json:"action"`
+	Value   []string `yaml:"value" json:"value"`
 }
 
 type Match struct {
-	Others         string           `yaml:"others,omitempty"`
-	Domains        []*Domain        `yaml:"domain,omitempty"`
-	DomainKeywords []*DomainKeyword `yaml:"domain_keyword,omitempty"`
-	DomainSuffixs  []*DomainSuffix  `yaml:"domain_suffix,omitempty"`
-	GeoIPs         []*GeoIP         `yaml:"geoip,omitempty"`
-	IPCidrs        []*IPCidr        `yaml:"ipcidr,omitempty"`
+	Others         string           `yaml:"others,omitempty" json:"others,omitempty"`
+	Domains        []*Domain        `yaml:"domain,omitempty" json:"domain,omitempty"`
+	DomainKeywords []*DomainKeyword `yaml:"domain_keyword,omitempty" json:"domain_keyword,omitempty"`
+	DomainSuffixs  []*DomainSuffix  `yaml:"domain_suffix,omitempty" json:"domain_suffix,omitempty"`
+	GeoIPs         []*GeoIP         `yaml:"geoip,omitempty" json:"geoip,omitempty"`
+	IPCidrs        []*IPCidr        `yaml:"ipcidr,omitempty" json:"ipcidr,omitempty"`
 }
 
 type Rules struct {
-	Mode     string `yaml:"mode"`
-	DirectTo string `yaml:"direct_to"`
-	GlobalTo string `yaml:"global_to"`
-	Match    *Match `yaml:"match,omitempty"`
+	Mode     string `yaml:"mode" json:"mode"`
+	DirectTo string `yaml:"direct_to,omitempty" json:"direct_to,omitempty"`
+	GlobalTo string `yaml:"global_to,omitempty" json:"global_to,omitempty"`
+	Match    *Match `yaml:"match,omitempty" json:"match,omitempty"`
 }
 
 type Config struct {
-	Server          []*ServerConfig `yaml:"server,omitempty"`
-	Local           *LocalConfig    `yaml:"local,omitempty"`
-	Color           bool            `yaml:"color"`
-	Verbose         bool            `yaml:"verbose"`
-	VerboseLevel    int             `yaml:"verbose_level"`
-	Iface           string          `yaml:"iface"`
-	AutoDetectIface bool            `yaml:"auto_detect_iface"`
-	Rules           *Rules          `yaml:"rules"`
+	Server          []*ServerConfig `yaml:"server,omitempty" json:"server,omitempty"`
+	Local           *LocalConfig    `yaml:"local,omitempty" json:"local,omitempty"`
+	Color           bool            `yaml:"color,omitempty" json:"color,omitempty"`
+	Verbose         bool            `yaml:"verbose,omitempty" json:"verbose,omitempty"`
+	VerboseLevel    int             `yaml:"verbose_level,omitempty" json:"verbose_level,omitempty"`
+	Iface           string          `yaml:"iface,omitempty" json:"iface,omitempty"`
+	AutoDetectIface bool            `yaml:"auto_detect_iface,omitempty" json:"auto_detect_iface,omitempty"`
+	Rules           *Rules          `yaml:"rules" json:"rules"`
 }
 
 func ParseConfigFile(path string) (*Config, error) {

@@ -6,6 +6,7 @@ import (
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
 	"github.com/josexy/mini-ss/server"
+	"github.com/josexy/mini-ss/statistic"
 	"github.com/josexy/mini-ss/util/logger"
 )
 
@@ -36,6 +37,18 @@ func (tt *tcpTunServer) ServeTCP(conn net.Conn) {
 	if err != nil {
 		logger.Logger.ErrorBy(err)
 		return
+	}
+	if statistic.EnableStatistic {
+		tcpTracker := statistic.NewTCPTracker(conn, statistic.Context{
+			Src:     conn.RemoteAddr().String(),
+			Dst:     tt.RemoteAddr,
+			Network: "TCP",
+			Type:    "SIMPLE-TCP-TUN",
+			Rule:    string(rule.MatchRuler.MatcherResult().RuleType),
+			Proxy:   proxy,
+		})
+		defer statistic.DefaultManager.Remove(tcpTracker)
+		conn = tcpTracker
 	}
 	if err = selector.ProxySelector.Select(proxy)(conn, tt.RemoteAddr); err != nil {
 		logger.Logger.ErrorBy(err)

@@ -2,29 +2,18 @@ package cmd
 
 import (
 	"errors"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/config"
 	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/enhancer"
 	"github.com/josexy/mini-ss/geoip"
-	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/ss"
-	"github.com/josexy/mini-ss/util/convert"
 	"github.com/josexy/mini-ss/util/dnsutil"
 	"github.com/josexy/mini-ss/util/logger"
 	"github.com/josexy/proxyutil"
 	"github.com/spf13/cobra"
-)
-
-var (
-	subscriptionUrl string
-	globalTo        string
-	linkCfg         *convert.Config
 )
 
 var localCmd = &cobra.Command{
@@ -41,7 +30,6 @@ var localCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(localCmd)
 
-	localCmd.Flags().StringVarP(&subscriptionUrl, "subscription", "S", "", "shadowsocks subscription url")
 	localCmd.Flags().StringVarP(&cfg.Server[0].Addr, "server", "s", "", "client connects to server address")
 	localCmd.Flags().StringVarP(&cfg.Local.SocksAddr, "socks", "l", "127.0.0.1:10086", "SOCKS proxy listening address")
 	localCmd.Flags().StringVarP(&cfg.Local.HTTPAddr, "http", "x", "", "HTTP proxy listening address")
@@ -51,7 +39,6 @@ func init() {
 	localCmd.Flags().StringSliceVar(&cfg.Local.TCPTunAddr, "tcp-tun", nil, "simple tcp tun listening address (format: \"local:port=remote:port\")")
 	localCmd.Flags().BoolVar(&cfg.Local.SystemProxy, "system-proxy", false, "enable system proxy settings")
 	localCmd.Flags().BoolVar(&cfg.Server[0].Udp, "udp-relay", false, "enable udp relay for client SOCKS proxy")
-	localCmd.Flags().StringVarP(&globalTo, "global-to", "Y", "", "global to proxy")
 
 	// ssr
 	localCmd.Flags().StringVarP(&cfg.Server[0].Type, "type", "T", "", "enable shadowsocksr")
@@ -76,29 +63,6 @@ func init() {
 }
 
 func StartLocal() error {
-	if subscriptionUrl != "" {
-		var err error
-		linkCfg, err = convert.ParseConfig(subscriptionUrl)
-		if err != nil {
-			return err
-		}
-		cfg.Server = []*config.ServerConfig{}
-		for _, proxy := range linkCfg.Proxies {
-			logger.Logger.Info("load server config from subscription",
-				logx.String("name", proxy.Name),
-			)
-			cfg.Server = append(cfg.Server, &config.ServerConfig{
-				Type:      proxy.Type,
-				Name:      proxy.Name,
-				Addr:      net.JoinHostPort(proxy.Server, proxy.Port),
-				Password:  proxy.Password,
-				Method:    proxy.Cipher,
-				Transport: "default",
-				Udp:       true,
-			})
-		}
-	}
-
 	if len(cfg.Server) == 0 || cfg.Server[0].Addr == "" {
 		return errors.New("server node is empty")
 	}
@@ -127,13 +91,6 @@ func startLocal() error {
 	}
 
 	srv := ss.NewShadowsocksClient(cfg.BuildSSLocalOptions()...)
-
-	if configFile == "" && subscriptionUrl != "" {
-	}
-	// only one default server config "<Default>"
-	if configFile == "" && rule.MatchRuler.RuleMode == rule.Global && subscriptionUrl != "" {
-		rule.MatchRuler.GlobalTo = globalTo
-	}
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)

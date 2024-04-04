@@ -36,7 +36,7 @@ func (d *quicDialer) dial(addr string) (quic.EarlyConnection, error) {
 		MaxIdleTimeout:       d.Opts.MaxIdleTimeout,
 		Versions: []quic.VersionNumber{
 			quic.Version1,
-			quic.VersionDraft29,
+			quic.Version2,
 		},
 	}
 	var tlsConfig *tls.Config
@@ -48,7 +48,7 @@ func (d *quicDialer) dial(addr string) (quic.EarlyConnection, error) {
 		return nil, err
 	}
 
-	return quic.DialEarly(conn, raddr, raddr.String(), TlsConfigQuicALPN(tlsConfig), quicConfig)
+	return quic.DialEarly(context.Background(), conn, raddr, TlsConfigQuicALPN(tlsConfig), quicConfig)
 }
 
 func (d *quicDialer) Dial(addr string) (net.Conn, error) {

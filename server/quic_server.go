@@ -14,7 +14,7 @@ import (
 )
 
 type QuicServer struct {
-	quic.EarlyListener
+	*quic.EarlyListener
 	Opts     *transport.QuicOptions
 	Addr     string
 	Handler  QuicHandler
@@ -50,7 +50,7 @@ func (s *QuicServer) Start() {
 		MaxIdleTimeout:       s.Opts.MaxIdleTimeout,
 		Versions: []quic.VersionNumber{
 			quic.Version1,
-			quic.VersionDraft29,
+			quic.Version2,
 		},
 	}
 

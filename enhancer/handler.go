@@ -47,7 +47,7 @@ func (handler *enhancerHandler) relayFakeDnsRequest(conn net.PacketConn) error {
 	return nil
 }
 
-func (handler *enhancerHandler) HandleTCPConn(info *netstackgo.ConnTuple, conn net.Conn) {
+func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn net.Conn) {
 	// the target address(info.DstIP) may be a fake ip address or real ip address
 	// for example `curl www.google.com` or `curl 74.125.24.103:80`
 
@@ -59,9 +59,9 @@ func (handler *enhancerHandler) HandleTCPConn(info *netstackgo.ConnTuple, conn n
 	// `curl --proxy 127.0.0.1:10088 www.google.com`
 
 	var remote string
-	fakeDnsRecord := resolver.DefaultResolver.FindByIP(info.DstIP)
+	fakeDnsRecord := resolver.DefaultResolver.FindByIP(info.DstAddr.Addr())
 	if fakeDnsRecord == nil {
-		remote = info.DstIP.String()
+		remote = info.DstAddr.Addr().String()
 	} else {
 		remote = fakeDnsRecord.Domain
 	}
@@ -76,7 +76,7 @@ func (handler *enhancerHandler) HandleTCPConn(info *netstackgo.ConnTuple, conn n
 		return
 	}
 
-	remoteAddr := net.JoinHostPort(remote, strconv.Itoa(int(info.DstPort)))
+	remoteAddr := net.JoinHostPort(remote, strconv.Itoa(int(info.DstAddr.Port())))
 
 	logger.Logger.Debug("tcp-tun",
 		logx.String("src", info.Src()),
@@ -101,20 +101,20 @@ func (handler *enhancerHandler) HandleTCPConn(info *netstackgo.ConnTuple, conn n
 	}
 }
 
-func (handler *enhancerHandler) HandleUDPConn(info *netstackgo.ConnTuple, conn net.PacketConn) {
+func (handler *enhancerHandler) HandleUDPConn(info netstackgo.ConnTuple, conn net.PacketConn) {
 	// relay dns packet
-	if info.DstPort == uint16(handler.owner.fakeDns.Port) && info.DstIP.Compare(handler.owner.nameserver) == 0 {
+	if info.DstAddr.Port() == uint16(handler.owner.fakeDns.Port) && info.DstAddr.Addr().Compare(handler.owner.nameserver) == 0 {
 		handler.relayFakeDnsRequest(conn)
 		return
 	}
 
 	// discard udp fake ip
-	if handler.owner.config.tunCidr.Contains(info.DstIP) {
+	if handler.owner.config.tunCidr.Contains(info.DstAddr.Addr()) {
 		return
 	}
 
 	// for UDP request matching, support GeoIP and IP-CIDR
-	remote := info.DstIP.String()
+	remote := info.DstAddr.Addr().String()
 	if !rule.MatchRuler.Match(&remote) {
 		return
 	}

@@ -12,10 +12,14 @@ local:
   # mixed_addr: 127.0.0.1:10088
   # socks_auth: '123:123'
   # http_auth: '123:123'
+  mitm:
+    enable: true
+    ca_path: "certs/ca.crt"
+    key_path: "certs/ca.key"
 log:
   color: true
   log_level: trace
-  verbose_level: 3
+  verbose_level: 2
 # iface: lo
 # auto_detect_iface: true
 rules:

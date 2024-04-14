@@ -54,12 +54,14 @@ type reqContext struct {
 type httpReqHandler struct {
 	pool     *bufferpool.BufferPool
 	reqCtx   reqContext
+	owner    *httpProxyServer
 	httpAuth *Auth
 }
 
-func newHttpReqHandler(auth *Auth) *httpReqHandler {
+func newHttpReqHandler(auth *Auth, owner *httpProxyServer) *httpReqHandler {
 	return &httpReqHandler{
 		httpAuth: auth,
+		owner:    owner,
 		pool:     bufferpool.NewBytesBufferPool(),
 	}
 }
@@ -118,6 +120,7 @@ func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request, rbuf *byt
 		logx.String("url", req.URL.String()),
 		logx.String("host", host),
 		logx.String("port", port),
+		logx.Any("header", req.Header),
 	)
 
 	if !rule.MatchRuler.Match(&host) {
@@ -176,16 +179,19 @@ func delHopReqHeaders(header http.Header) {
 
 type httpProxyServer struct {
 	server.Server
-	addr    string
 	handler *httpReqHandler
+	mitmOpt mimtOption
 }
 
 func newHttpProxyServer(addr string, httpAuth *Auth) *httpProxyServer {
-	hp := &httpProxyServer{
-		addr:    addr,
-		handler: newHttpReqHandler(httpAuth),
-	}
-	hp.Server = server.NewTcpServer(hp.addr, hp, server.Http)
+	hp := &httpProxyServer{}
+	hp.handler = newHttpReqHandler(httpAuth, hp)
+	hp.Server = server.NewTcpServer(addr, hp, server.Http)
+	return hp
+}
+
+func (hp *httpProxyServer) WithMitmMode(opt mimtOption) *httpProxyServer {
+	hp.mitmOpt = opt
 	return hp
 }
 
@@ -194,6 +200,15 @@ func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 	var err error
 	if conn, err = hp.handler.ReadRequest(conn); err != nil {
 		logger.Logger.ErrorBy(err)
+		return
+	}
+
+	// check whether mitm mode is enabled
+	// TODO: in mitm mode, the client doesn't relay the data to remote ss server via transport
+	if hp.mitmOpt.enable {
+		if err = hp.handler.handleMIMT(conn); err != nil {
+			logger.Logger.ErrorBy(err)
+		}
 		return
 	}
 

@@ -10,6 +10,12 @@ import (
 	"github.com/josexy/mini-ss/transport"
 )
 
+type mimtOption struct {
+	enable  bool
+	caPath  string
+	keyPath string
+}
+
 type serverOptions struct {
 	name      string
 	addr      string
@@ -32,6 +38,7 @@ type localOptions struct {
 	systemProxy    bool
 	enableTun      bool
 	enhancerConfig enhancer.EnhancerConfig
+	mitmConfig     mimtOption
 }
 
 type ssOptions struct {
@@ -242,6 +249,24 @@ func WithMixedAddr(addr string) SSOption {
 func WithTcpTunAddr(addrs [][]string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.localOpts.tcpTunAddr = addrs
+	})
+}
+
+func WithMitm(enable bool) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmConfig.enable = enable
+	})
+}
+
+func WithMitmCAPath(caPath string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmConfig.caPath = caPath
+	})
+}
+
+func WithMitmKeyPath(keyPath string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmConfig.keyPath = keyPath
 	})
 }
 

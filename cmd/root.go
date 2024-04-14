@@ -33,6 +33,7 @@ var (
 			SSR:  &config.SSROption{},
 		}},
 		Local: &config.LocalConfig{
+			MITM:    &config.MITMOption{},
 			Tun:     &config.TunOption{},
 			FakeDNS: &config.FakeDnsOption{},
 		},

@@ -85,6 +85,12 @@ type FakeDnsOption struct {
 	Nameservers []string `yaml:"nameservers" json:"nameservers"`
 }
 
+type MITMOption struct {
+	Enable  bool   `yaml:"enable" json:"enable"`
+	CAPath  string `yaml:"ca_path" json:"ca_path"`
+	KeyPath string `yaml:"key_path" json:"key_path"`
+}
+
 type LocalConfig struct {
 	SocksAddr   string         `yaml:"socks_addr,omitempty" json:"socks_addr,omitempty"`
 	HTTPAddr    string         `yaml:"http_addr,omitempty" json:"http_addr,omitempty"`
@@ -94,6 +100,7 @@ type LocalConfig struct {
 	TCPTunAddr  []string       `yaml:"tcp_tun_addr,omitempty" json:"tcp_tun_addr,omitempty"`
 	SystemProxy bool           `yaml:"system_proxy,omitempty" json:"system_proxy,omitempty"`
 	EnableTun   bool           `yaml:"enable_tun,omitempty" json:"enable_tun,omitempty"`
+	MITM        *MITMOption    `yaml:"mitm,omitempty" json:"mitm,omitempty"`
 	Tun         *TunOption     `yaml:"tun,omitempty" json:"tun,omitempty"`
 	FakeDNS     *FakeDnsOption `yaml:"fake_dns,omitempty" json:"fake_dns,omitempty"`
 }
@@ -386,9 +393,13 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 		tcpTunAddr = append(tcpTunAddr, lr)
 	}
 	opts = append(opts, ss.WithTcpTunAddr(tcpTunAddr))
-
 	opts = append(opts, ss.WithRuler(cfg.BuildRuler()))
 
+	if cfg.Local.MITM != nil && cfg.Local.MITM.Enable {
+		opts = append(opts, ss.WithMitm(cfg.Local.MITM.Enable))
+		opts = append(opts, ss.WithMitmCAPath(cfg.Local.MITM.CAPath))
+		opts = append(opts, ss.WithMitmKeyPath(cfg.Local.MITM.KeyPath))
+	}
 	if cfg.Local.EnableTun {
 		if cfg.Local.FakeDNS == nil {
 			logger.Logger.Fatal("if tun mode is enabled, the fake dns configuration must exist")

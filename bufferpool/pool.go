@@ -21,7 +21,7 @@ func NewBufferPool(size int) *BufferPool {
 func NewBytesBufferPool() *BufferPool {
 	bp := new(BufferPool)
 	bp.pool.New = func() any {
-		return &bytes.Buffer{}
+		return bytes.NewBuffer(make([]byte, 0, 4096))
 	}
 	return bp
 }

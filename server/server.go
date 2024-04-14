@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"net"
 
@@ -51,13 +52,12 @@ func (t ServerType) String() string {
 var (
 	stackTraceBufferPool = bufferpool.NewBufferPool(4096)
 	ErrServerClosed      = errors.New("server: Server closed")
+	ErrServerStarted     = errors.New("server: Server started")
 )
 
 type (
 	Server interface {
-		Build() Server
-		Start()
-		Error() chan error
+		Start(context.Context) error
 		Close() error
 		Serve(*Conn)
 		LocalAddr() string
@@ -83,3 +83,11 @@ func (f WsHandlerFunc) ServeWS(conn net.Conn)     { f(conn) }
 func (f ObfsHandlerFunc) ServeOBFS(conn net.Conn) { f(conn) }
 func (f QuicHandlerFunc) ServeQUIC(conn net.Conn) { f(conn) }
 func (f GrpcHandlerFunc) ServeGRPC(conn net.Conn) { f(conn) }
+
+func closeWithContextDoneErr(ctx context.Context, server Server) {
+	<-ctx.Done()
+	// stop the server if already listened
+	if err := context.Cause(ctx); err != context.Canceled {
+		server.Close()
+	}
+}

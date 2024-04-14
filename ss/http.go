@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/bufferpool"
 	"github.com/josexy/mini-ss/constant"
 	"github.com/josexy/mini-ss/rule"
@@ -21,8 +22,9 @@ import (
 )
 
 var (
-	errBadRequest = errors.New("http-proxy: bad request url scheme")
-	errAuthFailed = errors.New("http-proxy: user authentication failed")
+	errBadRequest   = errors.New("http-proxy: bad request url scheme")
+	errAuthFailed   = errors.New("http-proxy: user authentication failed")
+	errHomeAccessed = errors.New("http-proxy: home accessed")
 )
 
 var (
@@ -36,6 +38,7 @@ var (
 		"Keep-Alive",
 		"Proxy-Authenticate",
 		"Proxy-Authorization",
+		"Proxy-Connection",
 		"Te",
 		"Trailers",
 		"Transfer-Encoding",
@@ -43,10 +46,15 @@ var (
 	}
 )
 
+type reqContext struct {
+	isHttps bool
+	target  string
+}
+
 type httpReqHandler struct {
-	dstAddr  string
-	httpAuth *Auth
 	pool     *bufferpool.BufferPool
+	reqCtx   reqContext
+	httpAuth *Auth
 }
 
 func newHttpReqHandler(auth *Auth) *httpReqHandler {
@@ -71,50 +79,63 @@ func (r *httpReqHandler) parseHostPort(req *http.Request) (host, port string) {
 	var target string
 	if req.Method != http.MethodConnect {
 		target = req.Host
-		if !strings.Contains(target, ":") {
-			target += ":80"
-		}
 	} else {
 		target = req.RequestURI
 	}
-	host, port, _ = net.SplitHostPort(target)
+	host, port, err := net.SplitHostPort(target)
+	if err != nil || port == "" {
+		host = target
+		if req.Method != http.MethodConnect {
+			port = "80"
+		}
+		// ipv6
+		if host[0] == '[' {
+			host = target[1 : len(host)-1]
+		}
+	}
 	return
 }
 
+func (r *httpReqHandler) handleHomeAccess(conn net.Conn, req *http.Request) error {
+	if req.Header.Get("Proxy-Connection") != "" {
+		return nil
+	}
+	resp := &http.Response{ProtoMajor: 1, ProtoMinor: 1, Header: make(http.Header), StatusCode: http.StatusOK}
+	resp.Header.Add("Connection", "close")
+	resp.Write(conn)
+	return errHomeAccessed
+}
+
 func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request, rbuf *bytes.Buffer) (net.Conn, error) {
+	if err := r.handleHomeAccess(conn, req); err != nil {
+		return nil, err
+	}
+
 	host, port := r.parseHostPort(req)
+
+	logger.Logger.Trace("read request",
+		logx.String("method", req.Method),
+		logx.String("url", req.URL.String()),
+		logx.String("host", host),
+		logx.String("port", port),
+	)
 
 	if !rule.MatchRuler.Match(&host) {
 		return nil, constant.ErrRuleMatchDropped
 	}
 
-	// HTTP/1.1
-	errResp := &http.Response{
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     make(http.Header),
-	}
-
-	errResp.Header.Add("Proxy-Agent", proxyAgent)
-
-	// connect method only use https/tls
-	if req.Method != http.MethodConnect && req.URL.Scheme != "http" {
-		errResp.StatusCode = http.StatusBadRequest
-		errResp.Write(conn)
-		return conn, errBadRequest
-	}
-
-	val := req.Header.Get("Proxy-Authorization")
+	proxyAuth := req.Header.Get("Proxy-Authorization")
 	var username, password string
-	if val != "" {
-		data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(val, "Basic "))
+	if proxyAuth != "" {
+		data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(proxyAuth, "Basic "))
 		if err != nil {
 			return conn, err
 		}
 		username, password, _ = strings.Cut(string(data), ":")
 	}
 	if r.httpAuth != nil && !r.httpAuth.Validate(username, password) {
-		errResp.StatusCode = http.StatusProxyAuthRequired
+		errResp := &http.Response{ProtoMajor: 1, ProtoMinor: 1, Header: make(http.Header), StatusCode: http.StatusProxyAuthRequired}
+		errResp.Header.Add("Proxy-Agent", proxyAgent)
 		errResp.Header.Add("Proxy-Authenticate", "Basic realm=\"mini-ss\"")
 		errResp.Header.Add("Connection", "close")
 		errResp.Header.Add("Proxy-Connection", "close")
@@ -122,28 +143,28 @@ func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request, rbuf *byt
 		return conn, errAuthFailed
 	}
 
-	if req.Method != http.MethodConnect {
+	if req.Method == http.MethodConnect {
+		// https
+		// CONNECT www.example.com:443 HTTP/1.1
+		conn.Write(connectionEstablished)
+	} else {
 		// http
 		// GET/POST/... http://www.example.com/ HTTP/1.1
-		// ss-local parses the http request sent by the client
 		newReq, err := http.ReadRequest(bufio.NewReader(rbuf))
 		if err != nil {
 			return conn, err
 		}
 		// delete unnecessary hop-by-hop headers
 		delHopReqHeaders(newReq.Header)
-		newReq.Header.Del("Proxy-Connection")
-
-		reqBuf := bytes.NewBuffer(make([]byte, 0, 1024))
+		reqBuf := bytes.NewBuffer(make([]byte, 0, 4096))
 		newReq.Write(reqBuf)
 		newReq.Body.Close()
 		conn = sticky.NewSharedReader(reqBuf, conn)
-	} else {
-		// https
-		// CONNECT www.example.com:443 HTTP/1.1
-		conn.Write(connectionEstablished)
 	}
-	r.dstAddr = net.JoinHostPort(host, port)
+	r.reqCtx = reqContext{
+		isHttps: req.Method == http.MethodConnect,
+		target:  net.JoinHostPort(host, port),
+	}
 	return conn, nil
 }
 
@@ -160,13 +181,10 @@ type httpProxyServer struct {
 }
 
 func newHttpProxyServer(addr string, httpAuth *Auth) *httpProxyServer {
-	return &httpProxyServer{
+	hp := &httpProxyServer{
 		addr:    addr,
 		handler: newHttpReqHandler(httpAuth),
 	}
-}
-
-func (hp *httpProxyServer) Build() server.Server {
 	hp.Server = server.NewTcpServer(hp.addr, hp, server.Http)
 	return hp
 }
@@ -187,7 +205,7 @@ func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 	if statistic.EnableStatistic {
 		tcpTracker := statistic.NewTCPTracker(conn, statistic.Context{
 			Src:     conn.RemoteAddr().String(),
-			Dst:     hp.handler.dstAddr,
+			Dst:     hp.handler.reqCtx.target,
 			Network: "TCP",
 			Type:    "HTTP",
 			Proxy:   proxy,
@@ -196,7 +214,7 @@ func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 		// defer statistic.DefaultManager.Remove(tcpTracker)
 		conn = tcpTracker
 	}
-	if err = selector.ProxySelector.Select(proxy)(conn, hp.handler.dstAddr); err != nil {
+	if err = selector.ProxySelector.Select(proxy)(conn, hp.handler.reqCtx.target); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }

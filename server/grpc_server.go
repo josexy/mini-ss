@@ -1,82 +1,79 @@
 package server
 
 import (
+	"context"
 	"net"
-	"sync"
 	"sync/atomic"
 
 	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/connection/proto"
 	"github.com/josexy/mini-ss/transport"
-	"github.com/josexy/mini-ss/util"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	_ "google.golang.org/grpc/encoding/gzip"
 )
 
 type GrpcServer struct {
 	proto.UnimplementedStreamServiceServer
-	ln       *tcpKeepAliveListener
-	server   *grpc.Server
-	Addr     string
-	Handler  GrpcHandler
-	mu       sync.Mutex
-	closed   uint32
-	doneChan chan struct{}
-	opts     *transport.GrpcOptions
-	err      chan error
+	ln      *tcpKeepAliveListener
+	server  *grpc.Server
+	Addr    string
+	Handler GrpcHandler
+	opts    *transport.GrpcOptions
+	running atomic.Bool
 }
 
 func NewGrpcServer(addr string, handler GrpcHandler, opts transport.Options) *GrpcServer {
 	return &GrpcServer{
-		Addr:     addr,
-		Handler:  handler,
-		doneChan: make(chan struct{}),
-		err:      make(chan error, 1),
-		opts:     opts.(*transport.GrpcOptions),
-		closed:   1,
+		Addr:    addr,
+		Handler: handler,
+		opts:    opts.(*transport.GrpcOptions),
 	}
 }
 
-func (s *GrpcServer) Start() {
+func (s *GrpcServer) Start(ctx context.Context) error {
+	if s.running.Load() {
+		return ErrServerStarted
+	}
 	laddr, err := net.ResolveTCPAddr("tcp", s.Addr)
 	if err != nil {
-		s.err <- err
-		return
+		return err
 	}
 	ln, err := net.ListenTCP("tcp", laddr)
 	if err != nil {
-		s.err <- err
-		return
+		return err
 	}
 	s.ln = &tcpKeepAliveListener{ln}
 
 	var opts []grpc.ServerOption
-
+	cred := insecure.NewCredentials()
+	tlsConfig, err := s.opts.TlsOptions.GetServerTlsConfig()
+	if err != nil {
+		return err
+	}
+	if tlsConfig != nil {
+		cred = credentials.NewTLS(tlsConfig)
+	}
+	opts = append(opts, grpc.Creds(cred))
 	if s.opts.SndBuffer > 0 {
 		opts = append(opts, grpc.WriteBufferSize(s.opts.SndBuffer))
 	}
 	if s.opts.RevBuffer > 0 {
 		opts = append(opts, grpc.ReadBufferSize(s.opts.RevBuffer))
 	}
-	cred := insecure.NewCredentials()
-	if s.opts.TLS {
-		var err error
-		cred, err = util.LoadServerMTLSCertificate(s.opts.CertPath, s.opts.KeyPath, s.opts.CAPath, s.opts.Hostname)
-		if err != nil {
-			s.err <- err
-			return
-		}
-	}
-	opts = append(opts, grpc.Creds(cred))
 
 	s.server = grpc.NewServer(opts...)
 	proto.RegisterStreamServiceServer(s.server, s)
 
-	s.err <- nil
-	atomic.StoreUint32(&s.closed, 0)
-	defer s.Close()
-	s.server.Serve(s.ln)
+	s.running.Store(true)
+	go closeWithContextDoneErr(ctx, s)
+	err = s.server.Serve(s.ln)
+	if err != nil && err == grpc.ErrServerStopped {
+		err = nil
+	}
+	s.running.Store(false)
+	return nil
 }
 
 func (s *GrpcServer) Transfer(ss proto.StreamService_TransferServer) error {
@@ -87,23 +84,15 @@ func (s *GrpcServer) Transfer(ss proto.StreamService_TransferServer) error {
 	return nil
 }
 
-func (s *GrpcServer) Error() chan error { return s.err }
-
-func (s *GrpcServer) Build() Server { return s }
-
 func (s *GrpcServer) LocalAddr() string { return s.Addr }
 
 func (s *GrpcServer) Type() ServerType { return Grpc }
 
 func (s *GrpcServer) Close() error {
-	if atomic.LoadUint32(&s.closed) != 0 {
+	if !s.running.Load() {
 		return ErrServerClosed
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	atomic.StoreUint32(&s.closed, 1)
-	close(s.doneChan)
-	s.ln.Close()
+	s.running.Store(false)
 	s.server.GracefulStop()
 	return nil
 }

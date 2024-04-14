@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"crypto/tls"
 	"net"
 	"net/http"
 	"net/url"
@@ -18,10 +17,12 @@ type wsDialer struct {
 
 func (d *wsDialer) Dial(addr string) (net.Conn, error) {
 	scheme := "ws"
-	var tlsConfig *tls.Config
-	if d.Opts.TLS {
+	tlsConfig, err := d.Opts.GetClientTlsConfig()
+	if err != nil {
+		return nil, err
+	}
+	if tlsConfig != nil {
 		scheme = "wss"
-		tlsConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	urls := url.URL{
 		Scheme: scheme,

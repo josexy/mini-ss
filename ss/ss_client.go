@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/url"
 
+	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/cipher"
 	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/enhancer"
@@ -34,14 +35,15 @@ var defaultSSLocalOpts = ssOptions{
 }
 
 type ShadowsocksClient struct {
-	srvs     []server.Server
-	Opts     ssOptions
+	srvGroup *server.ServerGroup
 	enhancer *enhancer.Enhancer
+	Opts     ssOptions
 }
 
 func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 	s := &ShadowsocksClient{
-		Opts: defaultSSLocalOpts,
+		srvGroup: server.NewServerGroup(),
+		Opts:     defaultSSLocalOpts,
 	}
 	for _, o := range opts {
 		o.applyTo(&s.Opts)
@@ -65,59 +67,24 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 	}
 
 	for _, opt := range s.Opts.serverOpts {
-		sc, ac, err := cipher.GetCipher(opt.method, opt.password)
-		if err != nil {
-			logger.Logger.FatalBy(err)
-		}
-		var tcpBound transport.TcpConnBound
-		var udpBound transport.UdpConnBound
-
-		// whether to support shadowsocksr
-		if !opt.ssr {
-			tcpBound = makeStreamConn(sc, ac)
-			udpBound = makePacketConn(sc, ac)
-		} else {
-			cp, err := ssr.NewSSRClientStreamCipher(sc,
-				opt.addr,                                      // host,port
-				opt.ssrOpt.Protocol, opt.ssrOpt.ProtocolParam, // protocol,protocol-param
-				opt.ssrOpt.Obfs, opt.ssrOpt.ObfsParam) // obfs,obfs-param
-
-			if err != nil {
-				logger.Logger.FatalBy(err)
-			}
-
-			tcpBound = makeSSRClientStreamConn(cp)
-			udpBound = makeSSRClientPacketConn(cp)
-		}
-		item := ctxv.V{
-			Addr:         opt.addr,
-			Options:      opt.opts,
-			Type:         opt.transport,
-			TcpConnBound: tcpBound,
-			UdpConnBound: udpBound,
-		}
-		selector.ProxySelector.AddProxy(opt.name, item)
-		// enable udp relay
-		if opt.udp {
-			selector.ProxySelector.AddPacketProxy(opt.name, item)
-		}
+		s.initServerOption(&opt)
 	}
 	// create simple tcp tun server
 	for _, addrs := range s.Opts.localOpts.tcpTunAddr {
-		s.srvs = append(s.srvs, newTcpTunServer(addrs[0], addrs[1]).Build())
+		s.srvGroup.AddServer(newTcpTunServer(addrs[0], addrs[1]))
 	}
 
 	// enable mixed proxy
 	if s.Opts.localOpts.mixedAddr != "" {
-		s.srvs = append(s.srvs, newMixedServer(s.Opts.localOpts.mixedAddr).Build())
+		s.srvGroup.AddServer(newMixedServer(s.Opts.localOpts.mixedAddr))
 	} else {
 		if s.Opts.localOpts.httpAddr != "" {
 			// http proxy
-			s.srvs = append(s.srvs, newHttpProxyServer(s.Opts.localOpts.httpAddr, s.Opts.localOpts.httpAuth).Build())
+			s.srvGroup.AddServer(newHttpProxyServer(s.Opts.localOpts.httpAddr, s.Opts.localOpts.httpAuth))
 		}
 		if s.Opts.localOpts.socksAddr != "" {
 			// socks proxy
-			s.srvs = append(s.srvs, newSocksProxyServer(s.Opts.localOpts.socksAddr, s.Opts.localOpts.socksAuth).Build())
+			s.srvGroup.AddServer(newSocksProxyServer(s.Opts.localOpts.socksAddr, s.Opts.localOpts.socksAuth))
 		}
 	}
 
@@ -125,6 +92,53 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 		s.enhancer = enhancer.NewEnhancer(s.Opts.localOpts.enhancerConfig)
 	}
 	return s
+}
+
+func (ss *ShadowsocksClient) initServerOption(opt *serverOptions) {
+	sc, ac, err := cipher.GetCipher(opt.method, opt.password)
+	if err != nil {
+		logger.Logger.FatalBy(err)
+	}
+	var tcpBound transport.TcpConnBound
+	var udpBound transport.UdpConnBound
+
+	// whether to support shadowsocksr
+	if !opt.ssr {
+		tcpBound = makeStreamConn(sc, ac)
+		udpBound = makePacketConn(sc, ac)
+	} else {
+		cp, err := ssr.NewSSRClientStreamCipher(sc,
+			opt.addr,                                      // host,port
+			opt.ssrOpt.Protocol, opt.ssrOpt.ProtocolParam, // protocol,protocol-param
+			opt.ssrOpt.Obfs, opt.ssrOpt.ObfsParam) // obfs,obfs-param
+
+		if err != nil {
+			logger.Logger.FatalBy(err)
+		}
+
+		tcpBound = makeSSRClientStreamConn(cp)
+		udpBound = makeSSRClientPacketConn(cp)
+	}
+	item := ctxv.V{
+		Addr:         opt.addr,
+		Options:      opt.opts,
+		Type:         opt.transport,
+		TcpConnBound: tcpBound,
+		UdpConnBound: udpBound,
+	}
+	logger.Logger.Debug("add proxy",
+		logx.String("name", opt.name),
+		logx.String("addr", opt.addr),
+		logx.String("transport", opt.transport.String()),
+		logx.String("method", opt.method),
+		logx.String("password", opt.password),
+		logx.Bool("udp", opt.udp),
+	)
+	selector.ProxySelector.AddProxy(opt.name, item)
+	// enable udp relay for default tcp transport
+	if opt.udp {
+		selector.ProxySelector.AddPacketProxy(opt.name, item)
+	}
 }
 
 func (ss *ShadowsocksClient) setSystemProxy() {
@@ -178,26 +192,15 @@ func (ss *ShadowsocksClient) closeTun() error {
 }
 
 func (ss *ShadowsocksClient) Start() error {
+	if ss.srvGroup.Len() == 0 {
+		return nil
+	}
 	if err := ss.initEnhancer(); err != nil {
 		return err
 	}
-
-	n := len(ss.srvs)
-	if n == 0 {
-		return nil
+	if err := ss.srvGroup.Start(); err != nil {
+		return err
 	}
-	for i := 0; i < n; i++ {
-		logger.Logger.Infof("start local [%s] server: %s", ss.srvs[i].Type().String(), ss.srvs[i].LocalAddr())
-		go ss.srvs[i].Start()
-	}
-
-	// check error
-	for i := 0; i < n; i++ {
-		if err := <-ss.srvs[i].Error(); err != nil {
-			return err
-		}
-	}
-
 	// set system proxy
 	if ss.Opts.localOpts.systemProxy {
 		ss.setSystemProxy()
@@ -209,15 +212,14 @@ func (ss *ShadowsocksClient) Start() error {
 func (ss *ShadowsocksClient) Close() error {
 	defer geoip.CloseDB()
 
+	if ss.srvGroup.Len() == 0 {
+		return nil
+	}
 	if err := ss.closeTun(); err != nil {
 		return err
 	}
-	n := len(ss.srvs)
-	if n == 0 {
-		return nil
+	if err := ss.srvGroup.Close(); err != nil {
+		return err
 	}
-	for i := 0; i < n-1; i++ {
-		ss.srvs[i].Close()
-	}
-	return ss.srvs[n-1].Close()
+	return nil
 }

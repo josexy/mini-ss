@@ -37,28 +37,31 @@ func (r *streamReader) read() (int, error) {
 		return 0, err
 	}
 
+	// decrypt the payload and tag size firstly
 	_, err = r.Open(buf[:0], r.nonce, buf, nil)
 	increment(r.nonce)
 	if err != nil {
 		return 0, err
 	}
 
-	n := int(buf[0])<<8 | int(buf[1]&0xFF)
-	if n > constant.MaxTcpBufferSize+r.Overhead() {
+	// n is the payload size
+	size := int(buf[0])<<8 | int(buf[1]&0xFF)
+	if size > constant.MaxTcpBufferSize+r.Overhead() {
 		return 0, errors.New("payload buffer size overflow")
 	}
-	// reset buffer
-	buf = buf[:n+r.Overhead()]
+	// reset buffer to store the payload and tag data
+	buf = r.buf[:size+r.Overhead()]
 	_, err = io.ReadFull(r.Conn, buf)
 	if err != nil {
 		return 0, err
 	}
+	// decrypt the payload and tag data finally
 	_, err = r.Open(buf[:0], r.nonce, buf, nil)
 	increment(r.nonce)
 	if err != nil {
 		return 0, err
 	}
-	return n, nil
+	return size, nil
 }
 
 func (r *streamReader) Read(b []byte) (int, error) {
@@ -113,7 +116,7 @@ func (r *streamReader) WriteTo(w io.Writer) (n int64, err error) {
 type streamWriter struct {
 	net.Conn
 	cipher.AEAD
-	// { [payload-size] [tag size] } { [max buffer size] [tag size] }
+	// { [payload-size] [tag size] } { [payload data] [tag data] }
 	// ensure that the size of the buffer stored during encryption is sufficient
 	buf   []byte
 	nonce []byte
@@ -139,11 +142,10 @@ func (w *streamWriter) Write(b []byte) (int, error) {
 func (w *streamWriter) ReadFrom(r io.Reader) (n int64, err error) {
 	for {
 		// reset buffer
-		// [size] [payload data]
 		buf := w.buf[:]
 		// buffer to store ciphertext
 		dataBuf := buf[2+w.Overhead() : 2+w.Overhead()+constant.MaxTcpBufferSize]
-		// store payload data into buffer[2:]
+		// store payload data into buffer[2+w.Overhead():]
 		// the buf[0] and buf[1] store data size
 		nr, er := r.Read(dataBuf)
 		if nr > 0 {
@@ -152,10 +154,12 @@ func (w *streamWriter) ReadFrom(r io.Reader) (n int64, err error) {
 			// payload size
 			buf[0], buf[1] = byte(nr>>8), byte(nr&0xFF)
 
-			// payload size: 2+overhead()
+			// encrypt the payload size and firstly
+			// => payload + tag size: 2+overhead()
 			w.Seal(buf[:0], w.nonce, buf[:2], nil)
 			increment(w.nonce)
-			// payload data: nr+overhead()
+			// encrypt the payload data finally
+			// => payload + tag data: nr+overhead()
 			w.Seal(dataBuf[:0], w.nonce, dataBuf[:nr], nil)
 			increment(w.nonce)
 
@@ -193,6 +197,7 @@ type streamConn struct {
 	w      *streamWriter
 }
 
+// NewStreamConn data format: { [salt data] } { [payload-size] [tag size] } { [payload data] [tag data] }
 func NewStreamConn(c net.Conn, cipher cipherx.AEADCipher) *streamConn {
 	return &streamConn{
 		Conn:   c,

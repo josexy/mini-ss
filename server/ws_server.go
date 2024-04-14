@@ -1,15 +1,15 @@
 package server
 
 import (
-	"crypto/tls"
+	"context"
 	"net"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/transport"
-	"github.com/josexy/mini-ss/util"
 )
 
 type WsServer struct {
@@ -18,7 +18,7 @@ type WsServer struct {
 	Handler  WsHandler
 	opts     *transport.WsOptions
 	upgrader *websocket.Upgrader
-	err      chan error
+	running  atomic.Bool
 }
 
 func NewWsServer(addr string, handler WsHandler, opts transport.Options) *WsServer {
@@ -26,19 +26,17 @@ func NewWsServer(addr string, handler WsHandler, opts transport.Options) *WsServ
 		Addr:    addr,
 		Handler: handler,
 		opts:    opts.(*transport.WsOptions),
-		err:     make(chan error, 1),
 	}
 }
 
 func (s *WsServer) LocalAddr() string { return s.Addr }
 
-func (s *WsServer) Error() chan error { return s.err }
-
-func (s *WsServer) Build() Server { return s }
-
 func (s *WsServer) Type() ServerType { return Ws }
 
-func (s *WsServer) Start() {
+func (s *WsServer) Start(ctx context.Context) error {
+	if s.running.Load() {
+		return ErrServerStarted
+	}
 	s.upgrader = &websocket.Upgrader{
 		ReadBufferSize:    s.opts.RevBuffer,
 		WriteBufferSize:   s.opts.SndBuffer,
@@ -48,28 +46,18 @@ func (s *WsServer) Start() {
 
 	laddr, err := net.ResolveTCPAddr("tcp", s.Addr)
 	if err != nil {
-		s.err <- err
-		return
+		return err
 	}
 
 	ln, err := net.ListenTCP("tcp", laddr)
 	if err != nil {
-		s.err <- err
-		return
+		return err
 	}
 
 	var listener net.Listener = &tcpKeepAliveListener{ln}
-	var tlsConfig *tls.Config
-	if s.opts.TLS {
-		cert, err := util.GenCertificate()
-		if err != nil {
-			s.err <- err
-			return
-		}
-		tlsConfig = &tls.Config{
-			Certificates: []tls.Certificate{cert},
-		}
-		listener = tls.NewListener(listener, tlsConfig)
+	tlsConfig, err := s.opts.TlsOptions.GetServerTlsConfig()
+	if err != nil {
+		return err
 	}
 
 	serveMux := http.NewServeMux()
@@ -80,8 +68,18 @@ func (s *WsServer) Start() {
 		TLSConfig:         tlsConfig, // wss
 		ReadHeaderTimeout: 30 * time.Second,
 	}
-	s.err <- nil
-	s.srv.Serve(listener)
+	s.running.Store(true)
+	go closeWithContextDoneErr(ctx, s)
+	if tlsConfig != nil {
+		err = s.srv.ServeTLS(listener, "", "")
+	} else {
+		err = s.srv.Serve(listener)
+	}
+	if err != nil && err == http.ErrServerClosed {
+		err = nil
+	}
+	s.running.Store(false)
+	return err
 }
 
 func (s *WsServer) wsUpgrade(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +99,11 @@ func (s *WsServer) wsUpgrade(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *WsServer) Close() error {
-	return s.srv.Close()
+	if !s.running.Load() {
+		return ErrServerClosed
+	}
+	s.running.Store(false)
+	return s.srv.Shutdown(context.Background())
 }
 
 func (s *WsServer) Serve(c *Conn) {

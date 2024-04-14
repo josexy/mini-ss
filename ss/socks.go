@@ -26,23 +26,14 @@ type socks5Server struct {
 }
 
 func newSocksProxyServer(addr string, socksAuth *Auth) *socks5Server {
-	return &socks5Server{
+	ss := &socks5Server{
 		addr:      addr,
 		socksAuth: socksAuth,
 		pool:      bufferpool.NewBufferPool(constant.MaxSocksBufferSize),
 	}
+	ss.Server = server.NewTcpServer(addr, ss, server.Socks)
+	return ss
 }
-
-func (s *socks5Server) Build() server.Server {
-	s.Server = server.NewTcpServer(s.addr, s, server.Socks)
-	return s
-}
-
-func (s *socks5Server) Start() { s.Server.Start() }
-
-func (s *socks5Server) Error() chan error { return s.Server.Error() }
-
-func (s *socks5Server) Close() error { return s.Server.Close() }
 
 func (s *socks5Server) ServeTCP(conn net.Conn) {
 	dstAddr, cmd, err := s.handshake(conn)
@@ -182,11 +173,12 @@ func (s *socks5Server) request(conn net.Conn) (addr string, cmd byte, err error)
 		if ip, err := netip.ParseAddr(host); err == nil {
 			record := resolver.DefaultResolver.FindByIP(ip)
 			if record != nil {
+				// fetch the domain name from the fake ip
 				host = record.Domain
 			}
 		}
 	}
-
+	// the host may be a domain name or a real ip address
 	if !rule.MatchRuler.Match(&host) {
 		s.handleFail(conn, 0x02)
 		err = constant.ErrRuleMatchDropped
@@ -251,7 +243,8 @@ func (s *socks5Server) handleCmdUdpAssociate(conn net.Conn, buf *[]byte) error {
 	(*buf)[0], (*buf)[1], (*buf)[2] = 0x05, 0x00, 0x00
 
 	_, port, _ := net.SplitHostPort(dstConn.LocalAddr().String())
-	bindAddr := address.ParseAddress1("127.0.0.1:" + port)
+	bindAddr := address.ParseAddress1(net.JoinHostPort("127.0.0.1", port))
+	logger.Logger.Tracef("socks5 bind udp address: %s", bindAddr.String())
 
 	copy((*buf)[3:], bindAddr)
 	conn.Write((*buf)[:3+len(bindAddr)])

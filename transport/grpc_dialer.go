@@ -6,8 +6,8 @@ import (
 
 	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/connection/proto"
-	"github.com/josexy/mini-ss/util"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/encoding/gzip"
 )
@@ -32,12 +32,12 @@ func (d *grpcDialer) Dial(addr string) (net.Conn, error) {
 	callOpts = append(callOpts, grpc.UseCompressor(gzip.Name))
 
 	cred := insecure.NewCredentials()
-	if d.Opts.TLS {
-		var err error
-		cred, err = util.LoadClientMTLSCertificate(d.Opts.CertPath, d.Opts.KeyPath, d.Opts.CAPath, d.Opts.Hostname)
-		if err != nil {
-			return nil, err
-		}
+	tlsConfig, err := d.Opts.TlsOptions.GetClientTlsConfig()
+	if err != nil {
+		return nil, err
+	}
+	if tlsConfig != nil {
+		cred = credentials.NewTLS(tlsConfig)
 	}
 
 	dialOpts = append(dialOpts,

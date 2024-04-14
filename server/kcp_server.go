@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -17,23 +18,19 @@ type KcpServer struct {
 	net.Listener
 	Addr       string
 	Handler    KcpHandler
-	mu         sync.Mutex
-	closed     uint32
-	doneChan   chan struct{}
 	smuxConfig *smux.Config
 	once       sync.Once
 	opts       *transport.KcpOptions
+	running    atomic.Bool
 	err        chan error
 }
 
 func NewKcpServer(addr string, handler KcpHandler, opts transport.Options) *KcpServer {
 	return &KcpServer{
-		Addr:     addr,
-		Handler:  handler,
-		doneChan: make(chan struct{}),
-		err:      make(chan error, 1),
-		opts:     opts.((*transport.KcpOptions)),
-		closed:   1,
+		Addr:    addr,
+		Handler: handler,
+		err:     make(chan error, 1),
+		opts:    opts.((*transport.KcpOptions)),
 	}
 }
 
@@ -42,52 +39,43 @@ func (s *KcpServer) LocalAddr() string { return s.Addr }
 func (s *KcpServer) Type() ServerType { return Kcp }
 
 func (s *KcpServer) Close() error {
-	if atomic.LoadUint32(&s.closed) != 0 {
+	if !s.running.Load() {
 		return ErrServerClosed
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	atomic.StoreUint32(&s.closed, 1)
-	close(s.doneChan)
-
+	s.running.Store(false)
 	return s.Listener.Close()
 }
 
-func (s *KcpServer) Error() chan error { return s.err }
-
-func (s *KcpServer) Build() Server { return s }
-
-func (s *KcpServer) Start() {
+func (s *KcpServer) Start(ctx context.Context) error {
+	if s.running.Load() {
+		return ErrServerStarted
+	}
 	s.opts.Update()
 
 	ln, err := kcp.ListenWithOptions(s.Addr, s.opts.BC, s.opts.DataShard, s.opts.ParityShard)
 	if err != nil {
-		s.err <- err
-		return
+		return err
 	}
 	s.Listener = ln
-
 	if s.opts.Dscp > 0 {
 		ln.SetDSCP(s.opts.Dscp)
 	}
 	ln.SetReadBuffer(s.opts.SockBuf)
 	ln.SetWriteBuffer(s.opts.SockBuf)
 
-	s.err <- nil
-	atomic.StoreUint32(&s.closed, 0)
-	defer s.Close()
+	s.running.Store(true)
+	go closeWithContextDoneErr(ctx, s)
 	for {
 		sess, err := ln.AcceptKCP()
 		if err != nil {
-			select {
-			case <-s.getDoneChan():
-				return
-			default:
+			if !s.running.Load() {
+				break
 			}
 			continue
 		}
 		go s.serve(sess)
 	}
+	return nil
 }
 
 func (s *KcpServer) serve(conn net.Conn) {
@@ -138,13 +126,4 @@ func (s *KcpServer) Serve(c *Conn) {
 	if s.Handler != nil {
 		s.Handler.ServeKCP(c.conn)
 	}
-}
-
-func (s *KcpServer) getDoneChan() <-chan struct{} {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.doneChan == nil {
-		s.doneChan = make(chan struct{})
-	}
-	return s.doneChan
 }

@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/josexy/mini-ss/relay"
 	"github.com/josexy/mini-ss/server"
@@ -26,13 +30,15 @@ func (customSrv) ServeQUIC(conn net.Conn) {
 func main() {
 	srv := server.NewQuicServer(":10001", &customSrv{}, transport.DefaultQuicOptions)
 
+	go func() {
+		err := srv.Start(context.Background())
+		log.Println("close server with err:", err)
+	}()
+
 	interrupt := make(chan os.Signal, 1)
-	go srv.Start()
-
-	if err := <-srv.Error(); err != nil {
-		panic(err)
-	}
-
+	signal.Notify(interrupt, syscall.SIGINT)
 	<-interrupt
+
 	srv.Close()
+	time.Sleep(time.Second * 2)
 }

@@ -4,19 +4,20 @@ import (
 	"context"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/config"
 	"github.com/josexy/mini-ss/ss"
 	"github.com/josexy/mini-ss/statistic"
 )
 
-var logger = logx.NewDevelopment(
-	logx.WithColor(true),
-	logx.WithCaller(true, true, false, true),
-	logx.WithJsonEncoder(),
-	logx.WithLevel(true, true),
-	logx.WithTime(true, func(t time.Time) string { return t.Format(time.TimeOnly) }),
-)
+var logger = logx.NewLogContext().
+	WithColor(true).
+	WithCaller(true, true, false, false).
+	WithLevel(true, true).
+	WithEncoder(logx.Json).
+	WithTime(true, func(t time.Time) any { return t.Format(time.TimeOnly) }).
+	WithWriter(color.Output).BuildConsoleLogger(logx.LevelTrace)
 
 type Config struct {
 	Path  string         `json:"path"`

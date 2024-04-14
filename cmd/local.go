@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/enhancer"
@@ -19,11 +20,13 @@ import (
 var localCmd = &cobra.Command{
 	Use:     "client",
 	Short:   "ss-local subcommand options",
-	Example: "  mini-ss client -s 127.0.0.1:8388 -l :10086 -x :10087 -m aes-128-cfb -p 123456 -CV",
+	Example: "  mini-ss client -s 127.0.0.1:8388 -l :10086 -x :10087 -m aes-128-cfb -p 123456 -CV3",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := StartLocal(); err != nil {
+		if (len(cfg.Server) == 0 || cfg.Server[0].Addr == "") && configFile == "" {
 			cmd.Help()
+			return
 		}
+		StartLocal()
 	},
 }
 
@@ -62,9 +65,10 @@ func init() {
 	localCmd.PersistentFlags().BoolVar(&cfg.AutoDetectIface, "auto-detect-iface", false, "enable auto-detect interface")
 }
 
-func StartLocal() error {
+func StartLocal() {
 	if len(cfg.Server) == 0 || cfg.Server[0].Addr == "" {
-		return errors.New("server node is empty")
+		logger.Logger.FatalBy(errors.New("server node is empty"))
+		return
 	}
 	defer func() {
 		if err := recover(); err != nil {
@@ -79,27 +83,27 @@ func StartLocal() error {
 			proxyutil.UnsetSystemProxy()
 		}
 	}()
-	if err := startLocal(); err != nil {
-		logger.Logger.FatalBy(err)
-	}
-	return nil
+	startLocal()
 }
 
-func startLocal() error {
+func startLocal() {
 	if err := geoip.OpenDB("Country.mmdb"); err != nil {
-		return err
+		logger.Logger.FatalBy(err)
+		return
 	}
 
 	srv := ss.NewShadowsocksClient(cfg.BuildSSLocalOptions()...)
 
+	go func() {
+		if err := srv.Start(); err != nil {
+			logger.Logger.FatalBy(err)
+		}
+	}()
+
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
-
-	if err := srv.Start(); err != nil {
-		return err
-	}
 	<-interrupt
 
 	srv.Close()
-	return nil
+	time.Sleep(time.Millisecond * 300)
 }

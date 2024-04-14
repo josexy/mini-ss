@@ -7,9 +7,19 @@ import (
 
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/ss"
+	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/logger"
 	"gopkg.in/yaml.v3"
 )
+
+type TlsOption struct {
+	// tls or mtls
+	Mode     string `yaml:"mode,omitempty" json:"mode,omitempty"`
+	Hostname string `yaml:"hostname,omitempty" json:"hostname,omitempty"`
+	KeyPath  string `yaml:"key_path,omitempty" json:"key_path,omitempty"`
+	CertPath string `yaml:"cert_path,omitempty" json:"cert_path,omitempty"`
+	CAPath   string `yaml:"ca_path,omitempty" json:"ca_path,omitempty"`
+}
 
 type KcpOption struct {
 	Crypt    string `yaml:"crypt" json:"crypt"`
@@ -20,10 +30,10 @@ type KcpOption struct {
 }
 
 type WsOption struct {
-	Path     string `yaml:"path" json:"path"`
-	Host     string `yaml:"host,omitempty" json:"host,omitempty"`
-	Compress bool   `yaml:"compress,omitempty" json:"compress,omitempty"`
-	TLS      bool   `yaml:"tls,omitempty" json:"tls,omitempty"`
+	Path     string    `yaml:"path" json:"path"`
+	Host     string    `yaml:"host,omitempty" json:"host,omitempty"`
+	Compress bool      `yaml:"compress,omitempty" json:"compress,omitempty"`
+	TLS      TlsOption `yaml:"tls,omitempty" json:"tls,omitempty"`
 }
 
 type ObfsOption struct {
@@ -35,11 +45,9 @@ type QuicOption struct {
 }
 
 type GrpcOption struct {
-	Hostname string `yaml:"hostname,omitempty" json:"hostname,omitempty"`
-	KeyPath  string `yaml:"key_path,omitempty" json:"key_path,omitempty"`
-	CertPath string `yaml:"cert_path,omitempty" json:"cert_path,omitempty"`
-	CAPath   string `yaml:"ca_path,omitempty" json:"ca_path,omitempty"`
-	TLS      bool   `yaml:"tls,omitempty" json:"tls,omitempty"`
+	SendBufferSize int       `yaml:"send_buffer_size,omitempty" json:"send_buffer_size,omitempty"`
+	RecvBufferSize int       `yaml:"receive_buffer_size,omitempty" json:"receive_buffer_size,omitempty"`
+	TLS            TlsOption `yaml:"tls,omitempty" json:"tls,omitempty"`
 }
 
 type SSROption struct {
@@ -138,15 +146,19 @@ type Rules struct {
 	Match    *Match `yaml:"match,omitempty" json:"match,omitempty"`
 }
 
+type LogConfig struct {
+	Color        bool   `yaml:"color,omitempty" json:"color,omitempty"`
+	LogLevel     string `yaml:"log_level,omitempty" json:"log_level,omitempty"`
+	VerboseLevel int    `yaml:"verbose_level,omitempty" json:"verbose_level,omitempty"`
+}
+
 type Config struct {
 	Server          []*ServerConfig `yaml:"server,omitempty" json:"server,omitempty"`
 	Local           *LocalConfig    `yaml:"local,omitempty" json:"local,omitempty"`
-	Color           bool            `yaml:"color,omitempty" json:"color,omitempty"`
-	Verbose         bool            `yaml:"verbose,omitempty" json:"verbose,omitempty"`
-	VerboseLevel    int             `yaml:"verbose_level,omitempty" json:"verbose_level,omitempty"`
+	Log             *LogConfig      `yaml:"log,omitempty" json:"log,omitempty"`
 	Iface           string          `yaml:"iface,omitempty" json:"iface,omitempty"`
 	AutoDetectIface bool            `yaml:"auto_detect_iface,omitempty" json:"auto_detect_iface,omitempty"`
-	Rules           *Rules          `yaml:"rules" json:"rules"`
+	Rules           *Rules          `yaml:"rules,omitempty" json:"rules,omitempty"`
 }
 
 func ParseConfigFile(path string) (*Config, error) {
@@ -295,8 +307,15 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 			if opt.Ws.Compress {
 				opts = append(opts, ss.WithWsCompress())
 			}
-			if opt.Ws.TLS {
-				opts = append(opts, ss.WithWsTLS())
+			opts = append(opts, ss.WithWsCertPath(opt.Ws.TLS.CertPath))
+			opts = append(opts, ss.WithWsKeyPath(opt.Ws.TLS.KeyPath))
+			opts = append(opts, ss.WithWsCAPath(opt.Ws.TLS.CAPath))
+			opts = append(opts, ss.WithWsHostname(opt.Ws.TLS.Hostname))
+			switch opt.Ws.TLS.Mode {
+			case "tls":
+				opts = append(opts, ss.WithWsTLS(transport.TLS))
+			case "mtls":
+				opts = append(opts, ss.WithWsTLS(transport.MTLS))
 			}
 		case "obfs":
 			opts = append(opts, ss.WithObfsTransport())
@@ -306,15 +325,18 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 			opts = append(opts, ss.WithQuicConns(opt.Quic.Conns))
 		case "grpc":
 			opts = append(opts, ss.WithGrpcTransport())
-			opts = append(opts, ss.WithGrpcHostname(opt.Grpc.Hostname))
-			opts = append(opts, ss.WithGrpcCertPath(opt.Grpc.CertPath))
-			opts = append(opts, ss.WithGrpcKeyPath(opt.Grpc.KeyPath))
-			opts = append(opts, ss.WithGrpcCAPath(opt.Grpc.CAPath))
-			if opt.Grpc.TLS {
-				opts = append(opts, ss.WithGrpcTLS())
+			opts = append(opts, ss.WithGrpcSndRevBuffer(opt.Grpc.SendBufferSize, opt.Grpc.RecvBufferSize))
+			opts = append(opts, ss.WithGrpcCertPath(opt.Grpc.TLS.CertPath))
+			opts = append(opts, ss.WithGrpcKeyPath(opt.Grpc.TLS.KeyPath))
+			opts = append(opts, ss.WithGrpcCAPath(opt.Grpc.TLS.CAPath))
+			opts = append(opts, ss.WithGrpcHostname(opt.Grpc.TLS.Hostname))
+			switch opt.Grpc.TLS.Mode {
+			case "tls":
+				opts = append(opts, ss.WithGrpcTLS(transport.TLS))
+			case "mtls":
+				opts = append(opts, ss.WithGrpcTLS(transport.MTLS))
 			}
 		case "default":
-			opts = append(opts, ss.WithUDPRelay(opt.Udp))
 			// whether to support ssr
 			if opt.Type == "ssr" {
 				opts = append(opts, ss.WithEnableSSR())
@@ -330,6 +352,7 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 		opts = append(opts, ss.WithServerAddr(opt.Addr))
 		opts = append(opts, ss.WithMethod(opt.Method))
 		opts = append(opts, ss.WithPassword(opt.Password))
+		opts = append(opts, ss.WithUDPRelay(opt.Udp))
 
 		res = append(res, ss.WithServerCompose(opts...))
 	}

@@ -91,8 +91,13 @@ func RelayUDPWithNatmap(src net.PacketConn, srcToDst srcToDstFn, dstToSrc dstToS
 	// targetAddr -> relayer -> srcAddr
 	handleDstToRelayer := func(srcAddr net.Addr, dstConn net.PacketConn, targetAddr string) {
 		buf := udpPool.Get()
-		defer udpPool.Put(buf)
-		defer dstConn.Close()
+		defer func() {
+			udpPool.Put(buf)
+			nm.Lock()
+			delete(nm.cache, srcAddr.String())
+			nm.Unlock()
+			dstConn.Close()
+		}()
 
 		for {
 			dstConn.SetDeadline(time.Now().Add(constant.UdpTimeout))
@@ -135,7 +140,7 @@ func RelayUDPWithNatmap(src net.PacketConn, srcToDst srcToDstFn, dstToSrc dstToS
 		if dstConn == nil {
 			dstConn, err = transport.ListenLocalUDP()
 			if err != nil {
-				return err
+				continue
 			}
 
 			nm.Lock()
@@ -154,20 +159,14 @@ type UDPDirectRelayer struct{}
 func NewUDPDirectRelayer() *UDPDirectRelayer { return new(UDPDirectRelayer) }
 
 func (r *UDPDirectRelayer) RelayDirectUDP(relayer net.PacketConn, remoteAddr string) error {
-	targetAddr, err := net.ResolveUDPAddr("udp", remoteAddr)
-	if err != nil {
-		return err
-	}
-
-	dstConn, err := transport.ListenLocalUDP()
-	if err != nil {
-		return err
-	}
-
 	var srcToDst srcToDstFn
 	var dstToSrc dstToSrcFn
 
 	if remoteAddr != "" {
+		targetAddr, err := net.ResolveUDPAddr("udp", remoteAddr)
+		if err != nil {
+			return err
+		}
 		// requires a remote server address
 		// {UDP data}
 		srcToDst = func(_ net.Addr, buf []byte, n int) ([]byte, *net.UDPAddr, error) { return buf[:n], targetAddr, nil }
@@ -196,6 +195,10 @@ func (r *UDPDirectRelayer) RelayDirectUDP(relayer net.PacketConn, remoteAddr str
 		}
 	}
 
+	dstConn, err := transport.ListenLocalUDP()
+	if err != nil {
+		return err
+	}
 	return RelayUDP(relayer, dstConn, "", srcToDst, dstToSrc)
 }
 
@@ -267,7 +270,7 @@ func NewNatmapUDPRelayer(inbound transport.UdpConnBound) *NatmapUDPRelayer {
 	return &NatmapUDPRelayer{inbound: inbound}
 }
 
-func (r *NatmapUDPRelayer) RelayToServerToRemote(relayer net.PacketConn) error {
+func (r *NatmapUDPRelayer) RelayServerToRemote(relayer net.PacketConn) error {
 	if r.inbound != nil {
 		relayer = r.inbound.UdpConn(relayer)
 	}

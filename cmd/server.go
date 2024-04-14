@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/josexy/mini-ss/ss"
 	"github.com/josexy/mini-ss/util/logger"
@@ -14,11 +15,13 @@ import (
 var serverCmd = &cobra.Command{
 	Use:     "server",
 	Short:   "ss-server subcommand options",
-	Example: "  mini-ss server -s :8388 -m aes-128-cfb -p 123456 -CV",
+	Example: "  mini-ss server -s :8388 -m aes-128-cfb -p 123456 -CV3",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := StartServer(); err != nil {
+		if (len(cfg.Server) == 0 || cfg.Server[0].Addr == "") && configFile == "" {
 			cmd.Help()
+			return
 		}
+		StartServer()
 	},
 }
 
@@ -27,9 +30,10 @@ func init() {
 	serverCmd.Flags().StringVarP(&cfg.Server[0].Addr, "server", "s", "", "server listening address")
 }
 
-func StartServer() error {
+func StartServer() {
 	if len(cfg.Server) == 0 || cfg.Server[0].Addr == "" {
-		return errors.New("server node is empty")
+		logger.Logger.FatalBy(errors.New("server node is empty"))
+		return
 	}
 	defer func() {
 		if err := recover(); err != nil {
@@ -38,26 +42,24 @@ func StartServer() error {
 			}
 		}
 	}()
-	if err := startServer(); err != nil {
-		logger.Logger.FatalBy(err)
-	}
-	return nil
+	startServer()
 }
 
-func startServer() error {
+func startServer() {
 	opts := cfg.BuildServerOptions()
 
 	srv := ss.NewShadowsocksServer(opts...)
 
+	go func() {
+		if err := srv.Start(); err != nil {
+			logger.Logger.FatalBy(err)
+		}
+	}()
+
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
-
-	if err := srv.Start(); err != nil {
-		return err
-	}
-
 	<-interrupt
 
 	srv.Close()
-	return nil
+	time.Sleep(time.Millisecond * 300)
 }

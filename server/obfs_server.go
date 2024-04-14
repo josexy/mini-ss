@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net"
 
 	"github.com/josexy/mini-ss/connection"
@@ -24,11 +25,7 @@ func NewObfsServer(addr string, handler ObfsHandler, opts transport.Options) *Ob
 	return s
 }
 
-func (s *ObfsServer) Error() chan error { return s.srv.Error() }
-
-func (s *ObfsServer) Build() Server { return s.srv.Build() }
-
-func (s *ObfsServer) Start() { s.srv.Start() }
+func (s *ObfsServer) Start(ctx context.Context) error { return s.srv.Start(ctx) }
 
 func (s *ObfsServer) Close() error { return s.srv.Close() }
 

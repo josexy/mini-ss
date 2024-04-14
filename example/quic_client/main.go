@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/josexy/mini-ss/relay"
 	"github.com/josexy/mini-ss/server"
@@ -13,7 +17,7 @@ import (
 type echoSrv struct{}
 
 // multiplexing quic dialer
-var dialer = transport.NewDialer(transport.Quic, nil)
+var dialer = transport.NewDialer(transport.Quic, transport.DefaultQuicOptions)
 
 func (echoSrv) ServeTCP(conn net.Conn) {
 	log.Println(conn.RemoteAddr().String())
@@ -30,14 +34,15 @@ func (echoSrv) ServeTCP(conn net.Conn) {
 
 func main() {
 	srv := server.NewTcpServer(":10000", &echoSrv{}, server.Tcp)
+	go func() {
+		err := srv.Start(context.Background())
+		log.Println("close server with err:", err)
+	}()
 
 	interrupt := make(chan os.Signal, 1)
-	go srv.Start()
-
-	if err := <-srv.Error(); err != nil {
-		panic(err)
-	}
-
+	signal.Notify(interrupt, syscall.SIGINT)
 	<-interrupt
+
 	srv.Close()
+	time.Sleep(time.Second * 2)
 }

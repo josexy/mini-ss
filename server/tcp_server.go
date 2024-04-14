@@ -1,8 +1,8 @@
 package server
 
 import (
+	"context"
 	"net"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -20,24 +20,18 @@ func (l *tcpKeepAliveListener) Accept() (net.Conn, error) {
 }
 
 type TcpServer struct {
-	ln       *tcpKeepAliveListener
-	Addr     string
-	Handler  TcpHandler
-	typ      ServerType
-	mu       sync.Mutex
-	closed   uint32
-	doneChan chan struct{}
-	err      chan error
+	ln      *tcpKeepAliveListener
+	Addr    string
+	Handler TcpHandler
+	typ     ServerType
+	running atomic.Bool
 }
 
 func NewTcpServer(addr string, handler TcpHandler, typ ServerType) *TcpServer {
 	return &TcpServer{
-		Addr:     addr,
-		Handler:  handler,
-		typ:      typ,
-		doneChan: make(chan struct{}),
-		err:      make(chan error, 1),
-		closed:   1,
+		Addr:    addr,
+		Handler: handler,
+		typ:     typ,
 	}
 }
 
@@ -45,51 +39,34 @@ func (s *TcpServer) LocalAddr() string { return s.Addr }
 
 func (s *TcpServer) Type() ServerType { return s.typ }
 
-func (s *TcpServer) Error() chan error { return s.err }
-
-func (s *TcpServer) Build() Server { return s }
-
-func (s *TcpServer) Close() error {
-	if atomic.LoadUint32(&s.closed) != 0 {
-		return ErrServerClosed
+func (s *TcpServer) Start(ctx context.Context) error {
+	if s.running.Load() {
+		return ErrServerStarted
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	atomic.StoreUint32(&s.closed, 1)
-	close(s.doneChan)
-
-	return s.ln.Close()
-}
-
-func (s *TcpServer) Start() {
 	laddr, err := net.ResolveTCPAddr("tcp", s.Addr)
 	if err != nil {
-		s.err <- err
-		return
+		return err
 	}
 	ln, err := net.ListenTCP("tcp", laddr)
 	if err != nil {
-		s.err <- err
-		return
+		return err
 	}
 	s.ln = &tcpKeepAliveListener{ln}
 
-	s.err <- nil
-	atomic.StoreUint32(&s.closed, 0)
-	defer s.Close()
+	s.running.Store(true)
+	go closeWithContextDoneErr(ctx, s)
 	for {
 		rwc, err := ln.Accept()
 		if err != nil {
-			select {
-			case <-s.getDoneChan():
-				return
-			default:
+			if !s.running.Load() {
+				break
 			}
 			continue
 		}
 		conn := newConn(rwc, s)
 		go conn.serve()
 	}
+	return nil
 }
 
 func (s *TcpServer) Serve(c *Conn) {
@@ -98,11 +75,10 @@ func (s *TcpServer) Serve(c *Conn) {
 	}
 }
 
-func (s *TcpServer) getDoneChan() <-chan struct{} {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.doneChan == nil {
-		s.doneChan = make(chan struct{})
+func (s *TcpServer) Close() error {
+	if !s.running.Load() {
+		return ErrServerClosed
 	}
-	return s.doneChan
+	s.running.Store(false)
+	return s.ln.Close()
 }

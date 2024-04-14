@@ -4,46 +4,38 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
-	"sync"
 	"sync/atomic"
 
 	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/transport"
-	"github.com/josexy/mini-ss/util"
+	"github.com/josexy/mini-ss/util/cert"
 	"github.com/quic-go/quic-go"
 )
 
 type QuicServer struct {
 	*quic.EarlyListener
-	Opts     *transport.QuicOptions
-	Addr     string
-	Handler  QuicHandler
-	mu       sync.Mutex
-	closed   uint32
-	doneChan chan struct{}
-	err      chan error
+	Opts    *transport.QuicOptions
+	Addr    string
+	Handler QuicHandler
+	running atomic.Bool
 }
 
 func NewQuicServer(addr string, handler QuicHandler, opts transport.Options) *QuicServer {
 	return &QuicServer{
-		Addr:     addr,
-		Handler:  handler,
-		doneChan: make(chan struct{}),
-		err:      make(chan error, 1),
-		Opts:     opts.(*transport.QuicOptions),
-		closed:   1,
+		Addr:    addr,
+		Handler: handler,
+		Opts:    opts.(*transport.QuicOptions),
 	}
 }
-
-func (s *QuicServer) Error() chan error { return s.err }
-
-func (s *QuicServer) Build() Server { return s }
 
 func (s *QuicServer) LocalAddr() string { return s.Addr }
 
 func (s *QuicServer) Type() ServerType { return Quic }
 
-func (s *QuicServer) Start() {
+func (s *QuicServer) Start(ctx context.Context) error {
+	if s.running.Load() {
+		return ErrServerStarted
+	}
 	quicConfig := &quic.Config{
 		HandshakeIdleTimeout: s.Opts.HandshakeIdleTimeout,
 		KeepAlivePeriod:      s.Opts.KeepAlivePeriod,
@@ -56,10 +48,9 @@ func (s *QuicServer) Start() {
 
 	var tlsConfig *tls.Config
 	if tlsConfig == nil {
-		cert, err := util.GenCertificate()
+		cert, err := cert.GenCertificate()
 		if err != nil {
-			s.err <- err
-			return
+			return err
 		}
 		tlsConfig = &tls.Config{
 			Certificates: []tls.Certificate{cert},
@@ -68,30 +59,26 @@ func (s *QuicServer) Start() {
 
 	conn, err := net.ListenPacket("udp", s.Addr)
 	if err != nil {
-		s.err <- err
-		return
+		return err
 	}
 	ln, err := quic.ListenEarly(conn, transport.TlsConfigQuicALPN(tlsConfig), quicConfig)
 	if err != nil {
-		s.err <- err
-		return
+		return err
 	}
 	s.EarlyListener = ln
-	defer s.Close()
-	s.err <- nil
-	atomic.StoreUint32(&s.closed, 0)
+	s.running.Store(true)
+	go closeWithContextDoneErr(ctx, s)
 	for {
 		conn, err := ln.Accept(context.Background())
 		if err != nil {
-			select {
-			case <-s.getDoneChan():
-				return
-			default:
+			if !s.running.Load() {
+				break
 			}
 			continue
 		}
 		go s.serve(conn)
 	}
+	return nil
 }
 
 func (s *QuicServer) Serve(c *Conn) {
@@ -112,21 +99,9 @@ func (s *QuicServer) serve(c quic.Connection) {
 }
 
 func (s *QuicServer) Close() error {
-	if atomic.LoadUint32(&s.closed) != 0 {
+	if !s.running.Load() {
 		return ErrServerClosed
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	atomic.StoreUint32(&s.closed, 1)
-	close(s.doneChan)
+	s.running.Store(false)
 	return s.EarlyListener.Close()
-}
-
-func (s *QuicServer) getDoneChan() <-chan struct{} {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.doneChan == nil {
-		s.doneChan = make(chan struct{})
-	}
-	return s.doneChan
 }

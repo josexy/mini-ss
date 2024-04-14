@@ -2,11 +2,53 @@ package transport
 
 import (
 	"crypto/sha1"
+	"crypto/tls"
 	"time"
 
+	"github.com/josexy/mini-ss/util/cert"
 	"github.com/xtaci/kcp-go"
 	"golang.org/x/crypto/pbkdf2"
 )
+
+type TlsMode byte
+
+const (
+	None TlsMode = iota
+	TLS
+	MTLS
+)
+
+type TlsOptions struct {
+	Mode     TlsMode
+	CAFile   string
+	KeyFile  string // server or client key file
+	CertFile string // server or client cert file
+	Hostname string
+}
+
+func (o *TlsOptions) GetServerTlsConfig() (*tls.Config, error) {
+	var tlsConfig *tls.Config
+	var err error
+	switch o.Mode {
+	case TLS:
+		tlsConfig, err = cert.GetServerTlsConfig(o.CertFile, o.KeyFile)
+	case MTLS:
+		tlsConfig, err = cert.GetServerMTlsConfig(o.CertFile, o.KeyFile, o.CAFile)
+	}
+	return tlsConfig, err
+}
+
+func (o *TlsOptions) GetClientTlsConfig() (*tls.Config, error) {
+	var tlsConfig *tls.Config
+	var err error
+	switch o.Mode {
+	case TLS:
+		tlsConfig, err = cert.GetClientTlsConfig(o.CAFile, o.Hostname)
+	case MTLS:
+		tlsConfig, err = cert.GetClientMTlsConfig(o.CertFile, o.KeyFile, o.CAFile, o.Hostname)
+	}
+	return tlsConfig, err
+}
 
 type defaultDialerOutboundOption struct {
 	Interface           string
@@ -54,20 +96,22 @@ var DefaultQuicOptions = &QuicOptions{
 }
 
 var DefaultWsOptions = &WsOptions{
-	Host:      "www.baidu.com",
-	Path:      "/ws",
-	SndBuffer: 4096,
-	RevBuffer: 4096,
-	Compress:  false,
-	TLS:       false,
-	UserAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
+	Host:       "www.baidu.com",
+	Path:       "/ws",
+	SndBuffer:  4096,
+	RevBuffer:  4096,
+	Compress:   false,
+	TlsOptions: TlsOptions{Mode: None},
+	UserAgent:  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
 }
 
 var DefaultObfsOptions = &ObfsOptions{
 	Host: "www.baidu.com",
 }
 
-var DefaultGrpcOptions = &GrpcOptions{}
+var DefaultGrpcOptions = &GrpcOptions{
+	TlsOptions: TlsOptions{Mode: None},
+}
 
 type KcpOptions struct {
 	Key         string
@@ -143,13 +187,13 @@ func kcpBlockCrypt(key, crypt, salt string) (block kcp.BlockCrypt) {
 }
 
 type WsOptions struct {
+	TlsOptions
 	Host      string
 	Path      string
 	SndBuffer int
 	RevBuffer int
 	Compress  bool
 	UserAgent string
-	TLS       bool // support tls
 }
 
 func (opts *WsOptions) Update() {}
@@ -170,13 +214,9 @@ type QuicOptions struct {
 func (opts *QuicOptions) Update() {}
 
 type GrpcOptions struct {
+	TlsOptions
 	SndBuffer int
 	RevBuffer int
-	TLS       bool
-	Hostname  string
-	CAPath    string
-	CertPath  string
-	KeyPath   string
 }
 
 func (opts *GrpcOptions) Update() {}

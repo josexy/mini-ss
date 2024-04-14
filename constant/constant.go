@@ -4,7 +4,7 @@ import "time"
 
 const (
 	MaxSocksBufferSize = 515
-	MaxUdpBufferSize   = 16 * 1024
+	MaxUdpBufferSize   = 64 * 1024
 	MaxTcpBufferSize   = 16 * 1024
 	UdpTimeout         = 30 * time.Second
 )

@@ -83,7 +83,7 @@ func (selector *Selector) SelectPacket(proxy string) SelectorPacketHandler {
 	}
 	value, ok := selector.udpProxyNode.Load(proxy)
 	if !ok {
-		logger.Logger.Warnf("udp: try to connect directly since proxy %q not found", proxy)
+		logger.Logger.Warnf("udp: try to connect directly since proxy %q not found or udp relay disabled", proxy)
 		return selector.udpDirectHandler
 	}
 	udpRelayer := value.(relay.DstUDPRelayer)

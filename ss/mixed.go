@@ -28,30 +28,14 @@ type mixedServer struct {
 
 // newMixedServer mixed proxy mode does not support SOCKS and HTTP authentication
 func newMixedServer(addr string) server.Server {
-	return &mixedServer{
+	ms := &mixedServer{
 		addr:     addr,
 		socksSrv: newSocksProxyServer(addr, nil),
 		httpSrv:  newHttpProxyServer(addr, nil),
 		err:      make(chan error, 1),
 	}
-}
-
-func (s *mixedServer) Build() server.Server {
-	// rewrite tcp connection inbound
-	s.Server = server.NewTcpServer(s.addr, server.TcpHandlerFunc(s.handleTCPConn), server.Mixed)
-	return s
-}
-
-func (s *mixedServer) Start() {
-	s.Server.Start()
-}
-
-func (s *mixedServer) Error() chan error {
-	return s.Server.Error()
-}
-
-func (s *mixedServer) Close() error {
-	return s.Server.Close()
+	ms.Server = server.NewTcpServer(addr, server.TcpHandlerFunc(ms.handleTCPConn), server.Mixed)
+	return ms
 }
 
 func (s *mixedServer) handleTCPConn(conn net.Conn) {

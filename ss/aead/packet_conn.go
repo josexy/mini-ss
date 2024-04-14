@@ -17,6 +17,7 @@ type packetConn struct {
 	buf    []byte
 }
 
+// NewPacketConn data format: { [salt data] } { [payload data] [tag data] }
 func NewPacketConn(c net.PacketConn, cipher cipherx.AEADCipher) *packetConn {
 	return &packetConn{
 		PacketConn: c,
@@ -36,6 +37,9 @@ func (c *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	if len(buf) < saltLen+len(b)+aead.Overhead() {
+		return 0, io.ErrShortBuffer
+	}
 	dataBuf := buf[saltLen:]
 	res := aead.Seal(dataBuf[:0], _zerononce[:aead.NonceSize()], b, nil)
 
@@ -47,17 +51,25 @@ func (c *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 }
 
 func (c *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
-	buf := c.buf[:]
-	n, addr, err := c.PacketConn.ReadFrom(buf)
+	n, addr, err := c.PacketConn.ReadFrom(b)
 	if err != nil {
 		return n, addr, err
 	}
 	saltLen := c.cipher.SaltSize()
-	aead, err := c.cipher.Decrypter(buf[:saltLen])
+	// short buffer and the stored salt data not enough
+	if n < saltLen {
+		return n, addr, io.ErrShortBuffer
+	}
+	dst := b[saltLen:]
+	aead, err := c.cipher.Decrypter(b[:saltLen])
 	if err != nil {
 		return n, addr, err
 	}
-	res, err := aead.Open(buf[saltLen:saltLen], _zerononce[:aead.NonceSize()], buf[saltLen:n], nil)
+	dataLen := n - (saltLen + aead.Overhead())
+	if dataLen < 0 || dataLen > len(dst) {
+		return n, addr, io.ErrShortBuffer
+	}
+	res, err := aead.Open(dst[:0], _zerononce[:aead.NonceSize()], b[saltLen:n], nil)
 	if err != nil {
 		return n, addr, err
 	}

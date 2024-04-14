@@ -17,15 +17,12 @@ type tcpTunServer struct {
 }
 
 func newTcpTunServer(localAddr, remoteAddr string) server.Server {
-	return &tcpTunServer{
+	tts := &tcpTunServer{
 		addr:       localAddr,
 		RemoteAddr: remoteAddr,
 	}
-}
-
-func (tt *tcpTunServer) Build() server.Server {
-	tt.Server = server.NewTcpServer(tt.addr, tt, server.SimpleTcpTun)
-	return tt
+	tts.Server = server.NewTcpServer(localAddr, tts, server.SimpleTcpTun)
+	return tts
 }
 
 func (tt *tcpTunServer) ServeTCP(conn net.Conn) {

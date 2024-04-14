@@ -187,6 +187,14 @@ func WithPassword(password string) SSOption {
 	})
 }
 
+func WithDefaultTransport() SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].transport = transport.Tcp
+		clone := *transport.DefaultOptions
+		so.serverOpts[0].opts = &clone
+	})
+}
+
 func WithRuler(ruler *rule.Ruler) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		rule.MatchRuler = ruler
@@ -466,9 +474,33 @@ func WithWsUserAgent(userAgent string) SSOption {
 	})
 }
 
-func WithWsTLS() SSOption {
+func WithWsTLS(mode transport.TlsMode) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.WsOptions).TLS = true
+		so.serverOpts[0].opts.(*transport.WsOptions).TlsOptions.Mode = mode
+	})
+}
+
+func WithWsHostname(hostname string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.WsOptions).TlsOptions.Hostname = hostname
+	})
+}
+
+func WithWsCertPath(certFile string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.WsOptions).TlsOptions.CertFile = certFile
+	})
+}
+
+func WithWsKeyPath(keyFile string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.WsOptions).TlsOptions.KeyFile = keyFile
+	})
+}
+
+func WithWsCAPath(caFile string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.WsOptions).TlsOptions.CAFile = caFile
 	})
 }
 
@@ -480,33 +512,33 @@ func WithGrpcTransport() SSOption {
 	})
 }
 
+func WithGrpcTLS(mode transport.TlsMode) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.GrpcOptions).TlsOptions.Mode = mode
+	})
+}
+
 func WithGrpcHostname(hostname string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.serverOpts[0].opts.(*transport.GrpcOptions).Hostname = hostname
 	})
 }
 
-func WithGrpcTLS() SSOption {
+func WithGrpcCertPath(certFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.GrpcOptions).TLS = true
+		so.serverOpts[0].opts.(*transport.GrpcOptions).TlsOptions.CertFile = certFile
 	})
 }
 
-func WithGrpcCertPath(certPath string) SSOption {
+func WithGrpcKeyPath(keyFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.GrpcOptions).CertPath = certPath
+		so.serverOpts[0].opts.(*transport.GrpcOptions).TlsOptions.KeyFile = keyFile
 	})
 }
 
-func WithGrpcKeyPath(keyPath string) SSOption {
+func WithGrpcCAPath(caFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.GrpcOptions).KeyPath = keyPath
-	})
-}
-
-func WithGrpcCAPath(caPath string) SSOption {
-	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.GrpcOptions).CAPath = caPath
+		so.serverOpts[0].opts.(*transport.GrpcOptions).TlsOptions.CAFile = caFile
 	})
 }
 

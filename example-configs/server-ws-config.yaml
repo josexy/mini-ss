@@ -1,14 +1,26 @@
 server:
-  - name: ss
+  - name: simple-ss
     addr: ':8388'
     password: '12345'
-    method: chacha20-ietf-poly1305
+    # method: aes-128-cfb
+    method: none
+    transport: default
+  - name: simple-ss-with-ws
+    addr: ':8389'
+    password: '12345'
+    # method: chacha20-ietf-poly1305
+    method: none
     transport: ws
     ws:
       host: www.baidu.com
       path: /ws
-      compress: true
-      tls: true
-color: true
-verbose: true
-verbose_level: 2
+      compress: false
+      tls:
+        mode: "tls"
+        cert_path: "certs/server.crt"
+        key_path: "certs/server.key"
+        ca_path: "certs/ca.crt"
+log:
+  color: true
+  log_level: debug
+  verbose_level: 3

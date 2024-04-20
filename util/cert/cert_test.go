@@ -29,7 +29,7 @@ func TestGenerateCertificate(t *testing.T) {
 
 	serverPrivateKey, err := GeneratePrivateKey()
 	assert.NoError(t, err)
-	serverCert, serverCertPem, serverKeyPem, err := GenerateCertificate(
+	serverCert, serverCertPem, serverKeyPem, err := GenerateCertificateWithPEM(
 		pkix.Name{CommonName: "www.helloworld.com"},
 		[]string{"www.helloworld.com"},
 		[]net.IP{net.ParseIP("127.0.0.1")}, caTemplate, caPrivateKey, serverPrivateKey)

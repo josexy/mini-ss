@@ -1,6 +1,8 @@
 package ss
 
 import (
+	"crypto/rsa"
+	"crypto/x509"
 	"time"
 
 	"github.com/josexy/mini-ss/dns"
@@ -11,9 +13,18 @@ import (
 )
 
 type mimtOption struct {
-	enable  bool
-	caPath  string
-	keyPath string
+	enable       bool
+	caPath       string
+	keyPath      string
+	fakeCertPool struct {
+		capacity     int
+		interval     int
+		expireSecond int
+	}
+
+	caCert *x509.Certificate
+	caKey  *rsa.PrivateKey
+	caErr  error
 }
 
 type serverOptions struct {
@@ -267,6 +278,14 @@ func WithMitmCAPath(caPath string) SSOption {
 func WithMitmKeyPath(keyPath string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.localOpts.mitmConfig.keyPath = keyPath
+	})
+}
+
+func WithMitmFakeCertPool(capacity, interval, expireSecond int) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmConfig.fakeCertPool.capacity = capacity
+		so.localOpts.mitmConfig.fakeCertPool.interval = interval
+		so.localOpts.mitmConfig.fakeCertPool.expireSecond = expireSecond
 	})
 }
 

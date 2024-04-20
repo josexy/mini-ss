@@ -2,11 +2,12 @@ package ss
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/transport"
@@ -14,38 +15,52 @@ import (
 	"github.com/josexy/mini-ss/util/logger"
 )
 
-func (r *httpReqHandler) handleMIMT(conn net.Conn) error {
-	logger.Logger.Info("mitm proxy", logx.String("target", r.reqCtx.target), logx.Bool("https", r.reqCtx.isHttps))
-	dstConn, err := transport.DialTCP(r.reqCtx.target)
-	if err != nil {
-		return err
-	}
-	defer dstConn.Close()
-	if r.reqCtx.isHttps {
-		r.relayHTTPSRequestAndResponse(conn, dstConn)
-	} else {
-		r.relayHTTPRequestAndResponse(conn, dstConn)
-	}
-	return nil
+func (r *httpReqHandler) initPrivateKeyAndCertPool() {
+	r.priKeyPool = cert.NewPriKeyPool(10)
+	r.certPool = cert.NewCertPool(r.owner.mitmOpt.fakeCertPool.capacity,
+		time.Duration(r.owner.mitmOpt.fakeCertPool.interval)*time.Millisecond,
+		time.Duration(r.owner.mitmOpt.fakeCertPool.expireSecond)*time.Millisecond,
+	)
 }
 
-func (r *httpReqHandler) relayHTTPSRequestAndResponse(conn, dstConn net.Conn) (err error) {
+func (r *httpReqHandler) handleMIMT(ctx context.Context, conn net.Conn) error {
+	reqCtx := ctx.Value(reqCtxKey).(reqContext)
+	if reqCtx.isHttps {
+		return r.handleHTTPSRequestAndResponse(ctx, conn)
+	} else {
+		dstConn, err := transport.DialTCP(reqCtx.Hostport())
+		if err != nil {
+			return err
+		}
+		defer dstConn.Close()
+		return r.handleHTTPRequestAndResponse(ctx, conn, dstConn)
+	}
+}
+
+func (r *httpReqHandler) getServerResponseCert(ctx context.Context, serverName string) (net.Conn, *tls.Config, error) {
+	reqCtx := ctx.Value(reqCtxKey).(reqContext)
+	dstConn, err := transport.DialTCP(reqCtx.Hostport())
+	if err != nil {
+		return nil, nil, err
+	}
 	tlsConfig := &tls.Config{}
-	host, _, _ := net.SplitHostPort(r.reqCtx.target)
-	if net.ParseIP(host) == nil {
-		tlsConfig.ServerName = host
+	if serverName != "" {
+		tlsConfig.ServerName = serverName
 	} else {
 		tlsConfig.InsecureSkipVerify = true
 	}
 	tlsClientConn := tls.Client(dstConn, tlsConfig)
 	if err = tlsClientConn.Handshake(); err != nil {
-		return
+		return nil, nil, err
 	}
-
+	// Get server certificate from local cache pool
+	if serverCert, err := r.certPool.Get(reqCtx.host); err == nil {
+		return tlsClientConn, &tls.Config{Certificates: []tls.Certificate{serverCert}}, nil
+	}
 	cs := tlsClientConn.ConnectionState()
 	var foundCert *x509.Certificate
 	for _, cert := range cs.PeerCertificates {
-		logger.Logger.Trace("cert info",
+		logger.Logger.Trace("server cert info",
 			logx.String("common_name", cert.Subject.CommonName),
 			logx.Slice3("country", cert.Subject.Country),
 			logx.Slice3("org", cert.Subject.Organization),
@@ -61,71 +76,66 @@ func (r *httpReqHandler) relayHTTPSRequestAndResponse(conn, dstConn net.Conn) (e
 		}
 	}
 	if foundCert == nil {
-		return errors.New("cannot found a available server tls certificate")
+		return nil, nil, errServerCertUnavailable
 	}
-	// TODO: using cert cache pool
-	privateKey, err := cert.GeneratePrivateKey()
+	// Get private key from local cache pool
+	privateKey, err := r.priKeyPool.Get()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-
-	caCert, caPriKey, err := cert.LoadCACertificate(r.owner.mitmOpt.caPath, r.owner.mitmOpt.keyPath)
-	if err != nil {
-		return err
-	}
-
-	serverCert, _, _, err := cert.GenerateCertificate(
-		foundCert.Subject,
-		foundCert.DNSNames, foundCert.IPAddresses,
-		caCert, caPriKey, privateKey,
+	serverCert, err := cert.GenerateCertificate(
+		foundCert.Subject, foundCert.DNSNames, foundCert.IPAddresses,
+		r.owner.mitmOpt.caCert, r.owner.mitmOpt.caKey, privateKey,
 	)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	tlsServerConn := tls.Server(conn, &tls.Config{
-		Certificates: []tls.Certificate{serverCert},
-	})
-	if err = tlsServerConn.Handshake(); err != nil {
-		return err
-	}
-
-	return r.relayHTTPRequestAndResponse(tlsServerConn, tlsClientConn)
+	r.certPool.Add(reqCtx.host, serverCert)
+	return tlsClientConn, &tls.Config{Certificates: []tls.Certificate{serverCert}}, nil
 }
 
-func (r *httpReqHandler) relayHTTPRequestAndResponse(src, dst net.Conn) error {
-	readRequest := func(src, dst net.Conn) (*http.Request, error) {
-		req, err := http.ReadRequest(bufio.NewReader(src))
-		if err != nil {
-			return nil, err
-		}
-		logger.Logger.Trace("parse http request",
-			logx.String("method", req.Method),
-			logx.String("url", req.URL.String()),
-			logx.String("host", req.Host),
-			logx.Any("header", req.Header),
-		)
-		err = req.Write(dst)
-		if err != nil {
-			return nil, err
-		}
-		return req, nil
+func (r *httpReqHandler) handleHTTPSRequestAndResponse(ctx context.Context, conn net.Conn) (err error) {
+	// Load ca certificate and key failed
+	if r.owner.mitmOpt.caErr != nil {
+		return r.owner.mitmOpt.caErr
 	}
-	readResponse := func(req *http.Request, src, dst net.Conn) error {
-		rsp, err := http.ReadResponse(bufio.NewReader(src), req)
+	var tlsClientConn net.Conn
+	tlsServerConn := tls.Server(conn, &tls.Config{
+		GetConfigForClient: func(chi *tls.ClientHelloInfo) (tlsConfig *tls.Config, err error) {
+			tlsClientConn, tlsConfig, err = r.getServerResponseCert(ctx, chi.ServerName)
+			return
+		},
+	})
+	if err = tlsServerConn.Handshake(); err != nil {
+		logger.Logger.ErrorBy(err)
+		return
+	}
+
+	defer tlsClientConn.Close()
+	return r.handleHTTPRequestAndResponse(ctx, tlsServerConn, tlsClientConn)
+}
+
+func (r *httpReqHandler) handleHTTPRequestAndResponse(ctx context.Context, srcConn, dstConn net.Conn) (err error) {
+	reqCtx := ctx.Value(reqCtxKey).(reqContext)
+	request := reqCtx.request
+	// Read the http request for https via tls tunnel
+	if reqCtx.isHttps && request == nil {
+		request, err = http.ReadRequest(bufio.NewReader(srcConn))
 		if err != nil {
 			return err
 		}
-		logger.Logger.Trace("parse http response",
-			logx.Int("code", rsp.StatusCode),
-			logx.Any("header", rsp.Header),
-		)
-		rsp.Write(dst)
-		return nil
+		request.URL.Scheme = "https"
+		request.URL.Host = request.Host
 	}
-	var req *http.Request
-	var err error
-	if req, err = readRequest(src, dst); err != nil {
+	transport := &http.Transport{
+		DialContext:    func(context.Context, string, string) (net.Conn, error) { return dstConn, nil },
+		DialTLSContext: func(context.Context, string, string) (net.Conn, error) { return dstConn, nil },
+	}
+	response, err := transport.RoundTrip(request)
+	if err != nil {
 		return err
 	}
-	return readResponse(req, dst, src)
+	defer response.Body.Close()
+	response.Write(srcConn)
+	return nil
 }

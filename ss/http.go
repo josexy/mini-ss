@@ -2,10 +2,9 @@ package ss
 
 import (
 	"bufio"
-	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -18,13 +17,27 @@ import (
 	"github.com/josexy/mini-ss/server"
 	"github.com/josexy/mini-ss/statistic"
 	"github.com/josexy/mini-ss/sticky"
+	"github.com/josexy/mini-ss/util/cert"
 	"github.com/josexy/mini-ss/util/logger"
 )
 
+const (
+	httpHeaderConnection         = "Connection"
+	httpHeaderKeepAlive          = "Keep-Alive"
+	httpHeaderProxyAuthenticate  = "Proxy-Authenticate"
+	httpHeaderProxyAuthorization = "Proxy-Authorization"
+	httpHeaderProxyConnection    = "Proxy-Connection"
+	httpHeaderProxyAgent         = "Proxy-Agent"
+	httpHeaderTe                 = "Te"
+	httpHeaderTrailers           = "Trailers"
+	httpHeaderTransferEncoding   = "Transfer-Encoding"
+	httpHeaderUpgrade            = "Upgrade"
+)
+
 var (
-	errBadRequest   = errors.New("http-proxy: bad request url scheme")
-	errAuthFailed   = errors.New("http-proxy: user authentication failed")
-	errHomeAccessed = errors.New("http-proxy: home accessed")
+	errAuthFailed            = errors.New("http-proxy: user authentication failed")
+	errHomeAccessed          = errors.New("http-proxy: home accessed")
+	errServerCertUnavailable = errors.New("cannot found a available server tls certificate")
 )
 
 var (
@@ -34,47 +47,53 @@ var (
 	// Hop-by-hop headers. These are removed when sent to the backend.
 	// http://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html
 	hopHeaders = []string{
-		"Connection",
-		"Keep-Alive",
-		"Proxy-Authenticate",
-		"Proxy-Authorization",
-		"Proxy-Connection",
-		"Te",
-		"Trailers",
-		"Transfer-Encoding",
-		"Upgrade",
+		httpHeaderConnection,
+		httpHeaderKeepAlive,
+		httpHeaderProxyAuthenticate,
+		httpHeaderProxyAuthorization,
+		httpHeaderTe,
+		httpHeaderTrailers,
+		httpHeaderTransferEncoding,
+		httpHeaderUpgrade,
+		httpHeaderProxyConnection,
 	}
+	reqCtxKey   = reqContextKey{}
+	emptyReqCtx = reqContext{}
 )
+
+type reqContextKey struct{}
 
 type reqContext struct {
 	isHttps bool
-	target  string
+	host    string
+	port    string
+	request *http.Request
+}
+
+func (r *reqContext) Hostport() string {
+	return net.JoinHostPort(r.host, r.port)
 }
 
 type httpReqHandler struct {
-	pool     *bufferpool.BufferPool
-	reqCtx   reqContext
-	owner    *httpProxyServer
-	httpAuth *Auth
+	owner      *httpProxyServer
+	httpAuth   *Auth
+	priKeyPool *cert.PriKeyPool // For MITM
+	certPool   *cert.CertPool   // For MITM
 }
 
 func newHttpReqHandler(auth *Auth, owner *httpProxyServer) *httpReqHandler {
 	return &httpReqHandler{
 		httpAuth: auth,
 		owner:    owner,
-		pool:     bufferpool.NewBytesBufferPool(),
 	}
 }
 
-func (r *httpReqHandler) ReadRequest(relayer net.Conn) (net.Conn, error) {
-	rbuf := r.pool.GetBytesBuffer()
-	defer r.pool.PutBytesBuffer(rbuf)
-
-	req, err := http.ReadRequest(bufio.NewReader(io.TeeReader(relayer, rbuf)))
+func (r *httpReqHandler) ReadRequest(conn net.Conn) (reqContext, net.Conn, error) {
+	req, err := http.ReadRequest(bufio.NewReader(conn))
 	if err != nil {
-		return relayer, err
+		return emptyReqCtx, conn, err
 	}
-	return r.readRequest(relayer, req, rbuf)
+	return r.readRequest(conn, req)
 }
 
 func (r *httpReqHandler) parseHostPort(req *http.Request) (host, port string) {
@@ -99,18 +118,18 @@ func (r *httpReqHandler) parseHostPort(req *http.Request) (host, port string) {
 }
 
 func (r *httpReqHandler) handleHomeAccess(conn net.Conn, req *http.Request) error {
-	if req.Header.Get("Proxy-Connection") != "" {
+	if req.Header.Get(httpHeaderProxyConnection) != "" {
 		return nil
 	}
 	resp := &http.Response{ProtoMajor: 1, ProtoMinor: 1, Header: make(http.Header), StatusCode: http.StatusOK}
-	resp.Header.Add("Connection", "close")
+	resp.Header.Add(httpHeaderConnection, "close")
 	resp.Write(conn)
 	return errHomeAccessed
 }
 
-func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request, rbuf *bytes.Buffer) (net.Conn, error) {
+func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request) (reqContext, net.Conn, error) {
 	if err := r.handleHomeAccess(conn, req); err != nil {
-		return nil, err
+		return emptyReqCtx, nil, err
 	}
 
 	host, port := r.parseHostPort(req)
@@ -123,52 +142,43 @@ func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request, rbuf *byt
 		logx.Any("header", req.Header),
 	)
 
-	if !rule.MatchRuler.Match(&host) {
-		return nil, constant.ErrRuleMatchDropped
+	if !r.owner.mitmOpt.enable && !rule.MatchRuler.Match(&host) {
+		return emptyReqCtx, nil, constant.ErrRuleMatchDropped
 	}
 
-	proxyAuth := req.Header.Get("Proxy-Authorization")
+	proxyAuth := req.Header.Get(httpHeaderProxyAuthorization)
 	var username, password string
 	if proxyAuth != "" {
 		data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(proxyAuth, "Basic "))
 		if err != nil {
-			return conn, err
+			return emptyReqCtx, conn, err
 		}
 		username, password, _ = strings.Cut(string(data), ":")
 	}
 	if r.httpAuth != nil && !r.httpAuth.Validate(username, password) {
 		errResp := &http.Response{ProtoMajor: 1, ProtoMinor: 1, Header: make(http.Header), StatusCode: http.StatusProxyAuthRequired}
-		errResp.Header.Add("Proxy-Agent", proxyAgent)
-		errResp.Header.Add("Proxy-Authenticate", "Basic realm=\"mini-ss\"")
-		errResp.Header.Add("Connection", "close")
-		errResp.Header.Add("Proxy-Connection", "close")
+		errResp.Header.Add(httpHeaderProxyAgent, proxyAgent)
+		errResp.Header.Add(httpHeaderProxyAuthenticate, "Basic realm=\"mini-ss\"")
+		errResp.Header.Add(httpHeaderConnection, "close")
+		errResp.Header.Add(httpHeaderProxyConnection, "close")
 		errResp.Write(conn)
-		return conn, errAuthFailed
+		return emptyReqCtx, conn, errAuthFailed
 	}
 
+	reqCtx := reqContext{
+		isHttps: req.Method == http.MethodConnect,
+		host:    host,
+		port:    port,
+	}
 	if req.Method == http.MethodConnect {
-		// https
-		// CONNECT www.example.com:443 HTTP/1.1
+		// https: CONNECT www.example.com:443 HTTP/1.1
 		conn.Write(connectionEstablished)
 	} else {
-		// http
-		// GET/POST/... http://www.example.com/ HTTP/1.1
-		newReq, err := http.ReadRequest(bufio.NewReader(rbuf))
-		if err != nil {
-			return conn, err
-		}
-		// delete unnecessary hop-by-hop headers
-		delHopReqHeaders(newReq.Header)
-		reqBuf := bytes.NewBuffer(make([]byte, 0, 4096))
-		newReq.Write(reqBuf)
-		newReq.Body.Close()
-		conn = sticky.NewSharedReader(reqBuf, conn)
+		// http: GET/POST/... http://www.example.com/ HTTP/1.1
+		delHopReqHeaders(req.Header)
+		reqCtx.request = req
 	}
-	r.reqCtx = reqContext{
-		isHttps: req.Method == http.MethodConnect,
-		target:  net.JoinHostPort(host, port),
-	}
-	return conn, nil
+	return reqCtx, conn, nil
 }
 
 func delHopReqHeaders(header http.Header) {
@@ -180,36 +190,51 @@ func delHopReqHeaders(header http.Header) {
 type httpProxyServer struct {
 	server.Server
 	handler *httpReqHandler
+	pool    *bufferpool.BufferPool
 	mitmOpt mimtOption
 }
 
 func newHttpProxyServer(addr string, httpAuth *Auth) *httpProxyServer {
 	hp := &httpProxyServer{}
+	hp.pool = bufferpool.NewBytesBufferPool()
 	hp.handler = newHttpReqHandler(httpAuth, hp)
 	hp.Server = server.NewTcpServer(addr, hp, server.Http)
 	return hp
 }
 
 func (hp *httpProxyServer) WithMitmMode(opt mimtOption) *httpProxyServer {
+	opt.caCert, opt.caKey, opt.caErr = cert.LoadCACertificate(opt.caPath, opt.keyPath)
 	hp.mitmOpt = opt
+	hp.handler.initPrivateKeyAndCertPool()
 	return hp
 }
 
 func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 	// read the request and resolve the target host address
+	var reqCtx reqContext
 	var err error
-	if conn, err = hp.handler.ReadRequest(conn); err != nil {
+	if reqCtx, conn, err = hp.handler.ReadRequest(conn); err != nil {
 		logger.Logger.ErrorBy(err)
 		return
 	}
 
+	ctx := context.WithValue(context.Background(), reqCtxKey, reqCtx)
 	// check whether mitm mode is enabled
 	// TODO: in mitm mode, the client doesn't relay the data to remote ss server via transport
 	if hp.mitmOpt.enable {
-		if err = hp.handler.handleMIMT(conn); err != nil {
+		if err = hp.handler.handleMIMT(ctx, conn); err != nil {
 			logger.Logger.ErrorBy(err)
 		}
 		return
+	}
+
+	// convert HTTP request and body to bytes buffer
+	if !reqCtx.isHttps && reqCtx.request != nil {
+		rbuf := hp.pool.GetBytesBuffer()
+		defer hp.pool.PutBytesBuffer(rbuf)
+		reqCtx.request.Write(rbuf)
+		reqCtx.request.Body.Close()
+		conn = sticky.NewSharedReader(rbuf, conn)
 	}
 
 	proxy, err := rule.MatchRuler.Select()
@@ -220,7 +245,7 @@ func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 	if statistic.EnableStatistic {
 		tcpTracker := statistic.NewTCPTracker(conn, statistic.Context{
 			Src:     conn.RemoteAddr().String(),
-			Dst:     hp.handler.reqCtx.target,
+			Dst:     reqCtx.Hostport(),
 			Network: "TCP",
 			Type:    "HTTP",
 			Proxy:   proxy,
@@ -229,7 +254,7 @@ func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 		// defer statistic.DefaultManager.Remove(tcpTracker)
 		conn = tcpTracker
 	}
-	if err = selector.ProxySelector.Select(proxy)(conn, hp.handler.reqCtx.target); err != nil {
+	if err = selector.ProxySelector.Select(proxy)(conn, reqCtx.Hostport()); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }

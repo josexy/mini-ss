@@ -65,9 +65,9 @@ func init() {
 	localCmd.PersistentFlags().BoolVar(&cfg.AutoDetectIface, "auto-detect-iface", false, "enable auto-detect interface")
 
 	// mitm mode
-	localCmd.Flags().BoolVar(&cfg.Local.MITM.Enable, "mitm-mode", false, "enable mitm mode")
-	localCmd.Flags().StringVar(&cfg.Local.MITM.CAPath, "mitm-ca-path", "", "mitm proxy ca cert path")
-	localCmd.Flags().StringVar(&cfg.Local.MITM.KeyPath, "mitm-key-path", "", "mitm proxy key path")
+	localCmd.Flags().BoolVar(&cfg.Local.Mitm.Enable, "mitm-mode", false, "enable mitm mode")
+	localCmd.Flags().StringVar(&cfg.Local.Mitm.CAPath, "mitm-ca-path", "", "mitm proxy ca cert path")
+	localCmd.Flags().StringVar(&cfg.Local.Mitm.KeyPath, "mitm-key-path", "", "mitm proxy key path")
 }
 
 func StartLocal() {

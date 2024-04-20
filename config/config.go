@@ -85,10 +85,17 @@ type FakeDnsOption struct {
 	Nameservers []string `yaml:"nameservers" json:"nameservers"`
 }
 
-type MITMOption struct {
-	Enable  bool   `yaml:"enable" json:"enable"`
-	CAPath  string `yaml:"ca_path" json:"ca_path"`
-	KeyPath string `yaml:"key_path" json:"key_path"`
+type MitmFakeCertPool struct {
+	Capacity     int `yaml:"capacity" json:"capacity"`
+	Interval     int `yaml:"interval" json:"interval"`
+	ExpireSecond int `yaml:"expire_second" json:"expire_second"`
+}
+
+type MitmOption struct {
+	Enable       bool              `yaml:"enable" json:"enable"`
+	CAPath       string            `yaml:"ca_path" json:"ca_path"`
+	KeyPath      string            `yaml:"key_path" json:"key_path"`
+	FakeCertPool *MitmFakeCertPool `yaml:"fake_cert_pool" json:"fake_cert_pool"`
 }
 
 type LocalConfig struct {
@@ -100,7 +107,7 @@ type LocalConfig struct {
 	TCPTunAddr  []string       `yaml:"tcp_tun_addr,omitempty" json:"tcp_tun_addr,omitempty"`
 	SystemProxy bool           `yaml:"system_proxy,omitempty" json:"system_proxy,omitempty"`
 	EnableTun   bool           `yaml:"enable_tun,omitempty" json:"enable_tun,omitempty"`
-	MITM        *MITMOption    `yaml:"mitm,omitempty" json:"mitm,omitempty"`
+	Mitm        *MitmOption    `yaml:"mitm,omitempty" json:"mitm,omitempty"`
 	Tun         *TunOption     `yaml:"tun,omitempty" json:"tun,omitempty"`
 	FakeDNS     *FakeDnsOption `yaml:"fake_dns,omitempty" json:"fake_dns,omitempty"`
 }
@@ -395,10 +402,17 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 	opts = append(opts, ss.WithTcpTunAddr(tcpTunAddr))
 	opts = append(opts, ss.WithRuler(cfg.BuildRuler()))
 
-	if cfg.Local.MITM != nil && cfg.Local.MITM.Enable {
-		opts = append(opts, ss.WithMitm(cfg.Local.MITM.Enable))
-		opts = append(opts, ss.WithMitmCAPath(cfg.Local.MITM.CAPath))
-		opts = append(opts, ss.WithMitmKeyPath(cfg.Local.MITM.KeyPath))
+	if cfg.Local.Mitm != nil && cfg.Local.Mitm.Enable {
+		opts = append(opts, ss.WithMitm(cfg.Local.Mitm.Enable))
+		opts = append(opts, ss.WithMitmCAPath(cfg.Local.Mitm.CAPath))
+		opts = append(opts, ss.WithMitmKeyPath(cfg.Local.Mitm.KeyPath))
+		if cfg.Local.Mitm.FakeCertPool != nil {
+			opts = append(opts, ss.WithMitmFakeCertPool(
+				cfg.Local.Mitm.FakeCertPool.Capacity,
+				cfg.Local.Mitm.FakeCertPool.Interval,
+				cfg.Local.Mitm.FakeCertPool.ExpireSecond,
+			))
+		}
 	}
 	if cfg.Local.EnableTun {
 		if cfg.Local.FakeDNS == nil {

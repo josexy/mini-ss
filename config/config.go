@@ -203,6 +203,9 @@ func (cfg *Config) DeleteServerConfig(name string) {
 
 func (cfg *Config) BuildRuler() *rule.Ruler {
 	var mode rule.RuleMode
+	if cfg.Rules == nil {
+		return rule.NewRuler(rule.Direct, "", "", nil)
+	}
 	switch cfg.Rules.Mode {
 	case "global":
 		mode = rule.Global
@@ -214,6 +217,10 @@ func (cfg *Config) BuildRuler() *rule.Ruler {
 
 	if mode == rule.Global || mode == rule.Direct {
 		return rule.NewRuler(mode, cfg.Rules.DirectTo, cfg.Rules.GlobalTo, nil)
+	}
+
+	if cfg.Rules.Match == nil {
+		logger.Logger.Fatal("the rule mode is match but rules is empty")
 	}
 
 	// match mode

@@ -14,10 +14,35 @@ import (
 )
 
 func main() {
-	srv := server.NewWsServer(":10086", nil, transport.DefaultWsOptions)
+	options := &transport.WsOptions{
+		Host:      "www.baidu.com",
+		Path:      "/ws",
+		SndBuffer: 4096,
+		RevBuffer: 4096,
+		Compress:  false,
+		UserAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
+		TlsOptions: transport.TlsOptions{
+			Mode:     transport.TLS,
+			KeyFile:  "certs/server.key",
+			CertFile: "certs/server.crt",
+		},
+	}
+	srv := server.NewWsServer(":8080", nil, options)
 	srv.Handler = server.WsHandlerFunc(func(c net.Conn) {
 		log.Println(c.LocalAddr(), c.RemoteAddr())
-		c.Write([]byte("hello client"))
+		buf := make([]byte, 1024)
+		for {
+			n, err := c.Read(buf)
+			if err != nil {
+				log.Println(err)
+				break
+			}
+			_, err = c.Write([]byte("--> " + string(buf[:n])))
+			if err != nil {
+				log.Println(err)
+				return
+			}
+		}
 	})
 	go func() {
 		err := srv.Start(context.Background())
@@ -29,5 +54,5 @@ func main() {
 	<-interrupt
 
 	srv.Close()
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second)
 }

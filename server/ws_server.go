@@ -97,7 +97,7 @@ func (s *WsServer) wsUpgrade(w http.ResponseWriter, r *http.Request) error {
 	if host == "" && r.URL != nil {
 		host = r.URL.Host
 	}
-	if host != s.opts.Host {
+	if s.opts.Host != "" && host != s.opts.Host {
 		return errWsUpgradeHostNotMatch
 	}
 	c, err := s.upgrader.Upgrade(w, r, nil)

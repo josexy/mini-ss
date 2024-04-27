@@ -21,11 +21,11 @@ func main() {
 		RevBuffer: 4096,
 		Compress:  false,
 		UserAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
-		TlsOptions: transport.TlsOptions{
-			Mode:     transport.TLS,
-			KeyFile:  "certs/server.key",
-			CertFile: "certs/server.crt",
-		},
+		// TlsOptions: transport.TlsOptions{
+		// 	Mode:     transport.TLS,
+		// 	KeyFile:  "certs/server.key",
+		// 	CertFile: "certs/server.crt",
+		// },
 	}
 	srv := server.NewWsServer(":8080", nil, options)
 	srv.Handler = server.WsHandlerFunc(func(c net.Conn) {

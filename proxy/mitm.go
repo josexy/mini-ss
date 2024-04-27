@@ -41,21 +41,11 @@ type ReqContext struct {
 	Request    *http.Request
 }
 
-func BuildReqContextForHttp(req *http.Request) ReqContext {
-	return ReqContext{
-		ConnMethod: req.Method == http.MethodConnect,
-		Request:    req,
-	}
-}
-
-type (
-	HTTPInterceptor      func(*http.Request, *http.Response)
-	WebsocketInterceptor func(*http.Request, int, []byte)
-)
-
 type MitmHandler interface {
-	SetHTTPInterceptor(HTTPInterceptor)
-	SetWebsocketInterceptor(WebsocketInterceptor)
+	SetMutableHTTPInterceptor(MutableHTTPInterceptor)
+	SetImmutableHTTPInterceptor(ImmutableHTTPInterceptor)
+	SetMutableWebsocketInterceptor(MutableWebsocketInterceptor)
+	SetImmutableWebsocketInterceptor(ImmutableWebsocketInterceptor)
 	HandleMIMT(context.Context, net.Conn) error
 	CAPath() string
 }
@@ -102,8 +92,10 @@ type mitmHandlerImpl struct {
 	mitmOpt       MimtOption
 	priKeyPool    *cert.PriKeyPool
 	certPool      *cert.CertPool
-	httpIntc      HTTPInterceptor
-	websocketIntc WebsocketInterceptor
+	immutHttpIntc baseImmutableHTTPInterceptor
+	mutHttpIntc   baseMutableHTTPInterceptor
+	immutWsIntc   baseImmutableWebsocketInterceptor
+	mutWsIntc     baseMutableWebsocketInterceptor
 }
 
 func NewMitmHandler(opt MimtOption) (MitmHandler, error) {
@@ -126,12 +118,24 @@ func NewMitmHandler(opt MimtOption) (MitmHandler, error) {
 	return handler, nil
 }
 
-func (r *mitmHandlerImpl) SetHTTPInterceptor(interceptor HTTPInterceptor) {
-	r.httpIntc = interceptor
+func (r *mitmHandlerImpl) SetMutableHTTPInterceptor(fn MutableHTTPInterceptor) {
+	r.immutHttpIntc.fn = nil
+	r.mutHttpIntc.fn = fn
 }
 
-func (r *mitmHandlerImpl) SetWebsocketInterceptor(interceptor WebsocketInterceptor) {
-	r.websocketIntc = interceptor
+func (r *mitmHandlerImpl) SetImmutableHTTPInterceptor(fn ImmutableHTTPInterceptor) {
+	r.immutHttpIntc.fn = fn
+	r.mutHttpIntc.fn = nil
+}
+
+func (r *mitmHandlerImpl) SetMutableWebsocketInterceptor(fn MutableWebsocketInterceptor) {
+	r.immutWsIntc.fn = nil
+	r.mutWsIntc.fn = fn
+}
+
+func (r *mitmHandlerImpl) SetImmutableWebsocketInterceptor(fn ImmutableWebsocketInterceptor) {
+	r.immutWsIntc.fn = fn
+	r.mutWsIntc.fn = nil
 }
 
 func (r *mitmHandlerImpl) CAPath() string { return r.mitmOpt.CaPath }
@@ -324,7 +328,13 @@ func (r *mitmHandlerImpl) handleCommonWSRequstAndResponse(ctx context.Context, s
 				errCh <- err
 				break
 			}
-			wsDstConn.WriteMessage(msgType, data)
+			if r.immutWsIntc.fn != nil {
+				r.immutWsIntc.InvokeInterceptor(Send, reqCtx.Request, msgType, data, WebsocketDelegatedInvokerFunc(wsDstConn.WriteMessage))
+			} else if r.mutWsIntc.fn != nil {
+				r.mutWsIntc.InvokeInterceptor(Send, reqCtx.Request, msgType, data, WebsocketDelegatedInvokerFunc(wsDstConn.WriteMessage))
+			} else {
+				wsDstConn.WriteMessage(msgType, data)
+			}
 		}
 	}()
 
@@ -335,7 +345,13 @@ func (r *mitmHandlerImpl) handleCommonWSRequstAndResponse(ctx context.Context, s
 				errCh <- err
 				break
 			}
-			wsSrcConn.WriteMessage(msgType, data)
+			if r.immutWsIntc.fn != nil {
+				r.immutWsIntc.InvokeInterceptor(Receive, reqCtx.Request, msgType, data, WebsocketDelegatedInvokerFunc(wsSrcConn.WriteMessage))
+			} else if r.mutWsIntc.fn != nil {
+				r.mutWsIntc.InvokeInterceptor(Receive, reqCtx.Request, msgType, data, WebsocketDelegatedInvokerFunc(wsSrcConn.WriteMessage))
+			} else {
+				wsSrcConn.WriteMessage(msgType, data)
+			}
 		}
 	}()
 	err = <-errCh
@@ -351,7 +367,15 @@ func (r *mitmHandlerImpl) handleCommonHTTPRequestAndResponse(ctx context.Context
 		DialContext:    func(context.Context, string, string) (net.Conn, error) { return dstConn, nil },
 		DialTLSContext: func(context.Context, string, string) (net.Conn, error) { return dstConn, nil },
 	}
-	response, err := transport.RoundTrip(reqCtx.Request)
+	var response *http.Response
+	// Only one http interceptor will be invoked
+	if r.immutHttpIntc.fn != nil {
+		response, err = r.immutHttpIntc.InvokeInterceptor(reqCtx.Request, HTTPDelegatedInvokerFunc(transport.RoundTrip))
+	} else if r.mutHttpIntc.fn != nil {
+		response, err = r.mutHttpIntc.InvokeInterceptor(reqCtx.Request, HTTPDelegatedInvokerFunc(transport.RoundTrip))
+	} else {
+		response, err = transport.RoundTrip(reqCtx.Request)
+	}
 	if err != nil {
 		return
 	}

@@ -106,14 +106,6 @@ func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request) (proxy.Re
 
 	host, port := r.parseHostPort(req)
 
-	logger.Logger.Trace("read request",
-		logx.String("method", req.Method),
-		logx.String("url", req.URL.String()),
-		logx.String("host", host),
-		logx.String("port", port),
-		logx.Any("header", req.Header),
-	)
-
 	if r.owner.mitmHandler == nil && !rule.MatchRuler.Match(&host) {
 		return proxy.EmptyReqCtx, nil, constant.ErrRuleMatchDropped
 	}
@@ -175,6 +167,39 @@ func (hp *httpProxyServer) WithMitmMode(opt proxy.MimtOption) *httpProxyServer {
 	hp.mitmHandler, err = proxy.NewMitmHandler(opt)
 	if err != nil {
 		logger.Logger.ErrorBy(err)
+	}
+	if hp.mitmHandler != nil {
+		hp.mitmHandler.SetMutableHTTPInterceptor(func(req *http.Request, invoker proxy.HTTPDelegatedInvoker) (*http.Response, error) {
+			rsp, err := invoker.Invoke(req)
+			if err != nil {
+				return rsp, err
+			}
+			logger.Logger.Debug("http interceptor",
+				logx.String("method", req.Method),
+				logx.String("host", req.Host),
+				logx.String("path", req.URL.Path),
+				logx.String("content-type", req.Header.Get("Content-Type")),
+				logx.Int("status", rsp.StatusCode),
+				logx.Int64("size", rsp.ContentLength),
+			)
+			return rsp, err
+		})
+		hp.mitmHandler.SetMutableWebsocketInterceptor(func(dir proxy.WSDirection, req *http.Request,
+			msgType int, data []byte, invoker proxy.WebsocketDelegatedInvoker) error {
+			direction := "Send"
+			if dir == proxy.Receive {
+				direction = "Receive"
+			}
+			logger.Logger.Debug("ws interceptor",
+				logx.String("direction", direction),
+				logx.String("host", req.Host),
+				logx.String("path", req.URL.Path),
+				logx.Int("msg-type", msgType),
+				logx.Int("data-size", len(data)),
+				logx.String("data", string(data)),
+			)
+			return invoker.Invoke(msgType, data)
+		})
 	}
 	return hp
 }

@@ -86,7 +86,7 @@ func testRequest(addr string, isHttps bool) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(rsp.StatusCode, string(res))
+	fmt.Printf("status code: %d, headers: %+v, body: %s\n", rsp.StatusCode, rsp.Header, res)
 }
 
 func TestMitmHandler(t *testing.T) {
@@ -95,6 +95,29 @@ func TestMitmHandler(t *testing.T) {
 		CaPath:  caCrt,
 		KeyPath: caKey,
 	})
+	handler.SetMutableHTTPInterceptor(func(req *http.Request, invoker HTTPDelegatedInvoker) (*http.Response, error) {
+		t.Log("========", req.URL.String())
+		// Modify the request
+		req.Header.Add("TestReqKey", "TestReqValue")
+		// Get the invoked response
+		rsp, err := invoker.Invoke(req)
+		if err == nil {
+			rsp.Header.Add("TestRspKey", "TestRspValue")
+		}
+		// Modify the response
+		rsp.Body.Close()
+		rspData := strings.NewReader("hello world")
+		rsp.ContentLength = rspData.Size()
+		rsp.Body = io.NopCloser(rspData)
+		// Return the modified response
+		return rsp, err
+	})
+	// handler.SetImmutableHTTPInterceptor(func(req *http.Request, rsp *http.Response) {
+	// 	reqData, _ := io.ReadAll(req.Body)
+	// 	rspData, _ := io.ReadAll(rsp.Body)
+	// 	t.Logf("======== url: %s, status code: %d, req data: %s, rsp data: %s", req.URL.String(), rsp.StatusCode, string(reqData), string(rspData))
+	// })
+
 	if err != nil {
 		t.Fatal(err)
 	}

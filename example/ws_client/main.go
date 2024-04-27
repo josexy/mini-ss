@@ -13,7 +13,8 @@ import (
 func main() {
 	// websocket via http or socks5 proxy
 	transport.WsProxyFuncForTesting = func(req *http.Request) (*url.URL, error) {
-		return url.Parse("socks5://127.0.0.1:10086")
+		// return url.Parse("socks5://127.0.0.1:10086")
+		return url.Parse("http://127.0.0.1:10087")
 	}
 	options := &transport.WsOptions{
 		Host:      "www.baidu.com",
@@ -22,11 +23,11 @@ func main() {
 		RevBuffer: 4096,
 		Compress:  false,
 		UserAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36",
-		TlsOptions: transport.TlsOptions{
-			Mode:     transport.TLS,
-			Hostname: "127.0.0.1",
-			CAFile:   "certs/ca.crt",
-		},
+		// TlsOptions: transport.TlsOptions{
+		// 	Mode:     transport.TLS,
+		// 	Hostname: "127.0.0.1",
+		// 	CAFile:   "certs/ca.crt",
+		// },
 	}
 	dialer := transport.NewDialer(transport.Websocket, options)
 	conn, err := dialer.Dial("127.0.0.1:8080")

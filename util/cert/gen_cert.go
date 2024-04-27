@@ -75,7 +75,7 @@ func GenerateCACertificate(subject pkix.Name, privateKey *rsa.PrivateKey) (templ
 	return
 }
 
-func GenerateCertificate(subject pkix.Name, dnsNames []string, ipAddresses []net.IP, caCertTemplate *x509.Certificate,
+func GenerateCertificateWithPEM(subject pkix.Name, dnsNames []string, ipAddresses []net.IP, caCertTemplate *x509.Certificate,
 	caPrivateKey, privateKey *rsa.PrivateKey) (cert tls.Certificate, certPem []byte, keyPem []byte, err error) {
 	template, err := generateCertificateTemplate(
 		subject, dnsNames, ipAddresses,
@@ -93,6 +93,28 @@ func GenerateCertificate(subject pkix.Name, dnsNames []string, ipAddresses []net
 	keyPem = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
 	certPem = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
 	cert, err = tls.X509KeyPair(certPem, keyPem)
+	return
+}
+
+func GenerateCertificate(subject pkix.Name, dnsNames []string, ipAddresses []net.IP, caCertTemplate *x509.Certificate,
+	caPrivateKey, privateKey *rsa.PrivateKey) (cert tls.Certificate, err error) {
+	template, err := generateCertificateTemplate(
+		subject, dnsNames, ipAddresses,
+		time.Now(),
+		time.Now().AddDate(1, 0, 0),
+		false,
+	)
+	if err != nil {
+		return
+	}
+	certBytes, err := x509.CreateCertificate(rand.Reader, template, caCertTemplate, &privateKey.PublicKey, caPrivateKey)
+	if err != nil {
+		return
+	}
+	cert = tls.Certificate{
+		Certificate: [][]byte{certBytes},
+		PrivateKey:  privateKey,
+	}
 	return
 }
 

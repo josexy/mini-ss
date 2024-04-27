@@ -85,6 +85,19 @@ type FakeDnsOption struct {
 	Nameservers []string `yaml:"nameservers" json:"nameservers"`
 }
 
+type MitmFakeCertPool struct {
+	Capacity     int `yaml:"capacity" json:"capacity"`
+	Interval     int `yaml:"interval" json:"interval"`
+	ExpireSecond int `yaml:"expire_second" json:"expire_second"`
+}
+
+type MitmOption struct {
+	Enable       bool              `yaml:"enable" json:"enable"`
+	CAPath       string            `yaml:"ca_path" json:"ca_path"`
+	KeyPath      string            `yaml:"key_path" json:"key_path"`
+	FakeCertPool *MitmFakeCertPool `yaml:"fake_cert_pool" json:"fake_cert_pool"`
+}
+
 type LocalConfig struct {
 	SocksAddr   string         `yaml:"socks_addr,omitempty" json:"socks_addr,omitempty"`
 	HTTPAddr    string         `yaml:"http_addr,omitempty" json:"http_addr,omitempty"`
@@ -94,6 +107,7 @@ type LocalConfig struct {
 	TCPTunAddr  []string       `yaml:"tcp_tun_addr,omitempty" json:"tcp_tun_addr,omitempty"`
 	SystemProxy bool           `yaml:"system_proxy,omitempty" json:"system_proxy,omitempty"`
 	EnableTun   bool           `yaml:"enable_tun,omitempty" json:"enable_tun,omitempty"`
+	Mitm        *MitmOption    `yaml:"mitm,omitempty" json:"mitm,omitempty"`
 	Tun         *TunOption     `yaml:"tun,omitempty" json:"tun,omitempty"`
 	FakeDNS     *FakeDnsOption `yaml:"fake_dns,omitempty" json:"fake_dns,omitempty"`
 }
@@ -189,6 +203,9 @@ func (cfg *Config) DeleteServerConfig(name string) {
 
 func (cfg *Config) BuildRuler() *rule.Ruler {
 	var mode rule.RuleMode
+	if cfg.Rules == nil {
+		return rule.NewRuler(rule.Direct, "", "", nil)
+	}
 	switch cfg.Rules.Mode {
 	case "global":
 		mode = rule.Global
@@ -200,6 +217,10 @@ func (cfg *Config) BuildRuler() *rule.Ruler {
 
 	if mode == rule.Global || mode == rule.Direct {
 		return rule.NewRuler(mode, cfg.Rules.DirectTo, cfg.Rules.GlobalTo, nil)
+	}
+
+	if cfg.Rules.Match == nil {
+		logger.Logger.Fatal("the rule mode is match but rules is empty")
 	}
 
 	// match mode
@@ -386,9 +407,20 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 		tcpTunAddr = append(tcpTunAddr, lr)
 	}
 	opts = append(opts, ss.WithTcpTunAddr(tcpTunAddr))
-
 	opts = append(opts, ss.WithRuler(cfg.BuildRuler()))
 
+	if cfg.Local.Mitm != nil && cfg.Local.Mitm.Enable {
+		opts = append(opts, ss.WithMitm(cfg.Local.Mitm.Enable))
+		opts = append(opts, ss.WithMitmCAPath(cfg.Local.Mitm.CAPath))
+		opts = append(opts, ss.WithMitmKeyPath(cfg.Local.Mitm.KeyPath))
+		if cfg.Local.Mitm.FakeCertPool != nil {
+			opts = append(opts, ss.WithMitmFakeCertPool(
+				cfg.Local.Mitm.FakeCertPool.Capacity,
+				cfg.Local.Mitm.FakeCertPool.Interval,
+				cfg.Local.Mitm.FakeCertPool.ExpireSecond,
+			))
+		}
+	}
 	if cfg.Local.EnableTun {
 		if cfg.Local.FakeDNS == nil {
 			logger.Logger.Fatal("if tun mode is enabled, the fake dns configuration must exist")

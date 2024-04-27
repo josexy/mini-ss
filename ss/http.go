@@ -2,77 +2,56 @@ package ss
 
 import (
 	"bufio"
-	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
-	"io"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/bufferpool"
+	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/constant"
+	"github.com/josexy/mini-ss/proxy"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
 	"github.com/josexy/mini-ss/server"
 	"github.com/josexy/mini-ss/statistic"
-	"github.com/josexy/mini-ss/sticky"
 	"github.com/josexy/mini-ss/util/logger"
 )
 
 var (
-	errBadRequest   = errors.New("http-proxy: bad request url scheme")
-	errAuthFailed   = errors.New("http-proxy: user authentication failed")
-	errHomeAccessed = errors.New("http-proxy: home accessed")
+	errAuthFailed         = errors.New("http-proxy: user authentication failed")
+	errHomeAccessed       = errors.New("http-proxy: home accessed")
+	errCACertFileAccessed = errors.New("http-proxy: ca cert file accessed")
 )
 
 var (
 	proxyAgent            = "mini-ss/1.0"
+	caCertFileRequestUrl  = "/cacert"
 	connectionEstablished = []byte("HTTP/1.1 200 Connection Established\r\nProxy-agent: " + proxyAgent + "\r\n\r\n")
-
-	// Hop-by-hop headers. These are removed when sent to the backend.
-	// http://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html
-	hopHeaders = []string{
-		"Connection",
-		"Keep-Alive",
-		"Proxy-Authenticate",
-		"Proxy-Authorization",
-		"Proxy-Connection",
-		"Te",
-		"Trailers",
-		"Transfer-Encoding",
-		"Upgrade",
-	}
 )
 
-type reqContext struct {
-	isHttps bool
-	target  string
-}
-
 type httpReqHandler struct {
-	pool     *bufferpool.BufferPool
-	reqCtx   reqContext
+	owner    *httpProxyServer
 	httpAuth *Auth
 }
 
-func newHttpReqHandler(auth *Auth) *httpReqHandler {
+func newHttpReqHandler(auth *Auth, owner *httpProxyServer) *httpReqHandler {
 	return &httpReqHandler{
 		httpAuth: auth,
-		pool:     bufferpool.NewBytesBufferPool(),
+		owner:    owner,
 	}
 }
 
-func (r *httpReqHandler) ReadRequest(relayer net.Conn) (net.Conn, error) {
-	rbuf := r.pool.GetBytesBuffer()
-	defer r.pool.PutBytesBuffer(rbuf)
-
-	req, err := http.ReadRequest(bufio.NewReader(io.TeeReader(relayer, rbuf)))
+func (r *httpReqHandler) ReadRequest(conn net.Conn) (proxy.ReqContext, net.Conn, error) {
+	req, err := http.ReadRequest(bufio.NewReader(conn))
 	if err != nil {
-		return relayer, err
+		return proxy.EmptyReqCtx, conn, err
 	}
-	return r.readRequest(relayer, req, rbuf)
+	return r.readRequest(conn, req)
 }
 
 func (r *httpReqHandler) parseHostPort(req *http.Request) (host, port string) {
@@ -96,105 +75,160 @@ func (r *httpReqHandler) parseHostPort(req *http.Request) (host, port string) {
 	return
 }
 
+// handleHomeAccess only handle GET/POST... common method
 func (r *httpReqHandler) handleHomeAccess(conn net.Conn, req *http.Request) error {
-	if req.Header.Get("Proxy-Connection") != "" {
+	if req.Method == http.MethodConnect || req.Header.Get(proxy.HttpHeaderProxyConnection) != "" {
 		return nil
 	}
+	if r.owner.mitmHandler != nil && req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, caCertFileRequestUrl) {
+		resp := &http.Response{ProtoMajor: 1, ProtoMinor: 1, Header: make(http.Header), StatusCode: http.StatusOK}
+		resp.Header.Add(proxy.HttpHeaderContentType, "application/octet-stream")
+		resp.Header.Add(proxy.HttpHeaderConnection, "close")
+		caFp, err := os.Open(r.owner.mitmHandler.CAPath())
+		if err != nil {
+			return err
+		}
+		defer caFp.Close()
+		resp.Body = caFp
+		resp.Write(conn)
+		return errCACertFileAccessed
+	}
 	resp := &http.Response{ProtoMajor: 1, ProtoMinor: 1, Header: make(http.Header), StatusCode: http.StatusOK}
-	resp.Header.Add("Connection", "close")
+	resp.Header.Add(proxy.HttpHeaderConnection, "close")
 	resp.Write(conn)
 	return errHomeAccessed
 }
 
-func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request, rbuf *bytes.Buffer) (net.Conn, error) {
+func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request) (proxy.ReqContext, net.Conn, error) {
 	if err := r.handleHomeAccess(conn, req); err != nil {
-		return nil, err
+		return proxy.EmptyReqCtx, nil, err
 	}
 
 	host, port := r.parseHostPort(req)
 
-	logger.Logger.Trace("read request",
-		logx.String("method", req.Method),
-		logx.String("url", req.URL.String()),
-		logx.String("host", host),
-		logx.String("port", port),
-	)
-
-	if !rule.MatchRuler.Match(&host) {
-		return nil, constant.ErrRuleMatchDropped
+	if r.owner.mitmHandler == nil && !rule.MatchRuler.Match(&host) {
+		return proxy.EmptyReqCtx, nil, constant.ErrRuleMatchDropped
 	}
 
-	proxyAuth := req.Header.Get("Proxy-Authorization")
+	proxyAuth := req.Header.Get(proxy.HttpHeaderProxyAuthorization)
 	var username, password string
 	if proxyAuth != "" {
 		data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(proxyAuth, "Basic "))
 		if err != nil {
-			return conn, err
+			return proxy.EmptyReqCtx, conn, err
 		}
 		username, password, _ = strings.Cut(string(data), ":")
 	}
 	if r.httpAuth != nil && !r.httpAuth.Validate(username, password) {
 		errResp := &http.Response{ProtoMajor: 1, ProtoMinor: 1, Header: make(http.Header), StatusCode: http.StatusProxyAuthRequired}
-		errResp.Header.Add("Proxy-Agent", proxyAgent)
-		errResp.Header.Add("Proxy-Authenticate", "Basic realm=\"mini-ss\"")
-		errResp.Header.Add("Connection", "close")
-		errResp.Header.Add("Proxy-Connection", "close")
+		errResp.Header.Add(proxy.HttpHeaderProxyAgent, proxyAgent)
+		errResp.Header.Add(proxy.HttpHeaderProxyAuthenticate, "Basic realm=\"mini-ss\"")
+		errResp.Header.Add(proxy.HttpHeaderConnection, "close")
+		errResp.Header.Add(proxy.HttpHeaderProxyConnection, "close")
 		errResp.Write(conn)
-		return conn, errAuthFailed
+		return proxy.EmptyReqCtx, conn, errAuthFailed
 	}
 
+	reqCtx := proxy.ReqContext{
+		ConnMethod: req.Method == http.MethodConnect,
+		Host:       host,
+		Port:       port,
+		Addr:       net.JoinHostPort(host, port),
+	}
 	if req.Method == http.MethodConnect {
-		// https
-		// CONNECT www.example.com:443 HTTP/1.1
+		// https: CONNECT www.example.com:443 HTTP/1.1
+		// NOTE: ws/wss alos is CONNECT method
 		conn.Write(connectionEstablished)
 	} else {
-		// http
-		// GET/POST/... http://www.example.com/ HTTP/1.1
-		newReq, err := http.ReadRequest(bufio.NewReader(rbuf))
-		if err != nil {
-			return conn, err
-		}
-		// delete unnecessary hop-by-hop headers
-		delHopReqHeaders(newReq.Header)
-		reqBuf := bytes.NewBuffer(make([]byte, 0, 4096))
-		newReq.Write(reqBuf)
-		newReq.Body.Close()
-		conn = sticky.NewSharedReader(reqBuf, conn)
+		// http: GET/POST/... http://www.example.com/ HTTP/1.1
+		proxy.RemoveHopByHopRequestHeaders(req.Header)
+		reqCtx.Request = req
 	}
-	r.reqCtx = reqContext{
-		isHttps: req.Method == http.MethodConnect,
-		target:  net.JoinHostPort(host, port),
-	}
-	return conn, nil
-}
-
-func delHopReqHeaders(header http.Header) {
-	for _, h := range hopHeaders {
-		header.Del(h)
-	}
+	return reqCtx, conn, nil
 }
 
 type httpProxyServer struct {
 	server.Server
-	addr    string
-	handler *httpReqHandler
+	mitmHandler proxy.MitmHandler
+	handler     *httpReqHandler
+	pool        *bufferpool.BufferPool
 }
 
 func newHttpProxyServer(addr string, httpAuth *Auth) *httpProxyServer {
-	hp := &httpProxyServer{
-		addr:    addr,
-		handler: newHttpReqHandler(httpAuth),
+	hp := &httpProxyServer{}
+	hp.pool = bufferpool.NewBytesBufferPool()
+	hp.handler = newHttpReqHandler(httpAuth, hp)
+	hp.Server = server.NewTcpServer(addr, hp, server.Http)
+	return hp
+}
+
+func (hp *httpProxyServer) WithMitmMode(opt proxy.MimtOption) *httpProxyServer {
+	var err error
+	hp.mitmHandler, err = proxy.NewMitmHandler(opt)
+	if err != nil {
+		logger.Logger.ErrorBy(err)
 	}
-	hp.Server = server.NewTcpServer(hp.addr, hp, server.Http)
+	if hp.mitmHandler != nil {
+		hp.mitmHandler.SetMutableHTTPInterceptor(func(req *http.Request, invoker proxy.HTTPDelegatedInvoker) (*http.Response, error) {
+			rsp, err := invoker.Invoke(req)
+			if err != nil {
+				return rsp, err
+			}
+			logger.Logger.Debug("http interceptor",
+				logx.String("method", req.Method),
+				logx.String("host", req.Host),
+				logx.String("path", req.URL.Path),
+				logx.String("content-type", req.Header.Get("Content-Type")),
+				logx.Int("status", rsp.StatusCode),
+				logx.Int64("size", rsp.ContentLength),
+			)
+			return rsp, err
+		})
+		hp.mitmHandler.SetMutableWebsocketInterceptor(func(dir proxy.WSDirection, req *http.Request,
+			msgType int, data []byte, invoker proxy.WebsocketDelegatedInvoker) error {
+			direction := "Send"
+			if dir == proxy.Receive {
+				direction = "Receive"
+			}
+			logger.Logger.Debug("ws interceptor",
+				logx.String("direction", direction),
+				logx.String("host", req.Host),
+				logx.String("path", req.URL.Path),
+				logx.Int("msg-type", msgType),
+				logx.Int("data-size", len(data)),
+				logx.String("data", string(data)),
+			)
+			return invoker.Invoke(msgType, data)
+		})
+	}
 	return hp
 }
 
 func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 	// read the request and resolve the target host address
+	var reqCtx proxy.ReqContext
 	var err error
-	if conn, err = hp.handler.ReadRequest(conn); err != nil {
+	if reqCtx, conn, err = hp.handler.ReadRequest(conn); err != nil {
 		logger.Logger.ErrorBy(err)
 		return
+	}
+
+	// TODO: in mitm mode, the client doesn't relay the data to remote ss server via transport
+	if hp.mitmHandler != nil {
+		ctx := context.WithValue(context.Background(), proxy.ReqCtxKey, reqCtx)
+		if err = hp.mitmHandler.HandleMIMT(ctx, conn); err != nil {
+			logger.Logger.ErrorBy(err)
+		}
+		return
+	}
+
+	// convert HTTP request and body to bytes buffer
+	if !reqCtx.ConnMethod && reqCtx.Request != nil {
+		rbuf := hp.pool.GetBytesBuffer()
+		defer hp.pool.PutBytesBuffer(rbuf)
+		reqCtx.Request.Write(rbuf)
+		reqCtx.Request.Body.Close()
+		conn = connection.NewConnWithReader(conn, rbuf)
 	}
 
 	proxy, err := rule.MatchRuler.Select()
@@ -205,7 +239,7 @@ func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 	if statistic.EnableStatistic {
 		tcpTracker := statistic.NewTCPTracker(conn, statistic.Context{
 			Src:     conn.RemoteAddr().String(),
-			Dst:     hp.handler.reqCtx.target,
+			Dst:     reqCtx.Addr,
 			Network: "TCP",
 			Type:    "HTTP",
 			Proxy:   proxy,
@@ -214,7 +248,7 @@ func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 		// defer statistic.DefaultManager.Remove(tcpTracker)
 		conn = tcpTracker
 	}
-	if err = selector.ProxySelector.Select(proxy)(conn, hp.handler.reqCtx.target); err != nil {
+	if err = selector.ProxySelector.Select(proxy)(conn, reqCtx.Addr); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }

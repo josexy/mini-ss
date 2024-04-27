@@ -1,6 +1,7 @@
 package ss
 
 import (
+	"context"
 	"io"
 	"net"
 	"net/netip"
@@ -9,6 +10,7 @@ import (
 	"github.com/josexy/mini-ss/address"
 	"github.com/josexy/mini-ss/bufferpool"
 	"github.com/josexy/mini-ss/constant"
+	"github.com/josexy/mini-ss/proxy"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
@@ -20,9 +22,10 @@ import (
 
 type socks5Server struct {
 	server.Server
-	addr      string
-	socksAuth *Auth
-	pool      *bufferpool.BufferPool
+	addr        string
+	socksAuth   *Auth
+	mitmHandler proxy.MitmHandler
+	pool        *bufferpool.BufferPool
 }
 
 func newSocksProxyServer(addr string, socksAuth *Auth) *socks5Server {
@@ -35,6 +38,15 @@ func newSocksProxyServer(addr string, socksAuth *Auth) *socks5Server {
 	return ss
 }
 
+func (s *socks5Server) WithMitmMode(opt proxy.MimtOption) *socks5Server {
+	var err error
+	s.mitmHandler, err = proxy.NewMitmHandler(opt)
+	if err != nil {
+		logger.Logger.ErrorBy(err)
+	}
+	return s
+}
+
 func (s *socks5Server) ServeTCP(conn net.Conn) {
 	dstAddr, cmd, err := s.handshake(conn)
 	if err != nil {
@@ -42,6 +54,21 @@ func (s *socks5Server) ServeTCP(conn net.Conn) {
 		return
 	}
 	if cmd == constant.Connect {
+		// TODO: in mitm mode, the client doesn't relay the data to remote ss server via transport
+		if s.mitmHandler != nil {
+			host, port, _ := net.SplitHostPort(dstAddr)
+			ctx := context.WithValue(context.Background(), proxy.ReqCtxKey, proxy.ReqContext{
+				ConnMethod: true, // ConnMethod is true for socks5 proxy
+				Host:       host,
+				Port:       port,
+				Addr:       dstAddr,
+			})
+			if err = s.mitmHandler.HandleMIMT(ctx, conn); err != nil {
+				logger.Logger.ErrorBy(err)
+			}
+			return
+		}
+
 		proxy, err := rule.MatchRuler.Select()
 		if err != nil {
 			logger.Logger.ErrorBy(err)

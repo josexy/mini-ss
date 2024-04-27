@@ -1,7 +1,7 @@
 server:
   - name: ss
     addr: 127.0.0.1:8388
-    password: '12345'
+    password: "12345"
     # method: aes-128-cfb
     method: none
     transport: default
@@ -12,13 +12,21 @@ local:
   # mixed_addr: 127.0.0.1:10088
   # socks_auth: '123:123'
   # http_auth: '123:123'
+  mitm:
+    enable: true
+    ca_path: "certs/ca.crt"
+    key_path: "certs/ca.key"
+    fake_cert_pool:
+      capacity: 50
+      interval: 30000
+      expire_second: 15000
 log:
   color: true
   log_level: trace
-  verbose_level: 3
+  verbose_level: 2
 # iface: lo
 # auto_detect_iface: true
 rules:
   mode: direct
-  direct_to: ''
-  global_to: 'ss'
+  direct_to: ""
+  global_to: "ss"

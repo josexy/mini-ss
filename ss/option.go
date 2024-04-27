@@ -5,6 +5,7 @@ import (
 
 	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/enhancer"
+	"github.com/josexy/mini-ss/proxy"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/ssr"
 	"github.com/josexy/mini-ss/transport"
@@ -32,6 +33,7 @@ type localOptions struct {
 	systemProxy    bool
 	enableTun      bool
 	enhancerConfig enhancer.EnhancerConfig
+	mitmConfig     proxy.MimtOption
 }
 
 type ssOptions struct {
@@ -242,6 +244,32 @@ func WithMixedAddr(addr string) SSOption {
 func WithTcpTunAddr(addrs [][]string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.localOpts.tcpTunAddr = addrs
+	})
+}
+
+func WithMitm(enable bool) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmConfig.Enable = enable
+	})
+}
+
+func WithMitmCAPath(caPath string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmConfig.CaPath = caPath
+	})
+}
+
+func WithMitmKeyPath(keyPath string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmConfig.KeyPath = keyPath
+	})
+}
+
+func WithMitmFakeCertPool(capacity, interval, expireSecond int) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmConfig.FakeCertPool.Capacity = capacity
+		so.localOpts.mitmConfig.FakeCertPool.Interval = interval
+		so.localOpts.mitmConfig.FakeCertPool.ExpireSecond = expireSecond
 	})
 }
 

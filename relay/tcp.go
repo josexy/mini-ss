@@ -3,7 +3,6 @@ package relay
 import (
 	"io"
 	"net"
-	"sync"
 
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/address"
@@ -15,17 +14,17 @@ import (
 
 var tcpPool = bufferpool.NewBufferPool(constant.MaxTcpBufferSize)
 
-func RelayTCP(dst, src io.ReadWriteCloser) {
-	var wg sync.WaitGroup
-	wg.Add(2)
-	fn := func(dest, src io.ReadWriteCloser) {
-		defer wg.Done()
-		_ = ioCopyWithBuffer(dest, src)
-		_ = dest.Close()
+func RelayTCP(dst, src io.ReadWriteCloser) error {
+	defer dst.Close()
+	defer src.Close()
+	errCh := make(chan error, 2)
+	copyFn := func(dest, src io.ReadWriteCloser) {
+		err := ioCopyWithBuffer(dest, src)
+		errCh <- err
 	}
-	go fn(dst, src)
-	go fn(src, dst)
-	wg.Wait()
+	go copyFn(dst, src)
+	go copyFn(src, dst)
+	return <-errCh
 }
 
 func ioCopyWithBuffer(dst io.Writer, src io.Reader) error {

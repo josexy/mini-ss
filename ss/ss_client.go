@@ -80,11 +80,11 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 	} else {
 		if s.Opts.localOpts.httpAddr != "" {
 			// http proxy
-			s.srvGroup.AddServer(newHttpProxyServer(s.Opts.localOpts.httpAddr, s.Opts.localOpts.httpAuth))
+			s.srvGroup.AddServer(newHttpProxyServer(s.Opts.localOpts.httpAddr, s.Opts.localOpts.httpAuth).WithMitmMode(s.Opts.localOpts.mitmConfig))
 		}
 		if s.Opts.localOpts.socksAddr != "" {
 			// socks proxy
-			s.srvGroup.AddServer(newSocksProxyServer(s.Opts.localOpts.socksAddr, s.Opts.localOpts.socksAuth))
+			s.srvGroup.AddServer(newSocksProxyServer(s.Opts.localOpts.socksAddr, s.Opts.localOpts.socksAuth).WithMitmMode(s.Opts.localOpts.mitmConfig))
 		}
 	}
 

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -10,7 +11,10 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/transport"
+	"github.com/josexy/mini-ss/util/logger"
 )
+
+var errWsUpgradeHostNotMatch = errors.New("ws upgrade host not match")
 
 type WsServer struct {
 	srv      *http.Server
@@ -41,6 +45,7 @@ func (s *WsServer) Start(ctx context.Context) error {
 		ReadBufferSize:    s.opts.RevBuffer,
 		WriteBufferSize:   s.opts.SndBuffer,
 		EnableCompression: s.opts.Compress,
+		HandshakeTimeout:  time.Second * 30,
 		CheckOrigin:       func(r *http.Request) bool { return true },
 	}
 
@@ -61,7 +66,12 @@ func (s *WsServer) Start(ctx context.Context) error {
 	}
 
 	serveMux := http.NewServeMux()
-	serveMux.HandleFunc(s.opts.Path, s.wsUpgrade)
+	serveMux.HandleFunc(s.opts.Path, func(w http.ResponseWriter, r *http.Request) {
+		err := s.wsUpgrade(w, r)
+		if err != nil {
+			logger.Logger.ErrorBy(err)
+		}
+	})
 	s.srv = &http.Server{
 		Addr:              s.Addr,
 		Handler:           serveMux,
@@ -82,20 +92,21 @@ func (s *WsServer) Start(ctx context.Context) error {
 	return err
 }
 
-func (s *WsServer) wsUpgrade(w http.ResponseWriter, r *http.Request) {
+func (s *WsServer) wsUpgrade(w http.ResponseWriter, r *http.Request) error {
 	host := r.Host
 	if host == "" && r.URL != nil {
 		host = r.URL.Host
 	}
-	if host != s.opts.Host {
-		return
+	if s.opts.Host != "" && host != s.opts.Host {
+		return errWsUpgradeHostNotMatch
 	}
 	c, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		return
+		return err
 	}
 	conn := newConn(connection.NewWebsocketConn(c), s)
-	go conn.serve()
+	conn.serve()
+	return nil
 }
 
 func (s *WsServer) Close() error {

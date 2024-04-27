@@ -10,6 +10,9 @@ import (
 	"github.com/josexy/mini-ss/connection"
 )
 
+// WsProxyFuncForTesting this global function used for testing
+var WsProxyFuncForTesting func(req *http.Request) (*url.URL, error)
+
 type wsDialer struct {
 	tcpDialer
 	Opts *WsOptions
@@ -33,11 +36,12 @@ func (d *wsDialer) Dial(addr string) (net.Conn, error) {
 		NetDial: func(network, addr string) (net.Conn, error) {
 			return d.tcpDialer.Dial(addr)
 		},
+		Proxy:             WsProxyFuncForTesting,
 		ReadBufferSize:    d.Opts.RevBuffer,
 		WriteBufferSize:   d.Opts.SndBuffer,
 		EnableCompression: d.Opts.Compress,
-		HandshakeTimeout:  45 * time.Second,
 		TLSClientConfig:   tlsConfig,
+		HandshakeTimeout:  30 * time.Second,
 	}
 	header := http.Header{}
 	header.Set("Host", d.Opts.Host)

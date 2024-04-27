@@ -1,31 +1,15 @@
 package ss
 
 import (
-	"crypto/rsa"
-	"crypto/x509"
 	"time"
 
 	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/enhancer"
+	"github.com/josexy/mini-ss/proxy"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/ssr"
 	"github.com/josexy/mini-ss/transport"
 )
-
-type mimtOption struct {
-	enable       bool
-	caPath       string
-	keyPath      string
-	fakeCertPool struct {
-		capacity     int
-		interval     int
-		expireSecond int
-	}
-
-	caCert *x509.Certificate
-	caKey  *rsa.PrivateKey
-	caErr  error
-}
 
 type serverOptions struct {
 	name      string
@@ -49,7 +33,7 @@ type localOptions struct {
 	systemProxy    bool
 	enableTun      bool
 	enhancerConfig enhancer.EnhancerConfig
-	mitmConfig     mimtOption
+	mitmConfig     proxy.MimtOption
 }
 
 type ssOptions struct {
@@ -265,27 +249,27 @@ func WithTcpTunAddr(addrs [][]string) SSOption {
 
 func WithMitm(enable bool) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.mitmConfig.enable = enable
+		so.localOpts.mitmConfig.Enable = enable
 	})
 }
 
 func WithMitmCAPath(caPath string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.mitmConfig.caPath = caPath
+		so.localOpts.mitmConfig.CaPath = caPath
 	})
 }
 
 func WithMitmKeyPath(keyPath string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.mitmConfig.keyPath = keyPath
+		so.localOpts.mitmConfig.KeyPath = keyPath
 	})
 }
 
 func WithMitmFakeCertPool(capacity, interval, expireSecond int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.mitmConfig.fakeCertPool.capacity = capacity
-		so.localOpts.mitmConfig.fakeCertPool.interval = interval
-		so.localOpts.mitmConfig.fakeCertPool.expireSecond = expireSecond
+		so.localOpts.mitmConfig.FakeCertPool.Capacity = capacity
+		so.localOpts.mitmConfig.FakeCertPool.Interval = interval
+		so.localOpts.mitmConfig.FakeCertPool.ExpireSecond = expireSecond
 	})
 }
 

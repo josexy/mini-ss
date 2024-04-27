@@ -1,22 +1,11 @@
 package ss
 
 import (
-	"bufio"
 	"net"
 
+	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/server"
 )
-
-type bufferConn struct {
-	net.Conn
-	r *bufio.Reader
-}
-
-func newBufferConn(c net.Conn) *bufferConn { return &bufferConn{Conn: c, r: bufio.NewReader(c)} }
-
-func (c *bufferConn) Peek(n int) ([]byte, error) { return c.r.Peek(n) }
-
-func (c *bufferConn) Read(p []byte) (int, error) { return c.r.Read(p) }
 
 type mixedServer struct {
 	server.Server
@@ -39,9 +28,9 @@ func newMixedServer(addr string) server.Server {
 }
 
 func (s *mixedServer) handleTCPConn(conn net.Conn) {
-	br := newBufferConn(conn)
+	bufConn := connection.NewBufioConn(conn)
 	// check SOCKS or HTTP request
-	data, err := br.Peek(1)
+	data, err := bufConn.Peek(1)
 	if err != nil {
 		return
 	}
@@ -50,8 +39,8 @@ func (s *mixedServer) handleTCPConn(conn net.Conn) {
 	}
 	switch data[0] {
 	case 0x05:
-		s.socksSrv.ServeTCP(br)
+		s.socksSrv.ServeTCP(bufConn)
 	default:
-		s.httpSrv.ServeTCP(br)
+		s.httpSrv.ServeTCP(bufConn)
 	}
 }

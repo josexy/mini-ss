@@ -2,10 +2,13 @@ server:
   - name: ss
     addr: ':8388'
     password: '12345'
-    # method: aes-128-cfb
-    method: none
+    method: aes-128-cfb
+    # method: none
     transport: default
 log:
   color: true
   log_level: trace
   verbose_level: 3
+
+# iface: en5
+auto_detect_iface: true

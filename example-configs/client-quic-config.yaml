@@ -6,12 +6,19 @@ server:
     transport: quic
     quic:
       conns: 3
+      tls:
+        mode: "tls"
+        cert_path: "certs/client.crt"
+        key_path: "certs/client.key"
+        ca_path: "certs/ca.crt"
+        hostname: www.helloworld.com
 local:
   socks_addr: 127.0.0.1:10086
   http_addr: 127.0.0.1:10087
-color: true
-verbose: true
-verbose_level: 2
+log:
+  color: true
+  log_level: trace
+  verbose_level: 2
 iface: en5
 auto_detect_iface: true
 rules:

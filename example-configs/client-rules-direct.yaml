@@ -1,23 +1,35 @@
-server: []
+server:
+  - name: ss
+    addr: 127.0.0.1:8388
+    password: "12345"
+    method: aes-128-cfb
+    # method: none
+    transport: default
+    udp: true
 local:
-  socks_addr: 127.0.0.1:10086
-  http_addr: 127.0.0.1:10087
+  # socks_addr: 127.0.0.1:10086
+  # http_addr: 127.0.0.1:10087
   mixed_addr: 127.0.0.1:10088
-  enable_tun: true
   tun:
-    name: utun3
+    enable: true
+    name: utun9
     cidr: 198.18.0.1/16
-    mtu: 1350
+    mtu: 9000
   fake_dns:
     listen: ':53'
+    disable_rewrite: true
     nameservers:
       - 114.114.114.114
       - 223.5.5.5
       - 8.8.8.8
-color: true
-verbose: true
-verbose_level: 2
+      - 2001:4860:4860::8888
+log:
+  color: true
+  log_level: trace
+  verbose_level: 2
 iface: en5
 auto_detect_iface: true
 rules:
   mode: direct
+  direct_to: ""
+  global_to: "ss"

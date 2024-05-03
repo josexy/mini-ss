@@ -6,6 +6,13 @@ server:
     transport: quic
     quic:
       conns: 3
-color: true
-verbose: true
-verbose_level: 2
+      tls:
+        mode: "tls"
+        cert_path: "certs/server.crt"
+        key_path: "certs/server.key"
+        ca_path: "certs/ca.crt"
+log:
+  color: true
+  log_level: trace
+  verbose_level: 2
+

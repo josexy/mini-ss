@@ -15,9 +15,10 @@ local:
   http_addr: 127.0.0.1:10087
   mixed_addr: 127.0.0.1:10088
   system_proxy: true
-color: true
-verbose: true
-verbose_level: 2
+log:
+  color: true
+  log_level: trace
+  verbose_level: 3
 iface: en5
 auto_detect_iface: true
 rules:

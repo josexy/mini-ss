@@ -2,15 +2,15 @@ server:
   - name: ss
     addr: 127.0.0.1:8388
     password: "12345"
-    # method: aes-128-cfb
-    method: none
+    method: aes-128-cfb
+    # method: none
     transport: default
     udp: true
 local:
-  socks_addr: 127.0.0.1:10086
-  http_addr: 127.0.0.1:10087
-  # mixed_addr: 127.0.0.1:10088
-  # socks_auth: '123:123'
+  # socks_addr: :10086
+  # http_addr: :10087
+  mixed_addr: :10088
+  # socks_auth: "123:123"
   # http_auth: '123:123'
   mitm:
     enable: true

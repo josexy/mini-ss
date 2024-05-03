@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
@@ -54,7 +55,7 @@ func startSimpleHttpServer(addr string, handler http.Handler) *http.Server {
 	return server
 }
 
-func testRequest(addr string, isHttps bool) {
+func testHTTPRequest(addr string, isHttps bool) {
 	caCrtPem, err := os.ReadFile(caCrt)
 	if err != nil {
 		panic(err)
@@ -89,14 +90,16 @@ func testRequest(addr string, isHttps bool) {
 	fmt.Printf("status code: %d, headers: %+v, body: %s\n", rsp.StatusCode, rsp.Header, res)
 }
 
-func TestMitmHandler(t *testing.T) {
+func TestMitmHandlerForHTTPTraffic(t *testing.T) {
 	handler, err := NewMitmHandler(MimtOption{
 		Enable:  true,
 		CaPath:  caCrt,
 		KeyPath: caKey,
 	})
 	handler.SetMutableHTTPInterceptor(func(req *http.Request, invoker HTTPDelegatedInvoker) (*http.Response, error) {
-		t.Log("========", req.URL.String())
+		data, _ := httputil.DumpRequest(req, true)
+		t.Log(string(data))
+
 		// Modify the request
 		req.Header.Add("TestReqKey", "TestReqValue")
 		// Get the invoked response
@@ -104,6 +107,10 @@ func TestMitmHandler(t *testing.T) {
 		if err == nil {
 			rsp.Header.Add("TestRspKey", "TestRspValue")
 		}
+
+		data, _ = httputil.DumpResponse(rsp, true)
+		t.Log(string(data))
+
 		// Modify the response
 		rsp.Body.Close()
 		rspData := strings.NewReader("hello world")
@@ -112,11 +119,12 @@ func TestMitmHandler(t *testing.T) {
 		// Return the modified response
 		return rsp, err
 	})
-	// handler.SetImmutableHTTPInterceptor(func(req *http.Request, rsp *http.Response) {
-	// 	reqData, _ := io.ReadAll(req.Body)
-	// 	rspData, _ := io.ReadAll(rsp.Body)
-	// 	t.Logf("======== url: %s, status code: %d, req data: %s, rsp data: %s", req.URL.String(), rsp.StatusCode, string(reqData), string(rspData))
-	// })
+
+	handler.SetImmutableHTTPInterceptor(func(req *http.Request, rsp *http.Response) {
+		reqData, _ := io.ReadAll(req.Body)
+		rspData, _ := io.ReadAll(rsp.Body)
+		t.Logf("======== url: %s, status code: %d, req data: %s, rsp data: %s", req.URL.String(), rsp.StatusCode, string(reqData), string(rspData))
+	})
 
 	if err != nil {
 		t.Fatal(err)
@@ -150,8 +158,8 @@ func TestMitmHandler(t *testing.T) {
 		}
 	}))
 	time.Sleep(time.Second * 1)
-	go testRequest(addr, false)
-	go testRequest(addr, true)
+	go testHTTPRequest(addr, false)
+	go testHTTPRequest(addr, true)
 	time.Sleep(time.Second * 4)
 	server.Close()
 }

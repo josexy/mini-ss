@@ -147,7 +147,7 @@ func (r *mitmHandlerImpl) HandleMIMT(ctx context.Context, conn net.Conn) error {
 		return r.handleConnectMethodRequestAndResponse(ctx, conn)
 	} else {
 		// handle common http request
-		dstConn, err := transport.DialTCP(reqCtx.Addr)
+		dstConn, err := transport.DialTCP(ctx, reqCtx.Addr)
 		if err != nil {
 			return err
 		}
@@ -158,7 +158,7 @@ func (r *mitmHandlerImpl) HandleMIMT(ctx context.Context, conn net.Conn) error {
 
 func (r *mitmHandlerImpl) getServerResponseCert(ctx context.Context, serverName string) (net.Conn, *tls.Config, error) {
 	reqCtx := ctx.Value(ReqCtxKey).(ReqContext)
-	dstConn, err := transport.DialTCP(reqCtx.Addr)
+	dstConn, err := transport.DialTCP(ctx, reqCtx.Addr)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -209,7 +209,7 @@ func (r *mitmHandlerImpl) getServerResponseCert(ctx context.Context, serverName 
 	if err != nil {
 		return nil, nil, err
 	}
-	r.certPool.Add(reqCtx.Host, serverCert)
+	r.certPool.Set(reqCtx.Host, serverCert)
 	return tlsClientConn, &tls.Config{Certificates: []tls.Certificate{serverCert}}, nil
 }
 
@@ -245,7 +245,7 @@ func (r *mitmHandlerImpl) handleConnectMethodRequestAndResponse(ctx context.Cont
 		}
 		serverConn = tlsServerConn
 	} else {
-		clientConn, err = transport.DialTCP(ctx.Value(ReqCtxKey).(ReqContext).Addr)
+		clientConn, err = transport.DialTCP(ctx, ctx.Value(ReqCtxKey).(ReqContext).Addr)
 		if err != nil {
 			return
 		}

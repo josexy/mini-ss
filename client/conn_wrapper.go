@@ -4,7 +4,7 @@ import (
 	"net"
 
 	"github.com/josexy/mini-ss/address"
-	"github.com/josexy/mini-ss/constant"
+	"github.com/josexy/mini-ss/bufferpool"
 )
 
 type tcpConnWrapper struct {
@@ -56,7 +56,7 @@ func newUdpConnWrapper(conn net.PacketConn, destAddr, target string) (*udpConnWr
 		PacketConn: conn,
 		destAddr:   laddr,
 		remoteAddr: addr,
-		buf:        make([]byte, constant.MaxUdpBufferSize),
+		buf:        make([]byte, bufferpool.MaxUdpBufferSize),
 	}, nil
 }
 
@@ -79,14 +79,20 @@ func (c *udpConnWrapper) Read(b []byte) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	addr := address.ParseAddress3(buf[3:n])
+	addr, err := address.ParseAddressFromBuffer(buf[3:n])
+	if err != nil {
+		return n, err
+	}
 	return copy(b, buf[3+len(addr):n]), nil
 }
 
 func (c *udpConnWrapper) Write(b []byte) (int, error) {
 	buf := c.buf
 
-	addr := address.ParseAddress1(c.remoteAddr.String())
+	addr, err := address.ParseAddress(c.remoteAddr.String(), make([]byte, 259))
+	if err != nil {
+		return 0, err
+	}
 	buf[0], buf[1], buf[2] = 0, 0, 0
 	copy(buf[3:], addr)
 	copy(buf[3+len(addr):], b)

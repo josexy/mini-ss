@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/url"
 	"strconv"
@@ -9,7 +10,7 @@ import (
 	"time"
 
 	"github.com/josexy/mini-ss/address"
-	"github.com/josexy/mini-ss/constant"
+	"github.com/josexy/mini-ss/bufferpool"
 	"github.com/josexy/mini-ss/transport"
 )
 
@@ -30,12 +31,11 @@ type Socks5Client struct {
 }
 
 func NewSocks5Client(addr string) *Socks5Client {
-	timeout := time.Second * 10
 	return &Socks5Client{
 		Addr:       addr,
-		timeout:    timeout,
+		timeout:    10 * time.Second,
 		authMethod: 0x00,
-		buf:        make([]byte, constant.MaxSocksBufferSize),
+		buf:        make([]byte, bufferpool.MaxSocksBufferSize),
 		dialer:     transport.NewDialer(transport.Tcp, transport.DefaultOptions),
 	}
 }
@@ -57,7 +57,7 @@ func (c *Socks5Client) Close() (err error) {
 
 func (c *Socks5Client) Dial(ctx context.Context, addr string) (transport.Conn, error) {
 	// don't care the tcp connection bind address
-	_, err := c.handshake(ctx, addr, constant.Connect)
+	_, err := c.handshake(ctx, addr, 1) // CONNECT
 	if err != nil {
 		return nil, err
 	}
@@ -67,11 +67,11 @@ func (c *Socks5Client) Dial(ctx context.Context, addr string) (transport.Conn, e
 }
 
 func (c *Socks5Client) DialUDP(ctx context.Context, addr string) (transport.Conn, error) {
-	bindAddr, err := c.handshake(ctx, addr, constant.UDP)
+	bindAddr, err := c.handshake(ctx, addr, 3) // UDP
 	if err != nil {
 		return nil, err
 	}
-	conn, err := transport.ListenLocalUDP()
+	conn, err := transport.ListenLocalUDP(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (c *Socks5Client) DialUDP(ctx context.Context, addr string) (transport.Conn
 }
 
 func (c *Socks5Client) handshake(ctx context.Context, address string, cmd byte) (string, error) {
-	conn, err := c.dialer.Dial(c.Addr)
+	conn, err := c.dialer.Dial(ctx, c.Addr)
 	if err != nil {
 		return "", err
 	}
@@ -126,7 +126,7 @@ func (c *Socks5Client) negotiate(conn net.Conn) error {
 	// +----+--------+
 	version, method := buf[0], buf[1]
 	if version != 0x05 {
-		return constant.ErrVersion5Invalid
+		return errors.New("socks version not 0x05")
 	}
 
 	c.authMethod = method
@@ -164,10 +164,10 @@ func (c *Socks5Client) authentication(conn net.Conn) error {
 	}
 	version, status := buf[0], buf[1]
 	if version != 0x01 {
-		return constant.ErrVersion1Invalid
+		return errors.New("socks version not 0x01")
 	}
 	if status != 0x00 {
-		return constant.ErrAuthFailure
+		return errors.New("socks authentication failure")
 	}
 	return nil
 }
@@ -190,7 +190,10 @@ func (c *Socks5Client) request(conn net.Conn, target string, cmd byte) (string, 
 	// | 1  |  1  | X'00' |  1   | Variable |    2     |
 	// +----+-----+-------+------+----------+----------+
 	buf := c.buf
-	dstAddr := address.ParseAddress0(host, port)
+	dstAddr, err := address.ParseAddressFromHostPort(host, port, make([]byte, 259))
+	if err != nil {
+		return "", err
+	}
 	buf[0], buf[1], buf[2] = 0x05, cmd, 0
 	copy(buf[3:], dstAddr)
 	conn.Write(buf[:3+len(dstAddr)])
@@ -200,14 +203,17 @@ func (c *Socks5Client) request(conn net.Conn, target string, cmd byte) (string, 
 	// +----+-----+-------+------+----------+----------+
 	// | 1  |  1  | X'00' |  1   | Variable |    2     |
 	// +----+-----+-------+------+----------+----------+
-	_, err := conn.Read(buf)
+	_, err = conn.Read(buf)
 	if err != nil {
 		return "", err
 	}
 	_, code := buf[0], buf[1]
 	if code != 0x00 {
-		return "", constant.ErrRequestFailure
+		return "", errors.New("socks request failure")
 	}
-	bindAddr := address.ParseAddress3(buf[3:])
+	bindAddr, err := address.ParseAddressFromBuffer(buf[3:])
+	if err != nil {
+		return "", err
+	}
 	return bindAddr.String(), nil
 }

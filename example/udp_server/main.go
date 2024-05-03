@@ -1,15 +1,20 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/josexy/mini-ss/relay"
 )
 
 func main() {
-	go relayer()
-	server()
+	go server()
+	relayer()
 }
 
 func relayer() {
@@ -21,16 +26,19 @@ func relayer() {
 	if err != nil {
 		panic(err)
 	}
-	defer conn.Close()
 
-	targetAddr, _ := net.ResolveUDPAddr("udp", "127.0.0.1:2004")
-	err = relay.RelayUDPWithNatmap(conn,
-		func(srcAddr net.Addr, in []byte, n int) ([]byte, *net.UDPAddr, error) {
-			return in[:n], targetAddr, nil
-		}, func(src net.Addr, in []byte, n int) ([]byte, error) {
-			return in[:n], nil
-		})
-	log.Println(err)
+	log.Printf("local addr: %v\n", conn.LocalAddr())
+	nmUdpRelayer := relay.NewNatmapUDPRelayer(nil, nil)
+	go func() {
+		err := nmUdpRelayer.DirectRelayToServer(conn, "localhost:2004")
+		fmt.Println(err)
+	}()
+
+	inter := make(chan os.Signal, 1)
+	signal.Notify(inter, syscall.SIGINT)
+	<-inter
+	conn.Close()
+	time.Sleep(time.Second * 2)
 }
 
 func server() {

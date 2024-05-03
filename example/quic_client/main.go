@@ -22,14 +22,14 @@ var dialer = transport.NewDialer(transport.Quic, transport.DefaultQuicOptions)
 func (echoSrv) ServeTCP(conn net.Conn) {
 	log.Println(conn.RemoteAddr().String())
 
-	quicConn, err := dialer.Dial("127.0.0.1:10001")
+	quicConn, err := dialer.Dial(context.Background(), "127.0.0.1:10001")
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	// the Close() don't close the raw quic connection, it only closes the smux.Stream()
 	defer quicConn.Close()
-	relay.RelayTCP(conn, quicConn)
+	relay.IoCopyBidirectionalForStream(conn, quicConn)
 }
 
 func main() {

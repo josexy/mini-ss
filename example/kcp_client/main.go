@@ -21,14 +21,14 @@ var dialer = transport.NewDialer(transport.Kcp, transport.DefaultKcpOptions)
 
 func (echoSrv) ServeTCP(conn net.Conn) {
 	log.Println(conn.RemoteAddr().String())
-	kcpConn, err := dialer.Dial("127.0.0.1:10001")
+	kcpConn, err := dialer.Dial(context.Background(), "127.0.0.1:10001")
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	// the Close() don't close the raw kcp connection, it only closes the smux.Stream()
 	defer kcpConn.Close()
-	relay.RelayTCP(conn, kcpConn)
+	relay.IoCopyBidirectionalForStream(conn, kcpConn)
 }
 
 func main() {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -30,7 +31,7 @@ func main() {
 		// },
 	}
 	dialer := transport.NewDialer(transport.Websocket, options)
-	conn, err := dialer.Dial("127.0.0.1:8080")
+	conn, err := dialer.Dial(context.Background(), "127.0.0.1:8080")
 	if err != nil {
 		log.Fatalln(err)
 	}

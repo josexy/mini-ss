@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -50,7 +51,7 @@ func main() {
 }
 
 func tcpTunMain() {
-	conn, err := transport.DialTCP(os.Args[2])
+	conn, err := transport.DialTCP(context.Background(), os.Args[2])
 	if err != nil {
 		panic(err)
 	}
@@ -62,13 +63,15 @@ func tcpTunMain() {
 }
 
 func socksMain() {
-	proxyCli := client.NewSocks5Client("127.0.0.1:10086")
-	proxyCli.SetSocksAuth("test", "12345678")
+	proxyCli := client.NewSocks5Client(os.Args[2])
+	proxyCli.SetSocksAuth("123", "123")
 	defer proxyCli.Close()
 
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return proxyCli.Dial(ctx, addr)
+			dialer, err := proxyCli.Dial(ctx, addr)
+			fmt.Println(dialer.LocalAddr(), dialer.RemoteAddr())
+			return dialer, err
 		},
 	}
 	cli := http.Client{
@@ -83,7 +86,7 @@ func socksMain() {
 		}
 		defer resp.Body.Close()
 		data, _ := io.ReadAll(resp.Body)
-		log.Printf("=> data [%s] len: %d\n", data[:20], len(data))
+		log.Printf("=> code: %d, data [%s] len: %d\n", resp.StatusCode, data[:20], len(data))
 	}
 	urls := []string{
 		"https://www.baidu.com",
@@ -132,7 +135,7 @@ func httpMain() {
 }
 
 func echoMain() {
-	conn, err := transport.DialTCP("127.0.0.1:10000")
+	conn, err := transport.DialTCP(context.Background(), "127.0.0.1:10000")
 	if err != nil {
 		panic(err)
 	}

@@ -78,6 +78,12 @@ func WithFakeDnsServer(addr string) SSOption {
 	})
 }
 
+func WithFakeDnsDisableRewrite(disable bool) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.enhancerConfig.DisableRewrite = disable
+	})
+}
+
 // WithOutboundInterface set the outgoing interface name
 func WithOutboundInterface(ifaceName string) SSOption {
 	return ssOptionFunc(func(*ssOptions) {
@@ -460,6 +466,36 @@ func WithQuicConns(conns int) SSOption {
 			return
 		}
 		so.serverOpts[0].opts.(*transport.QuicOptions).Conns = conns
+	})
+}
+
+func WithQuicTLS(mode transport.TlsMode) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.QuicOptions).TlsOptions.Mode = mode
+	})
+}
+
+func WithQuicHostname(hostname string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.QuicOptions).TlsOptions.Hostname = hostname
+	})
+}
+
+func WithQuicCertPath(certFile string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.QuicOptions).TlsOptions.CertFile = certFile
+	})
+}
+
+func WithQuicKeyPath(keyFile string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.QuicOptions).TlsOptions.KeyFile = keyFile
+	})
+}
+
+func WithQuicCAPath(caFile string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*transport.QuicOptions).TlsOptions.CAFile = caFile
 	})
 }
 

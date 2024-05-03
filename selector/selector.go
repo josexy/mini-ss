@@ -11,18 +11,24 @@ import (
 
 var ProxySelector = NewSelector()
 
-type (
-	SelectorHandler       func(net.Conn, string) error
-	SelectorPacketHandler func(net.PacketConn, string) error
-)
+type StreamInvoker interface {
+	Invoke(net.Conn, string) error
+}
+type PacketInvoker interface {
+	Invoke(net.PacketConn, string) error
+}
+
+type StreamInvokerFunc func(net.Conn, string) error
+type PacketInvokerFunc func(net.PacketConn, string) error
+
+func (f StreamInvokerFunc) Invoke(c net.Conn, s string) error       { return f(c, s) }
+func (f PacketInvokerFunc) Invoke(c net.PacketConn, s string) error { return f(c, s) }
 
 type Selector struct {
-	tcpDirector      *relay.TCPDirectRelayer
-	udpDirector      *relay.UDPDirectRelayer
-	tcpDirectHandler SelectorHandler
-	udpDirectHandler SelectorPacketHandler
-	tcpProxyNode     ordmap.OrderedMap
-	udpProxyNode     ordmap.OrderedMap
+	tcpDirector  *relay.TCPDirectRelayer
+	udpDirector  *relay.UDPDirectRelayer
+	tcpProxyNode ordmap.OrderedMap
+	udpProxyNode ordmap.OrderedMap
 }
 
 func NewSelector() *Selector {
@@ -30,68 +36,53 @@ func NewSelector() *Selector {
 		tcpDirector: relay.NewTCPDirectRelayer(),
 		udpDirector: relay.NewUDPDirectRelayer(),
 	}
-	selector.tcpDirectHandler = func(relayer net.Conn, remoteAddr string) error {
-		return selector.tcpDirector.RelayDirectTCP(relayer, remoteAddr)
-	}
-	selector.udpDirectHandler = func(relayer net.PacketConn, remoteAddr string) error {
-		return selector.udpDirector.RelayDirectUDP(relayer, remoteAddr)
-	}
 	return selector
 }
 
-func (selector *Selector) AddProxy(name string, ctx ctxv.V) {
-	selector.tcpProxyNode.Store(name, relay.DstTCPRelayer{
-		DstAddr: ctx.Addr,
-		TCPRelayer: relay.NewTCPRelayer(
-			ctx.Type,
-			ctx.Options,
-			nil,
-			ctx.TcpConnBound,
-		),
-	})
+func (selector *Selector) AddProxy(proxy string, ctx ctxv.V) {
+	selector.tcpProxyNode.Store(proxy, relay.NewProxyTCPRelayer(
+		ctx.Addr,
+		ctx.Type,
+		ctx.Options,
+		nil,
+		ctx.TcpConnBound,
+	))
 }
 
-func (selector *Selector) AddPacketProxy(name string, ctx ctxv.V) {
-	selector.udpProxyNode.Store(name, relay.DstUDPRelayer{
-		DstAddr:    ctx.Addr,
-		UDPRelayer: relay.NewUDPRelayer(ctx.UdpConnBound),
-	})
+func (selector *Selector) AddPacketProxy(proxy string, ctx ctxv.V) {
+	selector.udpProxyNode.Store(proxy, relay.NewProxyUDPRelayer(
+		ctx.Addr,
+		nil,
+		ctx.UdpConnBound,
+	))
 }
 
-func (selector *Selector) Select(proxy string) SelectorHandler {
+func (selector *Selector) Select(proxy string) StreamInvoker {
 	if proxy == "" {
-		return selector.tcpDirectHandler
+		logger.Logger.Trace("tcp: direct")
+		return StreamInvokerFunc(selector.tcpDirector.RelayToServer)
 	}
-	value, ok := selector.tcpProxyNode.Load(proxy)
+	node, ok := selector.tcpProxyNode.Load(proxy)
 	if !ok {
+		logger.Logger.Trace("tcp: direct")
 		logger.Logger.Warnf("tcp: try to connect directly since proxy %q not found", proxy)
-		return selector.tcpDirectHandler
+		return StreamInvokerFunc(selector.tcpDirector.RelayToServer)
 	}
-	tcpRelayer := value.(relay.DstTCPRelayer)
-	return func(relayer net.Conn, remoteAddr string) error {
-		return tcpRelayer.RelayLocalToServer(
-			relayer,
-			tcpRelayer.DstAddr,
-			remoteAddr,
-		)
-	}
+	logger.Logger.Trace("tcp: proxy")
+	return StreamInvokerFunc(node.(*relay.ProxyTCPRelayer).RelayToProxyServer)
 }
 
-func (selector *Selector) SelectPacket(proxy string) SelectorPacketHandler {
+func (selector *Selector) SelectPacket(proxy string) PacketInvoker {
 	if proxy == "" {
-		return selector.udpDirectHandler
+		logger.Logger.Trace("udp: direct")
+		return PacketInvokerFunc(selector.udpDirector.RelayToServer)
 	}
-	value, ok := selector.udpProxyNode.Load(proxy)
+	node, ok := selector.udpProxyNode.Load(proxy)
 	if !ok {
+		logger.Logger.Trace("udp: direct")
 		logger.Logger.Warnf("udp: try to connect directly since proxy %q not found or udp relay disabled", proxy)
-		return selector.udpDirectHandler
+		return PacketInvokerFunc(selector.udpDirector.RelayToServer)
 	}
-	udpRelayer := value.(relay.DstUDPRelayer)
-	return func(relayer net.PacketConn, remoteAddr string) error {
-		return udpRelayer.RelayLocalToServer(
-			relayer,
-			udpRelayer.DstAddr,
-			remoteAddr,
-		)
-	}
+	logger.Logger.Trace("udp: proxy")
+	return PacketInvokerFunc(node.(*relay.ProxyUDPRelayer).RelayToProxyServer)
 }

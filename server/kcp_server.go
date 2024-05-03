@@ -14,6 +14,8 @@ import (
 	"github.com/xtaci/smux"
 )
 
+var _ Server = (*KcpServer)(nil)
+
 type KcpServer struct {
 	net.Listener
 	Addr       string
@@ -117,13 +119,12 @@ func (s *KcpServer) serve(conn net.Conn) {
 			Stream: stream,
 		}
 
-		conn := newConn(cc, s)
-		go conn.serve()
+		go newConn(cc, s).serve()
 	}
 }
 
-func (s *KcpServer) Serve(c *Conn) {
+func (s *KcpServer) Serve(conn *Conn) {
 	if s.Handler != nil {
-		s.Handler.ServeKCP(c.conn)
+		s.Handler.ServeKCP(conn)
 	}
 }

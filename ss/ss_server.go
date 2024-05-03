@@ -10,6 +10,7 @@ import (
 	"github.com/josexy/mini-ss/server"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/logger"
+	"github.com/josexy/netstackgo/iface"
 )
 
 var defaultSSServerOpts = ssOptions{}
@@ -35,6 +36,13 @@ func NewShadowsocksServer(opts ...SSOption) *ShadowsocksServer {
 	for _, opt := range s.Opts.serverOpts {
 		if err := s.initServerHandler(&opt); err != nil {
 			logger.Logger.Error("init server failed", logx.Error("error", err))
+		}
+	}
+	// check whether support auto-detect-interface
+	if transport.DefaultDialerOutboundOption.AutoDetectInterface {
+		if ifaceName, err := iface.DefaultRouteInterface(); err == nil {
+			transport.DefaultDialerOutboundOption.Interface = ifaceName
+			logger.Logger.Infof("auto detect outbound interface: %s", ifaceName)
 		}
 	}
 	return s
@@ -63,11 +71,12 @@ func (ss *ShadowsocksServer) initServerHandler(opt *serverOptions) error {
 	default:
 	}
 
-	handler.tcpRelayer = relay.NewTCPRelayer(transport.Tcp, transport.DefaultOptions, makeStreamConn(sc, ac), nil)
-	// udp relay only supports the default transport
-	handler.udpRelayer = &udpRelayer{
-		addr:    opt.addr,
-		relayer: relay.NewNatmapUDPRelayer(makePacketConn(sc, ac)),
+	handler.tcpRelayer = relay.NewProxyTCPRelayer("", transport.Tcp, transport.DefaultOptions, makeStreamConn(sc, ac), nil)
+	if opt.udp {
+		handler.udpRelayer = &udpRelayer{
+			addr:    opt.addr,
+			relayer: relay.NewNatmapUDPRelayer(makePacketConn(sc, ac), nil),
+		}
 	}
 	ss.handlerList = append(ss.handlerList, handler)
 	return nil
@@ -103,42 +112,42 @@ func (ss *ShadowsocksServer) Close() error {
 }
 
 type serverHandler struct {
-	tcpRelayer *relay.TCPRelayer
+	tcpRelayer *relay.ProxyTCPRelayer
 	udpRelayer *udpRelayer
 }
 
 func (h *serverHandler) ServeQUIC(conn net.Conn) {
-	if err := h.tcpRelayer.RelayServerToRemote(conn); err != nil {
+	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }
 
 func (h *serverHandler) ServeOBFS(conn net.Conn) {
-	if err := h.tcpRelayer.RelayServerToRemote(conn); err != nil {
+	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }
 
 func (h *serverHandler) ServeWS(conn net.Conn) {
-	if err := h.tcpRelayer.RelayServerToRemote(conn); err != nil {
+	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }
 
 func (h *serverHandler) ServeKCP(conn net.Conn) {
-	if err := h.tcpRelayer.RelayServerToRemote(conn); err != nil {
+	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }
 
 func (h *serverHandler) ServeTCP(conn net.Conn) {
-	if err := h.tcpRelayer.RelayServerToRemote(conn); err != nil {
+	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }
 
 func (h *serverHandler) ServeGRPC(conn net.Conn) {
-	if err := h.tcpRelayer.RelayServerToRemote(conn); err != nil {
+	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }
@@ -158,8 +167,8 @@ func (r *udpRelayer) start() error {
 		return err
 	}
 	defer conn.Close()
-	logger.Logger.Debug("udp relayer", logx.String("listen", r.addr))
-	err = r.relayer.RelayServerToRemote(conn)
+	logger.Logger.Info("udp relayer", logx.String("listen", r.addr))
+	err = r.relayer.RelayToServer(conn)
 	logger.Logger.ErrorBy(err)
 	return err
 }

@@ -4,6 +4,7 @@ import (
 	"net"
 
 	"github.com/josexy/mini-ss/connection"
+	"github.com/josexy/mini-ss/proxy"
 	"github.com/josexy/mini-ss/server"
 )
 
@@ -16,15 +17,21 @@ type mixedServer struct {
 }
 
 // newMixedServer mixed proxy mode does not support SOCKS and HTTP authentication
-func newMixedServer(addr string) server.Server {
+func newMixedServer(addr string, httpAuth *Auth, socksAuth *Auth) *mixedServer {
 	ms := &mixedServer{
 		addr:     addr,
-		socksSrv: newSocksProxyServer(addr, nil),
-		httpSrv:  newHttpProxyServer(addr, nil),
+		socksSrv: newSocksProxyServer(addr, socksAuth),
+		httpSrv:  newHttpProxyServer(addr, httpAuth),
 		err:      make(chan error, 1),
 	}
 	ms.Server = server.NewTcpServer(addr, server.TcpHandlerFunc(ms.handleTCPConn), server.Mixed)
 	return ms
+}
+
+func (s *mixedServer) WithMitmMode(opt proxy.MimtOption) *mixedServer {
+	s.httpSrv = s.httpSrv.WithMitmMode(opt)
+	s.socksSrv = s.socksSrv.WithMitmMode(opt)
+	return s
 }
 
 func (s *mixedServer) handleTCPConn(conn net.Conn) {

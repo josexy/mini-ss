@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync/atomic"
 
@@ -13,6 +14,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	_ "google.golang.org/grpc/encoding/gzip"
 )
+
+var _ Server = (*GrpcServer)(nil)
 
 type GrpcServer struct {
 	proto.UnimplementedStreamServiceServer
@@ -69,18 +72,15 @@ func (s *GrpcServer) Start(ctx context.Context) error {
 	s.running.Store(true)
 	go closeWithContextDoneErr(ctx, s)
 	err = s.server.Serve(s.ln)
-	if err != nil && err == grpc.ErrServerStopped {
+	if err != nil && errors.Is(err, grpc.ErrServerStopped) {
 		err = nil
 	}
 	s.running.Store(false)
-	return nil
+	return err
 }
 
 func (s *GrpcServer) Transfer(ss proto.StreamService_TransferServer) error {
-	conn := connection.NewGrpcServerStreamConn(ss, s.ln.Addr())
-	if s.Handler != nil {
-		s.Handler.ServeGRPC(conn)
-	}
+	newConn(connection.NewGrpcServerStreamConn(ss), s).serve()
 	return nil
 }
 
@@ -97,4 +97,8 @@ func (s *GrpcServer) Close() error {
 	return nil
 }
 
-func (s *GrpcServer) Serve(*Conn) {}
+func (s *GrpcServer) Serve(conn *Conn) {
+	if s.Handler != nil {
+		s.Handler.ServeGRPC(conn)
+	}
+}

@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -15,26 +16,26 @@ import (
 type kcpDialer struct {
 	sessions []*mux.MuxBindSession
 	cfg      *smux.Config
-	Opts     *KcpOptions
+	opts     *KcpOptions
 	once     sync.Once
 	rrIndex  uint16
 	numConn  uint16
 	reconn   int
 }
 
-func (d *kcpDialer) Dial(addr string) (net.Conn, error) {
+func (d *kcpDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
 	d.once.Do(func() {
-		d.Opts.Update()
+		d.opts.Update()
 
 		d.cfg = smux.DefaultConfig()
-		d.cfg.Version = d.Opts.SmuxVer
-		d.cfg.MaxReceiveBuffer = d.Opts.SmuxBuf
-		d.cfg.MaxStreamBuffer = d.Opts.StreamBuf
-		d.cfg.KeepAliveInterval = time.Duration(d.Opts.KeepAlive) * time.Second
+		d.cfg.Version = d.opts.SmuxVer
+		d.cfg.MaxReceiveBuffer = d.opts.SmuxBuf
+		d.cfg.MaxStreamBuffer = d.opts.StreamBuf
+		d.cfg.KeepAliveInterval = time.Duration(d.opts.KeepAlive) * time.Second
 
-		d.sessions = make([]*mux.MuxBindSession, d.Opts.Conns)
+		d.sessions = make([]*mux.MuxBindSession, d.opts.Conns)
 		d.rrIndex = 0
-		d.numConn = uint16(d.Opts.Conns)
+		d.numConn = uint16(d.opts.Conns)
 		// retry connect count
 		d.reconn = 3
 	})
@@ -47,7 +48,7 @@ func (d *kcpDialer) Dial(addr string) (net.Conn, error) {
 
 	// mux session uninitialized or closed
 	if d.sessions[idx] == nil || d.sessions[idx].IsClose() {
-		sess := d.waitForDial(addr)
+		sess := d.waitForDial(ctx, addr)
 		if sess == nil {
 			return nil, fmt.Errorf("dial %s failed", addr)
 		}
@@ -58,9 +59,9 @@ func (d *kcpDialer) Dial(addr string) (net.Conn, error) {
 	return d.openStreamConn(d.sessions[idx])
 }
 
-func (d *kcpDialer) waitForDial(addr string) *mux.MuxBindSession {
+func (d *kcpDialer) waitForDial(ctx context.Context, addr string) *mux.MuxBindSession {
 	for i := 0; i < d.reconn; i++ {
-		if sess, err := d.dial(addr); err == nil {
+		if sess, err := d.dial(ctx, addr); err == nil {
 			return sess
 		}
 		time.Sleep(time.Second * 2)
@@ -68,8 +69,8 @@ func (d *kcpDialer) waitForDial(addr string) *mux.MuxBindSession {
 	return nil
 }
 
-func (d *kcpDialer) dialWithOptions(addr string) (*kcp.UDPSession, error) {
-	conn, err := ListenLocalUDP()
+func (d *kcpDialer) dialWithOptions(ctx context.Context, addr string) (*kcp.UDPSession, error) {
+	conn, err := ListenLocalUDP(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -77,28 +78,28 @@ func (d *kcpDialer) dialWithOptions(addr string) (*kcp.UDPSession, error) {
 	if raddr, err = resolveUDPAddr(addr); err != nil {
 		return nil, err
 	}
-	return kcp.NewConn2(raddr, d.Opts.BC, d.Opts.DataShard, d.Opts.ParityShard, conn)
+	return kcp.NewConn2(raddr, d.opts.BC, d.opts.DataShard, d.opts.ParityShard, conn)
 }
 
-func (d *kcpDialer) dial(addr string) (*mux.MuxBindSession, error) {
-	conn, err := d.dialWithOptions(addr)
+func (d *kcpDialer) dial(ctx context.Context, addr string) (*mux.MuxBindSession, error) {
+	conn, err := d.dialWithOptions(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
 	conn.SetStreamMode(true)
 	conn.SetWriteDelay(false)
-	conn.SetNoDelay(d.Opts.NoDelay, d.Opts.Interval, d.Opts.Resend, d.Opts.Nc)
-	conn.SetACKNoDelay(d.Opts.AckNoDelay)
-	conn.SetMtu(d.Opts.Mtu)
-	conn.SetWindowSize(d.Opts.SndWnd, d.Opts.RevWnd)
-	conn.SetReadBuffer(d.Opts.SockBuf)
-	conn.SetWriteBuffer(d.Opts.SockBuf)
-	if d.Opts.Dscp > 0 {
-		conn.SetDSCP(d.Opts.Dscp)
+	conn.SetNoDelay(d.opts.NoDelay, d.opts.Interval, d.opts.Resend, d.opts.Nc)
+	conn.SetACKNoDelay(d.opts.AckNoDelay)
+	conn.SetMtu(d.opts.Mtu)
+	conn.SetWindowSize(d.opts.SndWnd, d.opts.RevWnd)
+	conn.SetReadBuffer(d.opts.SockBuf)
+	conn.SetWriteBuffer(d.opts.SockBuf)
+	if d.opts.Dscp > 0 {
+		conn.SetDSCP(d.opts.Dscp)
 	}
 
 	var cc net.Conn = conn
-	if !d.Opts.NoCompress {
+	if !d.opts.NoCompress {
 		cc = connection.NewCompressConn(conn)
 	}
 	sess, err := smux.Client(cc, d.cfg)

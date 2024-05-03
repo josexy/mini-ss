@@ -11,24 +11,24 @@ import (
 
 type tcpDialer struct{}
 
-func (d *tcpDialer) Dial(addr string) (net.Conn, error) {
+func (d *tcpDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
 	if DefaultDialerOutboundOption.Interface == "" {
-		dialer := &net.Dialer{Timeout: dialTimeout}
-		return dialer.DialContext(context.Background(), "tcp", addr)
+		dialer := &net.Dialer{Timeout: DefaultDialTimeout}
+		return dialer.DialContext(ctx, "tcp", addr)
 	}
 	network := "tcp"
 	switch network {
 	case "tcp4", "tcp6":
-		return dialSingle(context.Background(), network, addr)
+		return dialSingle(ctx, network, addr)
 	case "tcp":
-		return dualStackDialContext(context.Background(), network, addr)
+		return dualStackDialContext(ctx, network, addr)
 	default:
 		return nil, errors.New("network invalid")
 	}
 }
 
 func dialSingle(ctx context.Context, network string, addr string) (net.Conn, error) {
-	dialer := &net.Dialer{Timeout: dialTimeout}
+	dialer := &net.Dialer{Timeout: DefaultDialTimeout}
 
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {

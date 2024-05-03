@@ -49,11 +49,11 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 		o.applyTo(&s.Opts)
 	}
 
-	// whether to support auto-detect-interface
+	// check whether support auto-detect-interface
 	if transport.DefaultDialerOutboundOption.AutoDetectInterface {
 		if ifaceName, err := iface.DefaultRouteInterface(); err == nil {
 			transport.DefaultDialerOutboundOption.Interface = ifaceName
-			logger.Logger.Infof("auto detect outbound interface: %q", ifaceName)
+			logger.Logger.Infof("auto detect outbound interface: %s", ifaceName)
 		}
 	}
 
@@ -76,7 +76,7 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 
 	// enable mixed proxy
 	if s.Opts.localOpts.mixedAddr != "" {
-		s.srvGroup.AddServer(newMixedServer(s.Opts.localOpts.mixedAddr))
+		s.srvGroup.AddServer(newMixedServer(s.Opts.localOpts.mixedAddr, s.Opts.localOpts.httpAuth, s.Opts.localOpts.socksAuth).WithMitmMode(s.Opts.localOpts.mitmConfig))
 	} else {
 		if s.Opts.localOpts.httpAddr != "" {
 			// http proxy

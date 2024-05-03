@@ -16,6 +16,8 @@ import (
 
 var errWsUpgradeHostNotMatch = errors.New("ws upgrade host not match")
 
+var _ Server = (*WsServer)(nil)
+
 type WsServer struct {
 	srv      *http.Server
 	Addr     string
@@ -104,8 +106,7 @@ func (s *WsServer) wsUpgrade(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	conn := newConn(connection.NewWebsocketConn(c), s)
-	conn.serve()
+	newConn(connection.NewWebsocketConn(c), s).serve()
 	return nil
 }
 
@@ -117,8 +118,8 @@ func (s *WsServer) Close() error {
 	return s.srv.Shutdown(context.Background())
 }
 
-func (s *WsServer) Serve(c *Conn) {
+func (s *WsServer) Serve(conn *Conn) {
 	if s.Handler != nil {
-		s.Handler.ServeWS(c.conn)
+		s.Handler.ServeWS(conn)
 	}
 }

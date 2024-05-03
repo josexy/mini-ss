@@ -3,28 +3,33 @@ package server
 import (
 	"context"
 	"crypto/tls"
-	"net"
+	"crypto/x509/pkix"
 	"sync/atomic"
 
 	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/cert"
+	"github.com/josexy/mini-ss/util/logger"
 	"github.com/quic-go/quic-go"
 )
 
+var _ Server = (*QuicServer)(nil)
+
 type QuicServer struct {
 	*quic.EarlyListener
-	Opts    *transport.QuicOptions
 	Addr    string
 	Handler QuicHandler
 	running atomic.Bool
+	conns   []quic.EarlyConnection
+	opts    *transport.QuicOptions
 }
 
 func NewQuicServer(addr string, handler QuicHandler, opts transport.Options) *QuicServer {
 	return &QuicServer{
 		Addr:    addr,
 		Handler: handler,
-		Opts:    opts.(*transport.QuicOptions),
+		opts:    opts.(*transport.QuicOptions),
+		conns:   make([]quic.EarlyConnection, 0, 32),
 	}
 }
 
@@ -36,32 +41,38 @@ func (s *QuicServer) Start(ctx context.Context) error {
 	if s.running.Load() {
 		return ErrServerStarted
 	}
-	quicConfig := &quic.Config{
-		HandshakeIdleTimeout: s.Opts.HandshakeIdleTimeout,
-		KeepAlivePeriod:      s.Opts.KeepAlivePeriod,
-		MaxIdleTimeout:       s.Opts.MaxIdleTimeout,
+
+	tlsConfig, err := s.opts.TlsOptions.GetServerTlsConfig()
+	if err != nil {
+		return err
+	}
+	// Using self-generated tls config
+	if tlsConfig == nil {
+		privateKey, err := cert.GeneratePrivateKey()
+		if err != nil {
+			return err
+		}
+		cert, err := cert.GenerateCertificate(pkix.Name{CommonName: "mini-ss"}, nil, nil, nil, nil, privateKey)
+		if err != nil {
+			return err
+		}
+		tlsConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
+	}
+
+	conn, err := transport.ListenUDP(ctx, s.Addr)
+	if err != nil {
+		return err
+	}
+
+	ln, err := quic.ListenEarly(conn, transport.TlsConfigQuicALPN(tlsConfig), &quic.Config{
+		HandshakeIdleTimeout: s.opts.HandshakeIdleTimeout,
+		KeepAlivePeriod:      s.opts.KeepAlivePeriod,
+		MaxIdleTimeout:       s.opts.MaxIdleTimeout,
 		Versions: []quic.VersionNumber{
 			quic.Version1,
 			quic.Version2,
 		},
-	}
-
-	var tlsConfig *tls.Config
-	if tlsConfig == nil {
-		cert, err := cert.GenCertificate()
-		if err != nil {
-			return err
-		}
-		tlsConfig = &tls.Config{
-			Certificates: []tls.Certificate{cert},
-		}
-	}
-
-	conn, err := net.ListenPacket("udp", s.Addr)
-	if err != nil {
-		return err
-	}
-	ln, err := quic.ListenEarly(conn, transport.TlsConfigQuicALPN(tlsConfig), quicConfig)
+	})
 	if err != nil {
 		return err
 	}
@@ -69,32 +80,34 @@ func (s *QuicServer) Start(ctx context.Context) error {
 	s.running.Store(true)
 	go closeWithContextDoneErr(ctx, s)
 	for {
-		conn, err := ln.Accept(context.Background())
+		conn, err := ln.Accept(ctx)
 		if err != nil {
 			if !s.running.Load() {
 				break
 			}
 			continue
 		}
-		go s.serve(conn)
+		logger.Logger.Tracef("quic accept connection: %s", conn.RemoteAddr())
+		s.conns = append(s.conns, conn)
+		go s.acceptStreamForConn(ctx, conn)
 	}
 	return nil
 }
 
-func (s *QuicServer) Serve(c *Conn) {
-	if s.Handler != nil {
-		s.Handler.ServeQUIC(c.conn)
-	}
-}
-
-func (s *QuicServer) serve(c quic.Connection) {
+func (s *QuicServer) acceptStreamForConn(ctx context.Context, conn quic.Connection) {
 	for {
-		stream, err := c.AcceptStream(context.Background())
+		stream, err := conn.AcceptStream(ctx)
 		if err != nil {
 			return
 		}
-		conn := newConn(connection.NewQuicConn(stream, c.LocalAddr(), c.RemoteAddr()), s)
-		go conn.serve()
+		logger.Logger.Tracef("accept stream: [%s]-[%d]", conn.RemoteAddr(), stream.StreamID())
+		go newConn(connection.NewQuicConn(stream, conn.LocalAddr(), conn.RemoteAddr()), s).serve()
+	}
+}
+
+func (s *QuicServer) Serve(conn *Conn) {
+	if s.Handler != nil {
+		s.Handler.ServeQUIC(conn)
 	}
 }
 
@@ -103,5 +116,10 @@ func (s *QuicServer) Close() error {
 		return ErrServerClosed
 	}
 	s.running.Store(false)
-	return s.EarlyListener.Close()
+	err := s.EarlyListener.Close()
+	for _, conn := range s.conns {
+		_ = conn.CloseWithError(quic.ApplicationErrorCode(0), "")
+	}
+	s.conns = nil
+	return err
 }

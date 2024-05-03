@@ -19,6 +19,8 @@ func (l *tcpKeepAliveListener) Accept() (net.Conn, error) {
 	return conn, nil
 }
 
+var _ Server = (*TcpServer)(nil)
+
 type TcpServer struct {
 	ln      *tcpKeepAliveListener
 	Addr    string
@@ -63,15 +65,14 @@ func (s *TcpServer) Start(ctx context.Context) error {
 			}
 			continue
 		}
-		conn := newConn(rwc, s)
-		go conn.serve()
+		go newConn(rwc, s).serve()
 	}
 	return nil
 }
 
-func (s *TcpServer) Serve(c *Conn) {
+func (s *TcpServer) Serve(conn *Conn) {
 	if s.Handler != nil {
-		s.Handler.ServeTCP(c.conn)
+		s.Handler.ServeTCP(conn)
 	}
 }
 

@@ -8,8 +8,8 @@ import (
 	"io"
 	"net"
 
+	"github.com/josexy/mini-ss/bufferpool"
 	cipherx "github.com/josexy/mini-ss/cipher"
-	"github.com/josexy/mini-ss/constant"
 )
 
 type streamReader struct {
@@ -24,7 +24,7 @@ func newStreamReader(c net.Conn, cipher cipher.AEAD) *streamReader {
 	return &streamReader{
 		Conn:  c,
 		AEAD:  cipher,
-		buf:   make([]byte, constant.MaxTcpBufferSize+cipher.Overhead()),
+		buf:   make([]byte, bufferpool.MaxTcpBufferSize+cipher.Overhead()),
 		nonce: make([]byte, cipher.NonceSize()),
 	}
 }
@@ -46,7 +46,7 @@ func (r *streamReader) read() (int, error) {
 
 	// n is the payload size
 	size := int(buf[0])<<8 | int(buf[1]&0xFF)
-	if size > constant.MaxTcpBufferSize+r.Overhead() {
+	if size > bufferpool.MaxTcpBufferSize+r.Overhead() {
 		return 0, errors.New("payload buffer size overflow")
 	}
 	// reset buffer to store the payload and tag data
@@ -129,7 +129,7 @@ func newStreamWriter(c net.Conn, cipher cipher.AEAD) *streamWriter {
 		AEAD: cipher,
 		// the payload size of 2 bytes is 2+cipher.Overhead() after encryption
 		// the maximum size of encrypted payload data is maxPayloadBufferSize+cipher.Overhead()
-		buf:   make([]byte, 2+cipher.Overhead()+constant.MaxTcpBufferSize+cipher.Overhead()),
+		buf:   make([]byte, 2+cipher.Overhead()+bufferpool.MaxTcpBufferSize+cipher.Overhead()),
 		nonce: make([]byte, cipher.NonceSize()), // nonce size
 	}
 }
@@ -144,7 +144,7 @@ func (w *streamWriter) ReadFrom(r io.Reader) (n int64, err error) {
 		// reset buffer
 		buf := w.buf[:]
 		// buffer to store ciphertext
-		dataBuf := buf[2+w.Overhead() : 2+w.Overhead()+constant.MaxTcpBufferSize]
+		dataBuf := buf[2+w.Overhead() : 2+w.Overhead()+bufferpool.MaxTcpBufferSize]
 		// store payload data into buffer[2+w.Overhead():]
 		// the buf[0] and buf[1] store data size
 		nr, er := r.Read(dataBuf)
@@ -212,7 +212,7 @@ func (c *streamConn) initReader() error {
 		return err
 	}
 	// init decrypter
-	cp, err := c.cipher.Decrypter(salt)
+	cp, err := c.cipher.GetDecrypter(salt)
 	if err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ func (c *streamConn) initWriter() error {
 	if _, err := c.Conn.Write(salt); err != nil {
 		return err
 	}
-	cp, err := c.cipher.Encrypter(salt)
+	cp, err := c.cipher.GetEncrypter(salt)
 	if err != nil {
 		return err
 	}

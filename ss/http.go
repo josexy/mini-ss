@@ -13,7 +13,6 @@ import (
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/bufferpool"
 	"github.com/josexy/mini-ss/connection"
-	"github.com/josexy/mini-ss/constant"
 	"github.com/josexy/mini-ss/proxy"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
@@ -107,17 +106,19 @@ func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request) (proxy.Re
 	host, port := r.parseHostPort(req)
 
 	if r.owner.mitmHandler == nil && !rule.MatchRuler.Match(&host) {
-		return proxy.EmptyReqCtx, nil, constant.ErrRuleMatchDropped
+		return proxy.EmptyReqCtx, nil, rule.ErrRuleMatchDropped
 	}
 
 	proxyAuth := req.Header.Get(proxy.HttpHeaderProxyAuthorization)
 	var username, password string
 	if proxyAuth != "" {
-		data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(proxyAuth, "Basic "))
-		if err != nil {
-			return proxy.EmptyReqCtx, conn, err
+		if strings.Contains(proxyAuth, "Basic") && len(proxyAuth) >= 6 {
+			data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(proxyAuth, "Basic "))
+			if err != nil {
+				return proxy.EmptyReqCtx, conn, err
+			}
+			username, password, _ = strings.Cut(string(data), ":")
 		}
-		username, password, _ = strings.Cut(string(data), ":")
 	}
 	if r.httpAuth != nil && !r.httpAuth.Validate(username, password) {
 		errResp := &http.Response{ProtoMajor: 1, ProtoMinor: 1, Header: make(http.Header), StatusCode: http.StatusProxyAuthRequired}
@@ -248,7 +249,7 @@ func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 		// defer statistic.DefaultManager.Remove(tcpTracker)
 		conn = tcpTracker
 	}
-	if err = selector.ProxySelector.Select(proxy)(conn, reqCtx.Addr); err != nil {
+	if err = selector.ProxySelector.Select(proxy).Invoke(conn, reqCtx.Addr); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }

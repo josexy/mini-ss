@@ -8,6 +8,8 @@ import (
 	"github.com/josexy/mini-ss/transport"
 )
 
+var _ Server = (*ObfsServer)(nil)
+
 type ObfsServer struct {
 	srv     *TcpServer
 	Addr    string

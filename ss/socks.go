@@ -2,6 +2,7 @@ package ss
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/netip"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/josexy/mini-ss/address"
 	"github.com/josexy/mini-ss/bufferpool"
-	"github.com/josexy/mini-ss/constant"
 	"github.com/josexy/mini-ss/proxy"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/rule"
@@ -18,6 +18,22 @@ import (
 	"github.com/josexy/mini-ss/statistic"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/logger"
+)
+
+const (
+	CONNECT = iota + 1
+	BIND
+	UDP
+)
+
+var (
+	errVersion5Invalid         = errors.New("socks version not 0x05")
+	errVersion1Invalid         = errors.New("socks version not 0x01")
+	errUnsupportedMethod       = errors.New("socks unsupported method")
+	errUnsupportedReqCmd       = errors.New("socks unsupported request cmd")
+	errAuthFailure             = errors.New("socks authentication failure")
+	errAuthUserShortLength     = errors.New("socks authentication user short length")
+	errAuthPasswordShortLength = errors.New("socks authentication password short length")
 )
 
 type socks5Server struct {
@@ -32,7 +48,7 @@ func newSocksProxyServer(addr string, socksAuth *Auth) *socks5Server {
 	ss := &socks5Server{
 		addr:      addr,
 		socksAuth: socksAuth,
-		pool:      bufferpool.NewBufferPool(constant.MaxSocksBufferSize),
+		pool:      bufferpool.NewBufferPool(bufferpool.MaxSocksBufferSize),
 	}
 	ss.Server = server.NewTcpServer(addr, ss, server.Socks)
 	return ss
@@ -53,7 +69,7 @@ func (s *socks5Server) ServeTCP(conn net.Conn) {
 		logger.Logger.ErrorBy(err)
 		return
 	}
-	if cmd == constant.Connect {
+	if cmd == CONNECT {
 		// TODO: in mitm mode, the client doesn't relay the data to remote ss server via transport
 		if s.mitmHandler != nil {
 			host, port, _ := net.SplitHostPort(dstAddr)
@@ -88,31 +104,30 @@ func (s *socks5Server) ServeTCP(conn net.Conn) {
 			conn = tcpTracker
 		}
 
-		if err = selector.ProxySelector.Select(proxy)(conn, dstAddr); err != nil {
+		if err = selector.ProxySelector.Select(proxy).Invoke(conn, dstAddr); err != nil {
 			logger.Logger.ErrorBy(err)
 		}
 	}
 }
 
-func (s *socks5Server) negotiate(conn net.Conn) error {
+func (s *socks5Server) negotiate(conn net.Conn) (err error) {
 	buf := s.pool.Get()
 	defer s.pool.Put(buf)
 
-	n, err := conn.Read(*buf)
-	if err != nil {
-		return err
-	}
 	// +----+----------+----------+
 	// |VER | NMETHODS | METHODS  |
 	// +----+----------+----------+
 	// | 1  |    1     | 1 to 255 |
 	// +----+----------+----------+
-	version, nMethods, _ := (*buf)[0], int((*buf)[1]), (*buf)[2:n]
-	if version != 0x05 {
-		return constant.ErrVersion5Invalid
+
+	if _, err := io.ReadFull(conn, (*buf)[:1]); err != nil || (*buf)[0] != 0x05 {
+		return errVersion5Invalid
 	}
-	if nMethods < 0 {
-		return constant.ErrUnsupportedMethod
+	if _, err = io.ReadFull(conn, (*buf)[:1]); err != nil || (*buf)[0] <= 0 {
+		return errUnsupportedMethod
+	}
+	if _, err = io.ReadFull(conn, (*buf)[:(*buf)[0]]); err != nil {
+		return err
 	}
 
 	method := 0x00
@@ -133,25 +148,38 @@ func (s *socks5Server) negotiate(conn net.Conn) error {
 	return nil
 }
 
-func (s *socks5Server) auth(conn net.Conn, buf *[]byte) error {
-	n, err := conn.Read(*buf)
-	if err != nil {
-		return err
-	}
+func (s *socks5Server) auth(conn net.Conn, buf *[]byte) (err error) {
 	// +----+------+----------+------+----------+
 	// |VER | ULEN |  UNAME   | PLEN |  PASSWD  |
 	// +----+------+----------+------+----------+
 	// | 1  |  1   | 1 to 255 |  1   | 1 to 255 |
 	// +----+------+----------+------+----------+
-	version := (*buf)[0]
-	uLen := int((*buf)[1])
-	uName := string((*buf)[2 : 2+uLen])
-	pLen := int((*buf)[2+uLen])
-	passWd := string((*buf)[n-pLen : n])
 
-	if version != 0x01 {
-		return constant.ErrVersion1Invalid
+	var username, password string
+	var userLen, passLen int
+	if _, err = io.ReadFull(conn, (*buf)[:1]); err != nil || (*buf)[0] != 0x1 {
+		return errVersion1Invalid
 	}
+	if _, err = io.ReadFull(conn, (*buf)[:1]); err != nil {
+		return err
+	}
+	if userLen = int((*buf)[0]); userLen <= 0 {
+		return errAuthUserShortLength
+	}
+	if _, err = io.ReadFull(conn, (*buf)[:userLen]); err != nil {
+		return err
+	}
+	username = string((*buf)[:userLen])
+	if _, err = io.ReadFull(conn, (*buf)[:1]); err != nil {
+		return err
+	}
+	if passLen = int((*buf)[0]); passLen <= 0 {
+		return errAuthPasswordShortLength
+	}
+	if _, err = io.ReadFull(conn, (*buf)[:passLen]); err != nil {
+		return err
+	}
+	password = string((*buf)[:passLen])
 
 	// +----+--------+
 	// |VER | STATUS |
@@ -159,39 +187,45 @@ func (s *socks5Server) auth(conn net.Conn, buf *[]byte) error {
 	// | 1  |   1    |
 	// +----+--------+
 	(*buf)[0] = 0x01
-	if s.socksAuth != nil && s.socksAuth.Validate(uName, passWd) {
+	if s.socksAuth.Validate(username, password) {
 		(*buf)[1] = 0x00
 		conn.Write((*buf)[:2])
 		return nil
 	}
 	(*buf)[1] = 0x01
 	conn.Write((*buf)[:2])
-	return constant.ErrAuthFailure
+	return errAuthFailure
 }
 
 func (s *socks5Server) request(conn net.Conn) (addr string, cmd byte, err error) {
 	buf := s.pool.Get()
 
-	var n int
-	n, err = conn.Read(*buf)
-	if err != nil {
-		s.pool.Put(buf)
-		return
-	}
+	// var n int
+	// n, err = conn.Read(*buf)
+	// if err != nil {
+	// 	s.pool.Put(buf)
+	// 	return
+	// }
 	// +----+-----+-------+------+----------+----------+
 	// |VER | CMD |  RSV  | ATYP | DST.ADDR | DST.PORT |
 	// +----+-----+-------+------+----------+----------+
 	// | 1  |  1  | X'00' |  1   | Variable |    2     |
 	// +----+-----+-------+------+----------+----------+
-	version, _cmd, dstAddr := (*buf)[0], (*buf)[1], address.ParseAddress3((*buf)[3:n])
-
-	if version != 0x05 {
+	if _, err = io.ReadFull(conn, (*buf)[:1]); err != nil || (*buf)[0] != 0x05 {
 		s.pool.Put(buf)
-		err = constant.ErrVersion5Invalid
+		err = errVersion5Invalid
 		return
 	}
-	cmd = _cmd
-
+	if _, err = io.ReadFull(conn, (*buf)[:2]); err != nil {
+		s.pool.Put(buf)
+		return
+	}
+	cmd = (*buf)[0]
+	dstAddr, err := address.ParseAddressFromReader(conn, *buf)
+	if err != nil {
+		s.pool.Put(buf)
+		return
+	}
 	// the host may be a fake ip address or real ip address
 	host := dstAddr.Host()
 	// if tun mode is enabled, the host may be a fake ip address
@@ -207,25 +241,26 @@ func (s *socks5Server) request(conn net.Conn) (addr string, cmd byte, err error)
 	}
 	// the host may be a domain name or a real ip address
 	if !rule.MatchRuler.Match(&host) {
+		s.pool.Put(buf)
 		s.handleFail(conn, 0x02)
-		err = constant.ErrRuleMatchDropped
+		err = rule.ErrRuleMatchDropped
 		return
 	}
 	addr = net.JoinHostPort(host, strconv.FormatInt(int64(dstAddr.Port()), 10))
 
-	switch _cmd {
-	case constant.Connect:
+	switch cmd {
+	case CONNECT:
 		if err = s.handleCmdConnect(conn, buf); err != nil {
 			return
 		}
-	case constant.UDP:
+	case UDP:
 		if err = s.handleCmdUdpAssociate(conn, buf); err != nil {
 			return
 		}
 	default:
 		s.pool.Put(buf)
 		s.handleFail(conn, 0x07)
-		err = constant.ErrUnsupportedReqCmd
+		err = errUnsupportedReqCmd
 		return
 	}
 	return
@@ -233,6 +268,7 @@ func (s *socks5Server) request(conn net.Conn) (addr string, cmd byte, err error)
 
 func (s *socks5Server) handshake(conn net.Conn) (dstAddr string, cmd byte, err error) {
 	if err = s.negotiate(conn); err != nil {
+		logger.Logger.ErrorBy(err)
 		return
 	}
 	return s.request(conn)
@@ -247,7 +283,10 @@ func (s *socks5Server) handleCmdConnect(conn net.Conn, buf *[]byte) error {
 
 	(*buf)[0], (*buf)[1], (*buf)[2] = 0x05, 0x00, 0x00
 	// the bind address and port should be empty
-	bindAddr := address.ParseAddress0("0.0.0.0", 0)
+	bindAddr, err := address.ParseAddressFromHostPort("0.0.0.0", 0, make([]byte, 7))
+	if err != nil {
+		return err
+	}
 	copy((*buf)[3:], bindAddr)
 	conn.Write((*buf)[:3+len(bindAddr)])
 	s.pool.Put(buf)
@@ -261,7 +300,7 @@ func (s *socks5Server) handleCmdUdpAssociate(conn net.Conn, buf *[]byte) error {
 	// | 1  |  1  | X'00' |  1   | Variable |    2     |
 	// +----+-----+-------+------+----------+----------+
 
-	dstConn, err := transport.ListenLocalUDP()
+	dstConn, err := transport.ListenLocalUDP(context.Background())
 	if err != nil {
 		return err
 	}
@@ -270,8 +309,8 @@ func (s *socks5Server) handleCmdUdpAssociate(conn net.Conn, buf *[]byte) error {
 	(*buf)[0], (*buf)[1], (*buf)[2] = 0x05, 0x00, 0x00
 
 	_, port, _ := net.SplitHostPort(dstConn.LocalAddr().String())
-	bindAddr := address.ParseAddress1(net.JoinHostPort("127.0.0.1", port))
-	logger.Logger.Tracef("socks5 bind udp address: %s", bindAddr.String())
+	bindAddr, _ := address.ParseAddress(net.JoinHostPort("127.0.0.1", port), make([]byte, 7))
+	logger.Logger.Tracef("socks5 udp associate bind udp address: %s", bindAddr.String())
 
 	copy((*buf)[3:], bindAddr)
 	conn.Write((*buf)[:3+len(bindAddr)])
@@ -307,7 +346,7 @@ func (s *socks5Server) handleCmdUdpAssociate(conn net.Conn, buf *[]byte) error {
 		defer statistic.DefaultManager.Remove(udpTracker)
 		dstConn = udpTracker
 	}
-	return selector.ProxySelector.SelectPacket(proxy)(dstConn, "")
+	return selector.ProxySelector.SelectPacket(proxy).Invoke(dstConn, "")
 }
 
 func (s *socks5Server) handleFail(conn net.Conn, errno byte) {

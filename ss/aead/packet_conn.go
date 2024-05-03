@@ -5,8 +5,8 @@ import (
 	"io"
 	"net"
 
+	"github.com/josexy/mini-ss/bufferpool"
 	cipherx "github.com/josexy/mini-ss/cipher"
-	"github.com/josexy/mini-ss/constant"
 )
 
 var _zerononce [128]byte // read-only. 128 bytes is more than enough.
@@ -22,7 +22,7 @@ func NewPacketConn(c net.PacketConn, cipher cipherx.AEADCipher) *packetConn {
 	return &packetConn{
 		PacketConn: c,
 		cipher:     cipher,
-		buf:        make([]byte, constant.MaxUdpBufferSize),
+		buf:        make([]byte, bufferpool.MaxUdpBufferSize),
 	}
 }
 
@@ -33,7 +33,7 @@ func (c *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	if _, err := io.ReadFull(rand.Reader, buf[:saltLen]); err != nil {
 		return 0, err
 	}
-	aead, err := c.cipher.Encrypter(buf[:saltLen])
+	aead, err := c.cipher.GetEncrypter(buf[:saltLen])
 	if err != nil {
 		return 0, err
 	}
@@ -61,7 +61,7 @@ func (c *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		return n, addr, io.ErrShortBuffer
 	}
 	dst := b[saltLen:]
-	aead, err := c.cipher.Decrypter(b[:saltLen])
+	aead, err := c.cipher.GetDecrypter(b[:saltLen])
 	if err != nil {
 		return n, addr, err
 	}

@@ -41,7 +41,8 @@ type ObfsOption struct {
 }
 
 type QuicOption struct {
-	Conns int `yaml:"conns" json:"conns"`
+	Conns int       `yaml:"conns" json:"conns"`
+	TLS   TlsOption `yaml:"tls,omitempty" json:"tls,omitempty"`
 }
 
 type GrpcOption struct {
@@ -75,14 +76,16 @@ type ServerConfig struct {
 }
 
 type TunOption struct {
-	Name string `yaml:"name" json:"name"`
-	Cidr string `yaml:"cidr" json:"cidr"`
-	Mtu  int    `yaml:"mtu" json:"mtu"`
+	Enable bool   `yaml:"enable" json:"enable"`
+	Name   string `yaml:"name" json:"name"`
+	Cidr   string `yaml:"cidr" json:"cidr"`
+	Mtu    int    `yaml:"mtu" json:"mtu"`
 }
 
 type FakeDnsOption struct {
-	Listen      string   `yaml:"listen" json:"listen"`
-	Nameservers []string `yaml:"nameservers" json:"nameservers"`
+	Listen         string   `yaml:"listen" json:"listen"`
+	Nameservers    []string `yaml:"nameservers" json:"nameservers"`
+	DisableRewrite bool     `yaml:"disable_rewrite" json:"disable_rewrite"`
 }
 
 type MitmFakeCertPool struct {
@@ -106,7 +109,6 @@ type LocalConfig struct {
 	MixedAddr   string         `yaml:"mixed_addr,omitempty" json:"mixed_addr,omitempty"`
 	TCPTunAddr  []string       `yaml:"tcp_tun_addr,omitempty" json:"tcp_tun_addr,omitempty"`
 	SystemProxy bool           `yaml:"system_proxy,omitempty" json:"system_proxy,omitempty"`
-	EnableTun   bool           `yaml:"enable_tun,omitempty" json:"enable_tun,omitempty"`
 	Mitm        *MitmOption    `yaml:"mitm,omitempty" json:"mitm,omitempty"`
 	Tun         *TunOption     `yaml:"tun,omitempty" json:"tun,omitempty"`
 	FakeDNS     *FakeDnsOption `yaml:"fake_dns,omitempty" json:"fake_dns,omitempty"`
@@ -325,13 +327,13 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 			opts = append(opts, ss.WithWsTransport())
 			opts = append(opts, ss.WithWsHost(opt.Ws.Host))
 			opts = append(opts, ss.WithWsPath(opt.Ws.Path))
-			if opt.Ws.Compress {
-				opts = append(opts, ss.WithWsCompress())
-			}
 			opts = append(opts, ss.WithWsCertPath(opt.Ws.TLS.CertPath))
 			opts = append(opts, ss.WithWsKeyPath(opt.Ws.TLS.KeyPath))
 			opts = append(opts, ss.WithWsCAPath(opt.Ws.TLS.CAPath))
 			opts = append(opts, ss.WithWsHostname(opt.Ws.TLS.Hostname))
+			if opt.Ws.Compress {
+				opts = append(opts, ss.WithWsCompress())
+			}
 			switch opt.Ws.TLS.Mode {
 			case "tls":
 				opts = append(opts, ss.WithWsTLS(transport.TLS))
@@ -344,6 +346,16 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 		case "quic":
 			opts = append(opts, ss.WithQuicTransport())
 			opts = append(opts, ss.WithQuicConns(opt.Quic.Conns))
+			opts = append(opts, ss.WithQuicCertPath(opt.Quic.TLS.CertPath))
+			opts = append(opts, ss.WithQuicKeyPath(opt.Quic.TLS.KeyPath))
+			opts = append(opts, ss.WithQuicCAPath(opt.Quic.TLS.CAPath))
+			opts = append(opts, ss.WithQuicHostname(opt.Quic.TLS.Hostname))
+			switch opt.Quic.TLS.Mode {
+			case "tls":
+				opts = append(opts, ss.WithQuicTLS(transport.TLS))
+			case "mtls":
+				opts = append(opts, ss.WithQuicTLS(transport.MTLS))
+			}
 		case "grpc":
 			opts = append(opts, ss.WithGrpcTransport())
 			opts = append(opts, ss.WithGrpcSndRevBuffer(opt.Grpc.SendBufferSize, opt.Grpc.RecvBufferSize))
@@ -388,17 +400,20 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 	var opts []ss.SSOption
 
-	if cfg.Local.SocksAddr != "" {
-		opts = append(opts, ss.WithSocksAddr(cfg.Local.SocksAddr))
-		opts = append(opts, ss.WithSocksUserInfo(splitAuthInfo(cfg.Local.SocksAuth)))
-	}
-
-	if cfg.Local.HTTPAddr != "" {
-		opts = append(opts, ss.WithHttpAddr(cfg.Local.HTTPAddr))
+	if cfg.Local.MixedAddr != "" {
+		opts = append(opts, ss.WithMixedAddr(cfg.Local.MixedAddr))
 		opts = append(opts, ss.WithHttpUserInfo(splitAuthInfo(cfg.Local.HTTPAuth)))
+		opts = append(opts, ss.WithSocksUserInfo(splitAuthInfo(cfg.Local.SocksAuth)))
+	} else {
+		if cfg.Local.SocksAddr != "" {
+			opts = append(opts, ss.WithSocksAddr(cfg.Local.SocksAddr))
+			opts = append(opts, ss.WithSocksUserInfo(splitAuthInfo(cfg.Local.SocksAuth)))
+		}
+		if cfg.Local.HTTPAddr != "" {
+			opts = append(opts, ss.WithHttpAddr(cfg.Local.HTTPAddr))
+			opts = append(opts, ss.WithHttpUserInfo(splitAuthInfo(cfg.Local.HTTPAuth)))
+		}
 	}
-
-	opts = append(opts, ss.WithMixedAddr(cfg.Local.MixedAddr))
 
 	// simple tcp tun address
 	var tcpTunAddr [][]string
@@ -421,9 +436,9 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 			))
 		}
 	}
-	if cfg.Local.EnableTun {
+	if cfg.Local.Tun != nil && cfg.Local.Tun.Enable {
 		if cfg.Local.FakeDNS == nil {
-			logger.Logger.Fatal("if tun mode is enabled, the fake dns configuration must exist")
+			logger.Logger.Fatal("if tun mode is enabled, the fake dns configuration must be configured")
 		}
 		opts = append(opts, ss.WithEnableTun())
 		opts = append(opts, ss.WithTunName(cfg.Local.Tun.Name))
@@ -433,6 +448,7 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 		// fake dns server
 		opts = append(opts, ss.WithFakeDnsServer(cfg.Local.FakeDNS.Listen))
 		opts = append(opts, ss.WithDefaultDnsNameservers(cfg.Local.FakeDNS.Nameservers))
+		opts = append(opts, ss.WithFakeDnsDisableRewrite(cfg.Local.FakeDNS.DisableRewrite))
 	}
 	if cfg.Local.SystemProxy {
 		opts = append(opts, ss.WithSystemProxy())
@@ -442,8 +458,8 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 }
 
 func splitAuthInfo(auth string) (username, password string) {
-	u, p, _ := strings.Cut(auth, ":")
-	return u, p
+	username, password, _ = strings.Cut(auth, ":")
+	return
 }
 
 func splitTunAddrInfo(addr string) ([]string, error) {

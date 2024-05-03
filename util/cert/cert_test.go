@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"io"
 	"net"
 	"net/http"
@@ -13,6 +14,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestSelfSignedCertificate(t *testing.T) {
+	serverPrivateKey, err := GeneratePrivateKey()
+	assert.NoError(t, err)
+	serverCert, err := GenerateCertificate(
+		pkix.Name{CommonName: "www.helloworld.com"},
+		[]string{"www.helloworld.com"},
+		[]net.IP{net.ParseIP("127.0.0.1")}, nil, nil, serverPrivateKey)
+	assert.NoError(t, err)
+
+	keyPem := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(serverPrivateKey)})
+	certPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: serverCert.Certificate[0]})
+	defer os.RemoveAll("/tmp/cert")
+	os.Mkdir("/tmp/cert", 0755)
+	os.WriteFile("/tmp/cert/server.key", keyPem, 0644)
+	os.WriteFile("/tmp/cert/server.crt", certPem, 0644)
+}
 
 func TestGenerateCertificate(t *testing.T) {
 	caPrivateKey, err := GeneratePrivateKey()

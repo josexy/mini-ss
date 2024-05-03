@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/josexy/mini-ss/resolver"
+	"github.com/josexy/mini-ss/util/logger"
 	"github.com/miekg/dns"
 )
 
@@ -44,6 +45,7 @@ func NewDnsServer(addr string) *DnsServer {
 }
 
 func (s *DnsServer) Start() error {
+	logger.Logger.Infof("start dns server on %s", s.server.Addr)
 	return s.server.ListenAndServe()
 }
 

@@ -14,9 +14,10 @@ import (
 )
 
 type EnhancerConfig struct {
-	Tun     tun.TunConfig
-	FakeDNS string
-	tunCidr netip.Prefix
+	Tun            tun.TunConfig
+	FakeDNS        string
+	DisableRewrite bool
+	tunCidr        netip.Prefix
 }
 
 type Enhancer struct {
@@ -47,7 +48,10 @@ func (eh *Enhancer) Start() (err error) {
 	}
 
 	// start local fake dns server
-	resolver.DefaultResolver.EnableEnhancerMode(eh.config.Tun.Addr)
+	if err = resolver.DefaultResolver.EnableEnhancerMode(eh.config.Tun.Addr); err != nil {
+		return
+	}
+
 	go func() {
 		if err := eh.fakeDns.Start(); err != nil {
 			logger.Logger.Warnf("%s", err.Error())
@@ -60,7 +64,8 @@ func (eh *Enhancer) Start() (err error) {
 	eh.nameserver = ip
 
 	// set local dns server configuration
-	if runtime.GOOS != "windows" {
+	if runtime.GOOS != "windows" && !eh.config.DisableRewrite {
+		logger.Logger.Infof("rewrite fake dns server to system config file: %s", eh.nameserver)
 		dnsutil.SetLocalDnsServer(eh.nameserver.String())
 	}
 

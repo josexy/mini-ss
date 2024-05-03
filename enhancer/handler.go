@@ -6,7 +6,6 @@ import (
 
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/bufferpool"
-	"github.com/josexy/mini-ss/constant"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
@@ -18,7 +17,7 @@ import (
 
 const DefaultMTU = 1350
 
-var pool = bufferpool.NewBufferPool(constant.MaxUdpBufferSize)
+var pool = bufferpool.NewBufferPool(bufferpool.MaxUdpBufferSize)
 
 type enhancerHandler struct{ owner *Enhancer }
 
@@ -48,7 +47,7 @@ func (handler *enhancerHandler) relayFakeDnsRequest(conn net.PacketConn) error {
 }
 
 func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn net.Conn) {
-	// the target address(info.DstIP) may be a fake ip address or real ip address
+	// the target address(info.DstAddr.Addr()) may be a fake ip address or real ip address
 	// for example `curl www.google.com` or `curl 74.125.24.103:80`
 
 	// note: The following request methods will not handle the remote request address,
@@ -96,7 +95,7 @@ func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn ne
 		defer statistic.DefaultManager.Remove(tcpTracker)
 		conn = tcpTracker
 	}
-	if err := selector.ProxySelector.Select(proxy)(conn, remoteAddr); err != nil {
+	if err := selector.ProxySelector.Select(proxy).Invoke(conn, remoteAddr); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }
@@ -139,5 +138,5 @@ func (handler *enhancerHandler) HandleUDPConn(info netstackgo.ConnTuple, conn ne
 		defer statistic.DefaultManager.Remove(udpTracker)
 		conn = udpTracker
 	}
-	selector.ProxySelector.SelectPacket(proxy)(conn, info.Dst())
+	selector.ProxySelector.SelectPacket(proxy).Invoke(conn, info.Dst())
 }

@@ -26,24 +26,23 @@ type Resolver struct {
 func NewDnsResolver(nameservers []string) *Resolver {
 	// read local dns configuration
 	localDnsList := dnsutil.GetLocalDnsList()
-	nameservers = append(localDnsList, nameservers...)
-	var ns []string
+	nameservers = append(nameservers, localDnsList...)
+	var nss []string
 	for i := 0; i < len(nameservers); i++ {
-		host, _, _ := net.SplitHostPort(nameservers[i])
-		if ip, err := netip.ParseAddr(host); err == nil && ip.Is4() {
-			ns = append(ns, nameservers[i])
+		host, port, _ := net.SplitHostPort(nameservers[i])
+		if host == "" || port == "" {
+			host = nameservers[i]
+			port = "53"
 		}
-	}
-	for i := 0; i < len(ns); i++ {
-		host, port, _ := net.SplitHostPort(ns[i])
-		if port == "" {
-			ns[i] = net.JoinHostPort(host, "53")
+		if ip, err := netip.ParseAddr(host); err == nil && (ip.Is4() || ip.Is6() || ip.Is4In6()) {
+			addr := net.JoinHostPort(host, port)
+			nss = append(nss, addr)
+			logger.Logger.Infof("dns nameserver: %s", addr)
 		}
-		logger.Logger.Infof("dns nameserver: %s", ns[i])
 	}
 
 	return &Resolver{
-		nameservers: ns,
+		nameservers: nss,
 		client: &dns.Client{
 			Net:          "", // UDP
 			UDPSize:      4096,
@@ -58,8 +57,9 @@ func (r *Resolver) IsEnhancerMode() bool {
 	return r.fakeIPResolver != nil
 }
 
-func (r *Resolver) EnableEnhancerMode(tunCIDR string) {
-	r.fakeIPResolver = newFakeIPResolver(tunCIDR)
+func (r *Resolver) EnableEnhancerMode(tunCIDR string) (err error) {
+	r.fakeIPResolver, err = newFakeIPResolver(tunCIDR)
+	return
 }
 
 func (r *Resolver) ResolveQuery(req *dns.Msg) netip.Addr {
@@ -140,6 +140,7 @@ func (r *Resolver) exchangeContextWithoutCache(ctx context.Context, req *dns.Msg
 	wg := sync.WaitGroup{}
 	getReplyDnsMsg := func(nameserver string) {
 		defer wg.Done()
+		logger.Logger.Tracef("dns query via %s", nameserver)
 		reply, _, err := r.client.ExchangeContext(ctx, req, nameserver)
 		if err != nil {
 			return
@@ -149,6 +150,7 @@ func (r *Resolver) exchangeContextWithoutCache(ctx context.Context, req *dns.Msg
 		}
 		select {
 		case replyCh <- reply:
+			logger.Logger.Tracef("dns query via %s succeed", nameserver)
 		default:
 		}
 	}

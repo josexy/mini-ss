@@ -1,62 +1,90 @@
 package resolver
 
 import (
+	"errors"
 	"hash/adler32"
 	"net/netip"
 )
 
+var errNoAvailableFakeIP = errors.New("no available fake ip")
+
 type fakeIPPool struct {
-	base  uint32
-	space uint32
+	hmin  uint32
+	hmax  uint32
 	flags []bool
 }
 
-func newFakeIPPool(cidr string) *fakeIPPool {
-	subnet := netip.MustParsePrefix(cidr)
-	ip := subnet.Addr()
-	base := ipToInt(ip) + 1
+func newIPPool(cidr string) (*fakeIPPool, error) {
+	prefix := netip.MustParsePrefix(cidr)
 
-	// the number of hosts
-	var mask uint32 = (0xFFFFFFFF << (32 - subnet.Bits())) & 0xFFFFFFFF
-	max := base + ^mask
-
-	space := max - base
-	if space > 0x3ffff {
-		space = 0x3ffff
-	}
-	flags := make([]bool, space)
-
-	// ip is used by tun
-	index := ipToInt(ip) - base
-	if index < space {
-		flags[index] = true
+	var hmin, hmax uint32
+	var base uint32 = ipToInt(prefix.Masked().Addr())
+	var mask uint32 = (0xFFFFFFFF << (32 - prefix.Bits())) & 0xFFFFFFFF
+	if mask == 0xFFFFFFFF {
+		return nil, errNoAvailableFakeIP
 	}
 
+	last := base | (^mask & 0xFFFFFFFF)
+	if mask == 0xFFFFFFFE {
+		hmin = base
+		hmax = last
+	} else {
+		hmin = base + 1
+		hmax = last - 1
+	}
+	hostn := hmax - hmin + 1
 	return &fakeIPPool{
-		base:  base,
-		space: space,
-		flags: flags,
-	}
+		hmin:  hmin,
+		hmax:  hmax,
+		flags: make([]bool, hostn),
+	}, nil
 }
 
-func (pool *fakeIPPool) Capacity() int {
-	return int(pool.space)
+func (pool *fakeIPPool) Capacity() int { return cap(pool.flags) }
+
+func (pool *fakeIPPool) IPMin() netip.Addr { return intToIP(pool.hmin) }
+
+func (pool *fakeIPPool) IPMax() netip.Addr { return intToIP(pool.hmax) }
+
+func (pool *fakeIPPool) Available() int {
+	var count int
+	for _, used := range pool.flags {
+		if !used {
+			count++
+		}
+	}
+	return count
+}
+
+func (pool *fakeIPPool) index(ip netip.Addr) int {
+	value := ipToInt(ip)
+	if value >= pool.hmin && value <= pool.hmax {
+		return int(value - pool.hmin)
+	}
+	return -1
 }
 
 func (pool *fakeIPPool) Contains(ip netip.Addr) bool {
-	index := ipToInt(ip) - pool.base
-	return index < pool.space
+	return pool.index(ip) != -1
 }
 
-func (pool *fakeIPPool) Release(ip netip.Addr) {
-	index := ipToInt(ip) - pool.base
-	if index < pool.space {
-		pool.flags[index] = false
+func (pool *fakeIPPool) IsAvailable(ip netip.Addr) bool {
+	if index := pool.index(ip); index != -1 {
+		return !pool.flags[index]
 	}
+	return false
 }
 
-func (pool *fakeIPPool) Alloc(host string) netip.Addr {
-	index := adler32.Checksum([]byte(host)) % pool.space
+func (pool *fakeIPPool) Release(ip netip.Addr) bool {
+	if index := pool.index(ip); index != -1 {
+		pool.flags[index] = false
+		return true
+	}
+	return false
+}
+
+func (pool *fakeIPPool) Allocate(host string) (ip netip.Addr, err error) {
+	index := adler32.Checksum([]byte(host)) % uint32(cap(pool.flags))
 	if pool.flags[index] {
 		for i, used := range pool.flags {
 			if !used {
@@ -67,10 +95,12 @@ func (pool *fakeIPPool) Alloc(host string) netip.Addr {
 	}
 
 	if pool.flags[index] {
-		return netip.Addr{}
+		err = errNoAvailableFakeIP
+		return
 	}
 	pool.flags[index] = true
-	return intToIP(pool.base + index)
+	ip = intToIP(pool.hmin + index)
+	return
 }
 
 func intToIP(v uint32) netip.Addr {

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -51,7 +50,7 @@ func init() {
 	localCmd.Flags().StringVarP(&cfg.Server[0].SSR.ObfsParam, "ssr-obfs-param", "g", "", "ssr obfs param")
 
 	// tun mode
-	localCmd.Flags().BoolVar(&cfg.Local.EnableTun, "enable-tun", false, "enable the local tun device, administrator privileges are required")
+	localCmd.Flags().BoolVar(&cfg.Local.Tun.Enable, "tun-enable", false, "enable the local tun device, administrator privileges are required")
 	localCmd.Flags().StringVar(&cfg.Local.Tun.Name, "tun-name", "utun3", "tun interface name")
 	localCmd.Flags().StringVar(&cfg.Local.Tun.Cidr, "tun-cidr", "198.18.0.1/16", "tun interface cidr")
 	localCmd.Flags().IntVar(&cfg.Local.Tun.Mtu, "tun-mtu", enhancer.DefaultMTU, "tun interface mtu")
@@ -59,10 +58,7 @@ func init() {
 	// fake dns mode
 	localCmd.Flags().StringVar(&cfg.Local.FakeDNS.Listen, "fake-dns-listen", ":53", "fake-dns listening address")
 	localCmd.Flags().StringSliceVar(&cfg.Local.FakeDNS.Nameservers, "fake-dns-nameservers", dns.DefaultDnsNameservers, "fake-dns nameservers")
-
-	// interface
-	localCmd.PersistentFlags().StringVar(&cfg.Iface, "iface", "", "bind outbound interface")
-	localCmd.PersistentFlags().BoolVar(&cfg.AutoDetectIface, "auto-detect-iface", false, "enable auto-detect interface")
+	localCmd.Flags().BoolVar(&cfg.Local.FakeDNS.DisableRewrite, "fake-dns-disable-rewrite", false, "fake-dns disable to rewrite dns to system config file")
 
 	// mitm mode
 	localCmd.Flags().BoolVar(&cfg.Local.Mitm.Enable, "mitm-mode", false, "enable mitm mode")
@@ -71,17 +67,17 @@ func init() {
 }
 
 func StartLocal() {
-	if len(cfg.Server) == 0 || cfg.Server[0].Addr == "" {
-		logger.Logger.FatalBy(errors.New("server node is empty"))
-		return
-	}
+	// if len(cfg.Server) == 0 || cfg.Server[0].Addr == "" {
+	// 	logger.Logger.FatalBy(errors.New("server node is empty"))
+	// 	return
+	// }
 	defer func() {
 		if err := recover(); err != nil {
 			if e, ok := err.(error); ok {
 				logger.Logger.FatalBy(e)
 			}
 		}
-		if cfg.Local.EnableTun {
+		if cfg.Local.Tun != nil && cfg.Local.Tun.Enable {
 			dnsutil.UnsetLocalDnsServer()
 		}
 		if cfg.Local.SystemProxy {

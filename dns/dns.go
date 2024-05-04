@@ -62,6 +62,7 @@ func (s *DnsServer) serveDNS(w dns.ResponseWriter, r *dns.Msg) {
 	if err != nil {
 		dns.HandleFailed(w, r)
 	} else {
+		logger.Logger.ErrorBy(err)
 		w.WriteMsg(reply)
 	}
 }

@@ -58,11 +58,17 @@ func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn ne
 	// `curl --proxy 127.0.0.1:10088 www.google.com`
 
 	var remote string
-	fakeDnsRecord := resolver.DefaultResolver.FindByIP(info.DstAddr.Addr())
-	if fakeDnsRecord == nil {
-		remote = info.DstAddr.Addr().String()
+	dstIp := info.DstAddr.Addr()
+	if resolver.DefaultResolver.IsFakeIP(dstIp) {
+		if fakeDnsRecord, err := resolver.DefaultResolver.FindByIP(dstIp); err == nil {
+			remote = fakeDnsRecord.Domain
+		} else {
+			// fake ip/record not found or expired
+			logger.Logger.ErrorBy(err)
+			return
+		}
 	} else {
-		remote = fakeDnsRecord.Domain
+		remote = dstIp.String()
 	}
 
 	if !rule.MatchRuler.Match(&remote) {
@@ -75,7 +81,7 @@ func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn ne
 		return
 	}
 
-	remoteAddr := net.JoinHostPort(remote, strconv.Itoa(int(info.DstAddr.Port())))
+	remoteAddr := net.JoinHostPort(remote, strconv.FormatUint(uint64(info.DstAddr.Port()), 10))
 
 	logger.Logger.Debug("tcp-tun",
 		logx.String("src", info.Src()),
@@ -103,12 +109,14 @@ func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn ne
 func (handler *enhancerHandler) HandleUDPConn(info netstackgo.ConnTuple, conn net.PacketConn) {
 	// relay dns packet
 	if info.DstAddr.Port() == uint16(handler.owner.fakeDns.Port) && info.DstAddr.Addr().Compare(handler.owner.nameserver) == 0 {
-		handler.relayFakeDnsRequest(conn)
+		if err := handler.relayFakeDnsRequest(conn); err != nil {
+			logger.Logger.ErrorBy(err)
+		}
 		return
 	}
 
 	// discard udp fake ip
-	if handler.owner.config.tunCidr.Contains(info.DstAddr.Addr()) {
+	if resolver.DefaultResolver.IsFakeIP(info.DstAddr.Addr()) {
 		return
 	}
 

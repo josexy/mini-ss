@@ -11,8 +11,8 @@ import (
 var DefaultUpdateTimeTickInterval = time.Millisecond * 300
 
 var (
-	errCacheIsNotFound = errors.New("cache is not found")
-	errCacheWasExpired = errors.New("cache was expired")
+	ErrCacheIsNotFound = errors.New("cache is not found")
+	ErrCacheWasExpired = errors.New("cache was expired")
 )
 
 type Cache[K comparable, V any] interface {
@@ -137,7 +137,7 @@ func (c *LruCache[K, V]) Get(key K) (value V, err error) {
 				c.delete(ele)
 				c.mu.Unlock()
 			}
-			err = errCacheWasExpired
+			err = ErrCacheWasExpired
 			return
 		}
 		c.mu.Lock()
@@ -151,7 +151,7 @@ func (c *LruCache[K, V]) Get(key K) (value V, err error) {
 		return
 	}
 	c.mu.RUnlock()
-	err = errCacheIsNotFound
+	err = ErrCacheIsNotFound
 	return
 }
 

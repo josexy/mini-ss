@@ -26,11 +26,13 @@ type Record struct {
 
 type fakeIPResolver struct {
 	// fake ip pool
-	pool *fakeIPPool
+	pool *ipPool
 	// host:record
 	cache cache.Cache[string, *Record]
 	// ip:host
-	ipCache cache.Cache[netip.Addr, *Record]
+	ipCache   cache.Cache[netip.Addr, *Record]
+	dnsIP     netip.Addr
+	tunPrefix netip.Prefix
 }
 
 func newFakeIPResolver(cidr string) (*fakeIPResolver, error) {
@@ -38,7 +40,24 @@ func newFakeIPResolver(cidr string) (*fakeIPResolver, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &fakeIPResolver{pool: pool}
+
+	// pre-allocated tun ip and fake dns ip
+	prefix := netip.MustParsePrefix(cidr)
+	tunIP, ok := pool.allocateFor(prefix.Addr())
+	if !ok {
+		return nil, errors.New("can not allocate ip for tun device")
+	}
+	dnsIP, ok := pool.allocateFor(tunIP.Next())
+	if !ok {
+		logger.Logger.ErrorBy(errors.New("can not allocate ip for fake dns"))
+	}
+	logger.Logger.Infof("pre-allocated ip for tun device: %s, dns: %s", tunIP.String(), dnsIP.String())
+
+	r := &fakeIPResolver{
+		pool:      pool,
+		dnsIP:     dnsIP,
+		tunPrefix: netip.PrefixFrom(tunIP, pool.Bits()),
+	}
 	r.cache = cache.NewCache[string, *Record](
 		cache.WithMaxSize(4096),
 		cache.WithInterval(DefaultFakeIPCacheInterval),
@@ -63,22 +82,20 @@ func (r *fakeIPResolver) onReleaseFakeIP(_ any, value any) {
 	r.pool.Release(record.FakeIP)
 }
 
-func (r *fakeIPResolver) find(host string) *Record {
-	if record, err := r.cache.Get(host); err == nil {
-		return record
-	} else {
-		logger.Logger.ErrorBy(err)
-	}
-	return nil
-}
+func (r *fakeIPResolver) GetAllocatedTunPrefix() netip.Prefix { return r.tunPrefix }
 
-func (r *fakeIPResolver) FindByIP(ip netip.Addr) *Record {
+func (r *fakeIPResolver) GetAllocatedDnsIP() netip.Addr { return r.dnsIP }
+
+func (r *fakeIPResolver) IsFakeIP(ip netip.Addr) bool { return r.pool.Contains(ip) }
+
+func (r *fakeIPResolver) find(host string) (*Record, error) { return r.cache.Get(host) }
+
+func (r *fakeIPResolver) FindByIP(ip netip.Addr) (*Record, error) {
 	if host, err := r.ipCache.Get(ip); err == nil {
 		return r.find(host.Domain)
 	} else {
-		logger.Logger.ErrorBy(err)
+		return nil, err
 	}
-	return nil
 }
 
 func (r *fakeIPResolver) makeNewFakeDnsRecord(host string, request *dns.Msg) (*Record, error) {
@@ -127,7 +144,7 @@ func (r *fakeIPResolver) makeNewFakeDnsRecord(host string, request *dns.Msg) (*R
 func (r *fakeIPResolver) query(req *dns.Msg) (*dns.Msg, error) {
 	domain := dnsutil.TrimDomain(req.Question[0].Name)
 	// dns record exists in cache
-	if record := r.find(domain); record != nil {
+	if record, err := r.find(domain); err == nil {
 		record.Reply.SetReply(req.Copy())
 		return record.Reply, nil
 	}

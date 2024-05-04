@@ -226,16 +226,18 @@ func (s *socks5Server) request(conn net.Conn) (addr string, cmd byte, err error)
 		s.pool.Put(buf)
 		return
 	}
-	// the host may be a fake ip address or real ip address
+	// the host may be a domain name, fake ip address or real ip address
 	host := dstAddr.Host()
 	// if tun mode is enabled, the host may be a fake ip address
 	// so we need to resolve the domain name
 	if resolver.DefaultResolver.IsEnhancerMode() {
-		if ip, err := netip.ParseAddr(host); err == nil {
-			record := resolver.DefaultResolver.FindByIP(ip)
-			if record != nil {
+		if ip, e := netip.ParseAddr(host); e == nil && resolver.DefaultResolver.IsFakeIP(ip) {
+			if record, e := resolver.DefaultResolver.FindByIP(ip); e == nil {
 				// fetch the domain name from the fake ip
 				host = record.Domain
+			} else {
+				err = e
+				return
 			}
 		}
 	}

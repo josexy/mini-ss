@@ -48,7 +48,7 @@ func TestCacheExpired(t *testing.T) {
 		for i := 4; i <= 7; i++ {
 			_, err := cache.Get("key" + strconv.Itoa(i))
 			t.Logf("key_%d, err: %v", i, err)
-			assert.Equal(t, err, errCacheWasExpired)
+			assert.Equal(t, err, ErrCacheWasExpired)
 		}
 	}()
 
@@ -86,7 +86,7 @@ func TestCacheBackgroundCheckExpired(t *testing.T) {
 		for i := 0; i < 15; i++ {
 			_, err := cache.Get("key_" + strconv.Itoa(i))
 			t.Logf("key_%d, err: %v", i, err)
-			assert.Equal(t, err, errCacheIsNotFound)
+			assert.Equal(t, err, ErrCacheIsNotFound)
 		}
 	}()
 	time.Sleep(time.Second * 7)

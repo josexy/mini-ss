@@ -18,13 +18,13 @@ func randStr(n int) string {
 	return string(b)
 }
 
-func TestDnsIPPool_AllocateAndRelease(t *testing.T) {
+func TestIPPool_AllocateAndRelease(t *testing.T) {
 	testFn := func(cidr string) {
 		pool, err := newIPPool(cidr)
 		assert.Nil(t, err)
 
 		t.Logf("new ip pool for cidr: %s", cidr)
-		t.Logf("ip pool ip available: %d, capacity: %d", pool.Available(), pool.Capacity())
+		t.Logf("ip pool ip available: %d, capacity: %d, bits: %d", pool.Available(), pool.Capacity(), pool.Bits())
 		t.Logf("ip pool ip range: [%s - %s]", pool.IPMin(), pool.IPMax())
 
 		assert.True(t, pool.Contains(pool.IPMin()))
@@ -61,6 +61,20 @@ func TestDnsIPPool_AllocateAndRelease(t *testing.T) {
 		}
 		assert.Equal(t, pool.Available(), pool.Capacity())
 	}
+	testFn2 := func(cidr string) {
+		pool, err := newIPPool(cidr)
+		assert.Nil(t, err)
+		prefix := netip.MustParsePrefix(cidr)
+		ip, ok := pool.allocateFor(prefix.Addr())
+		assert.True(t, ok)
+		assert.True(t, pool.Contains(ip))
+		t.Logf("=== allocate for: %s, actual: %s, remain: %d", prefix.Addr().String(), ip.String(), pool.Available())
+
+		ip2, ok := pool.allocateFor(ip.Next())
+		assert.True(t, ok)
+		assert.True(t, pool.Contains(ip2))
+		t.Logf("=== allocate for: %s, actual: %s, remain: %d", ip.Next().String(), ip2.String(), pool.Available())
+	}
 	cidrs := []string{
 		"10.0.0.2/31",
 		"10.0.0.2/30",
@@ -71,5 +85,6 @@ func TestDnsIPPool_AllocateAndRelease(t *testing.T) {
 	}
 	for _, cidr := range cidrs {
 		testFn(cidr)
+		testFn2(cidr)
 	}
 }

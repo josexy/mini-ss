@@ -17,7 +17,6 @@ type EnhancerConfig struct {
 	Tun            tun.TunConfig
 	FakeDNS        string
 	DisableRewrite bool
-	tunCidr        netip.Prefix
 }
 
 type Enhancer struct {
@@ -31,7 +30,6 @@ type Enhancer struct {
 func NewEnhancer(config EnhancerConfig) *Enhancer {
 	eh := &Enhancer{
 		config:  config,
-		nt:      netstackgo.New(config.Tun),
 		fakeDns: dns.NewDnsServer(config.FakeDNS),
 	}
 	eh.handler = newEnhancerHandler(eh)
@@ -39,16 +37,17 @@ func NewEnhancer(config EnhancerConfig) *Enhancer {
 }
 
 func (eh *Enhancer) Start() (err error) {
+	// init fake ip pool and cache
+	if err = resolver.DefaultResolver.EnableEnhancerMode(eh.config.Tun.Addr); err != nil {
+		return
+	}
 
+	eh.config.Tun.Addr = resolver.DefaultResolver.GetAllocatedTunPrefix().String()
+	eh.nt = netstackgo.New(eh.config.Tun)
 	eh.nt.RegisterConnHandler(eh.handler)
 
 	// start low-level gVisor netstack
 	if err = eh.nt.Start(); err != nil {
-		return
-	}
-
-	// start local fake dns server
-	if err = resolver.DefaultResolver.EnableEnhancerMode(eh.config.Tun.Addr); err != nil {
 		return
 	}
 
@@ -58,14 +57,11 @@ func (eh *Enhancer) Start() (err error) {
 		}
 	}()
 
-	eh.config.tunCidr = netip.MustParsePrefix(eh.config.Tun.Addr)
-	ip := eh.config.tunCidr.Masked().Addr()
-	ip = ip.Next().Next()
-	eh.nameserver = ip
+	eh.nameserver = resolver.DefaultResolver.GetAllocatedDnsIP()
 
 	// set local dns server configuration
-	if runtime.GOOS != "windows" && !eh.config.DisableRewrite {
-		logger.Logger.Infof("rewrite fake dns server to system config file: %s", eh.nameserver)
+	if runtime.GOOS != "windows" && !eh.config.DisableRewrite && eh.nameserver.IsValid() {
+		logger.Logger.Infof("rewrite dns fake ip %s to system config file", eh.nameserver)
 		dnsutil.SetLocalDnsServer(eh.nameserver.String())
 	}
 

@@ -6,7 +6,6 @@ import (
 
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/bufferpool"
-	"github.com/josexy/mini-ss/constant"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
@@ -18,7 +17,7 @@ import (
 
 const DefaultMTU = 1350
 
-var pool = bufferpool.NewBufferPool(constant.MaxUdpBufferSize)
+var pool = bufferpool.NewBufferPool(bufferpool.MaxUdpBufferSize)
 
 type enhancerHandler struct{ owner *Enhancer }
 
@@ -48,7 +47,7 @@ func (handler *enhancerHandler) relayFakeDnsRequest(conn net.PacketConn) error {
 }
 
 func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn net.Conn) {
-	// the target address(info.DstIP) may be a fake ip address or real ip address
+	// the target address(info.DstAddr.Addr()) may be a fake ip address or real ip address
 	// for example `curl www.google.com` or `curl 74.125.24.103:80`
 
 	// note: The following request methods will not handle the remote request address,
@@ -59,11 +58,17 @@ func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn ne
 	// `curl --proxy 127.0.0.1:10088 www.google.com`
 
 	var remote string
-	fakeDnsRecord := resolver.DefaultResolver.FindByIP(info.DstAddr.Addr())
-	if fakeDnsRecord == nil {
-		remote = info.DstAddr.Addr().String()
+	dstIp := info.DstAddr.Addr()
+	if resolver.DefaultResolver.IsFakeIP(dstIp) {
+		if fakeDnsRecord, err := resolver.DefaultResolver.FindByIP(dstIp); err == nil {
+			remote = fakeDnsRecord.Domain
+		} else {
+			// fake ip/record not found or expired
+			logger.Logger.ErrorBy(err)
+			return
+		}
 	} else {
-		remote = fakeDnsRecord.Domain
+		remote = dstIp.String()
 	}
 
 	if !rule.MatchRuler.Match(&remote) {
@@ -76,7 +81,7 @@ func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn ne
 		return
 	}
 
-	remoteAddr := net.JoinHostPort(remote, strconv.Itoa(int(info.DstAddr.Port())))
+	remoteAddr := net.JoinHostPort(remote, strconv.FormatUint(uint64(info.DstAddr.Port()), 10))
 
 	logger.Logger.Debug("tcp-tun",
 		logx.String("src", info.Src()),
@@ -96,7 +101,7 @@ func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn ne
 		defer statistic.DefaultManager.Remove(tcpTracker)
 		conn = tcpTracker
 	}
-	if err := selector.ProxySelector.Select(proxy)(conn, remoteAddr); err != nil {
+	if err := selector.ProxySelector.Select(proxy).Invoke(conn, remoteAddr); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }
@@ -104,12 +109,14 @@ func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn ne
 func (handler *enhancerHandler) HandleUDPConn(info netstackgo.ConnTuple, conn net.PacketConn) {
 	// relay dns packet
 	if info.DstAddr.Port() == uint16(handler.owner.fakeDns.Port) && info.DstAddr.Addr().Compare(handler.owner.nameserver) == 0 {
-		handler.relayFakeDnsRequest(conn)
+		if err := handler.relayFakeDnsRequest(conn); err != nil {
+			logger.Logger.ErrorBy(err)
+		}
 		return
 	}
 
 	// discard udp fake ip
-	if handler.owner.config.tunCidr.Contains(info.DstAddr.Addr()) {
+	if resolver.DefaultResolver.IsFakeIP(info.DstAddr.Addr()) {
 		return
 	}
 
@@ -139,5 +146,5 @@ func (handler *enhancerHandler) HandleUDPConn(info netstackgo.ConnTuple, conn ne
 		defer statistic.DefaultManager.Remove(udpTracker)
 		conn = udpTracker
 	}
-	selector.ProxySelector.SelectPacket(proxy)(conn, info.Dst())
+	selector.ProxySelector.SelectPacket(proxy).Invoke(conn, info.Dst())
 }

@@ -23,7 +23,7 @@ func main() {
 			log.Println(err)
 			return
 		}
-		relay.RelayTCP(conn, c)
+		relay.IoCopyBidirectionalForStream(conn, c)
 	}))
 
 	go func() {

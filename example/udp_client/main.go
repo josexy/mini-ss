@@ -16,7 +16,7 @@ func main() {
 		switch os.Args[1] {
 		case "tun":
 			udpTunMain()
-		case "sock":
+		case "socks":
 			socksMain()
 		}
 	} else {
@@ -39,6 +39,7 @@ func main() {
 	}
 }
 
+// go run main.go tun 127.0.0.1:2003
 func udpTunMain() {
 	conn, err := transport.DialUDP(os.Args[2])
 	if err != nil {
@@ -61,7 +62,7 @@ func udpTunMain() {
 	}()
 	for i := 0; i < 10; i++ {
 		conn.SetWriteDeadline(time.Now().Add(time.Second * 2))
-		_, err = conn.Write([]byte("hello server " + time.Now().String()))
+		_, err = conn.Write([]byte("hello server " + time.Now().Format(time.DateTime)))
 		if err != nil {
 			log.Println(err)
 			return
@@ -71,7 +72,7 @@ func udpTunMain() {
 	log.Println(err)
 }
 
-// go run main.go sock 127.0.0.1:10086 127.0.0.1:2003
+// go run main.go socks 127.0.0.1:10086 127.0.0.1:2003
 
 func socksMain() {
 	proxyCli := client.NewSocks5Client(os.Args[2])
@@ -96,7 +97,7 @@ func socksMain() {
 	}()
 	for i := 0; i < 10; i++ {
 		conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
-		_, err = conn.Write([]byte("hello server " + time.Now().String()))
+		_, err = conn.Write([]byte("hello server " + time.Now().Format(time.DateTime)))
 		if err != nil {
 			log.Println(err)
 			return

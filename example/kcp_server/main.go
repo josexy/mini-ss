@@ -18,13 +18,13 @@ type customSrv struct{}
 
 func (customSrv) ServeKCP(conn net.Conn) {
 	log.Println(conn.RemoteAddr().String())
-	tcpConn, err := transport.DialTCP("127.0.0.1:10002")
+	tcpConn, err := transport.DialTCP(context.Background(), "127.0.0.1:10002")
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	defer tcpConn.Close()
-	relay.RelayTCP(conn, tcpConn)
+	relay.IoCopyBidirectionalForStream(conn, tcpConn)
 }
 
 func main() {

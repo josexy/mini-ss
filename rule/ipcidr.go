@@ -1,6 +1,7 @@
 package rule
 
 import (
+	"context"
 	"net/netip"
 
 	"github.com/josexy/mini-ss/resolver"
@@ -16,7 +17,7 @@ func (r *ipCIDRRule) Match(target *string) bool {
 		// if it is a domain name, resolve it to get the IP address, and then match it
 		if rx.Resolve {
 			if _, err := netip.ParseAddr(*target); err != nil {
-				ip := resolver.DefaultResolver.ResolveHost(*target)
+				ip := resolver.DefaultResolver.LookupHost(context.Background(), *target)
 				if ip.IsValid() {
 					*target = ip.String()
 				}

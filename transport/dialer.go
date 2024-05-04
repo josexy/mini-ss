@@ -21,7 +21,7 @@ const (
 	Grpc
 )
 
-const dialTimeout = 5 * time.Second
+const DefaultDialTimeout = 10 * time.Second
 
 type Type uint8
 
@@ -45,38 +45,36 @@ func (t Type) String() string {
 }
 
 type Dialer interface {
-	Dial(addr string) (net.Conn, error)
+	Dial(context.Context, string) (net.Conn, error)
 }
-
-type xDialer struct{ d Dialer }
 
 func NewDialer(tr Type, opt Options) Dialer {
-	d := new(xDialer)
+	var dialer Dialer
 	switch tr {
 	case Tcp:
-		d.d = &tcpDialer{}
+		dialer = &tcpDialer{}
 	case Kcp:
-		d.d = &kcpDialer{Opts: opt.(*KcpOptions)}
+		dialer = &kcpDialer{opts: opt.(*KcpOptions)}
 	case Websocket:
-		d.d = &wsDialer{Opts: opt.(*WsOptions)}
+		dialer = &wsDialer{opts: opt.(*WsOptions)}
 	case Quic:
-		d.d = &quicDialer{Opts: opt.(*QuicOptions)}
+		dialer = &quicDialer{opts: opt.(*QuicOptions)}
 	case Obfs:
-		d.d = &obfsDialer{Opts: opt.(*ObfsOptions)}
+		dialer = &obfsDialer{opts: opt.(*ObfsOptions)}
 	case Grpc:
-		d.d = &grpcDialer{Opts: opt.(*GrpcOptions)}
+		dialer = &grpcDialer{opts: opt.(*GrpcOptions)}
+	default:
+		panic("not supported type")
 	}
-	return d
+	return dialer
 }
-
-func (d *xDialer) Dial(addr string) (net.Conn, error) { return d.d.Dial(addr) }
 
 func resolveIP(host string) netip.Addr {
 	var ip netip.Addr
 	var err error
 	// the host may be a ip address or domain name
 	if ip, err = netip.ParseAddr(host); err != nil {
-		ip = resolver.DefaultResolver.ResolveHost(host)
+		ip = resolver.DefaultResolver.LookupHost(context.Background(), host)
 	}
 	return ip
 }
@@ -97,22 +95,27 @@ func resolveUDPAddr(addr string) (*net.UDPAddr, error) {
 	}, nil
 }
 
-func DialTCP(addr string) (net.Conn, error) {
+func DialTCP(ctx context.Context, addr string) (net.Conn, error) {
 	d := tcpDialer{}
-	return d.Dial(addr)
+	return d.Dial(ctx, addr)
 }
 
-// ListenLocalUDP create an unconnected udp connection
-func ListenLocalUDP() (net.PacketConn, error) {
+// ListenUDP create an unconnected udp connection with the specified local addr
+func ListenUDP(ctx context.Context, addr string) (net.PacketConn, error) {
 	if DefaultDialerOutboundOption.Interface == "" {
-		return net.ListenPacket("udp", "")
+		return (&net.ListenConfig{}).ListenPacket(ctx, "udp", addr)
 	}
 	var lc net.ListenConfig
-	addr, err := bind.BindToDeviceForUDP(DefaultDialerOutboundOption.Interface, &lc, "udp", "")
+	addr, err := bind.BindToDeviceForUDP(DefaultDialerOutboundOption.Interface, &lc, "udp", addr)
 	if err != nil {
 		return nil, err
 	}
-	return lc.ListenPacket(context.Background(), "udp", addr)
+	return lc.ListenPacket(ctx, "udp", addr)
+}
+
+// ListenLocalUDP create an unconnected udp connection with random local addr
+func ListenLocalUDP(ctx context.Context) (net.PacketConn, error) {
+	return ListenUDP(ctx, "")
 }
 
 // DialUDP create a connected udp connection

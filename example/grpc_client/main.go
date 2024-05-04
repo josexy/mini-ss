@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"log"
 	"os"
@@ -11,7 +12,7 @@ import (
 
 func main() {
 	dialer := transport.NewDialer(transport.Grpc, transport.DefaultGrpcOptions)
-	conn, err := dialer.Dial("127.0.0.1:10086")
+	conn, err := dialer.Dial(context.Background(), "127.0.0.1:10086")
 	if err != nil {
 		log.Fatalln(err)
 	}

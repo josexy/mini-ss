@@ -5,8 +5,8 @@ import (
 	"io"
 	"net"
 
+	"github.com/josexy/mini-ss/bufferpool"
 	cipherx "github.com/josexy/mini-ss/cipher"
-	"github.com/josexy/mini-ss/constant"
 )
 
 type packetConn struct {
@@ -19,7 +19,7 @@ func NewPacketConn(c net.PacketConn, cipher cipherx.StreamCipher) *packetConn {
 	return &packetConn{
 		PacketConn: c,
 		cipher:     cipher,
-		buf:        make([]byte, cipher.IVSize()+constant.MaxUdpBufferSize),
+		buf:        make([]byte, cipher.IVSize()+bufferpool.MaxUdpBufferSize),
 	}
 }
 
@@ -29,7 +29,7 @@ func (c *packetConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	if _, err := io.ReadFull(rand.Reader, buf[:ivLen]); err != nil {
 		return 0, err
 	}
-	encCipher, err := c.cipher.Encrypter(buf[:ivLen])
+	encCipher, err := c.cipher.GetEncrypter(buf[:ivLen])
 	if err != nil {
 		return 0, err
 	}
@@ -53,7 +53,7 @@ func (c *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	}
 	ivLen := c.cipher.IVSize()
 	n = n - ivLen
-	decCipher, err := c.cipher.Decrypter(buf[:ivLen])
+	decCipher, err := c.cipher.GetDecrypter(buf[:ivLen])
 	if err != nil {
 		return n, addr, err
 	}

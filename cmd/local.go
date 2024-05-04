@@ -1,15 +1,15 @@
 package cmd
 
 import (
-	"errors"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/josexy/mini-ss/dns"
+	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/enhancer"
 	"github.com/josexy/mini-ss/geoip"
+	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/ss"
 	"github.com/josexy/mini-ss/util/dnsutil"
 	"github.com/josexy/mini-ss/util/logger"
@@ -41,7 +41,6 @@ func init() {
 	localCmd.Flags().StringVarP(&cfg.Local.MixedAddr, "mixed", "M", "", "mixed proxy for SOCKS and HTTP")
 	localCmd.Flags().StringSliceVar(&cfg.Local.TCPTunAddr, "tcp-tun", nil, "simple tcp tun listening address (format: \"local:port=remote:port\")")
 	localCmd.Flags().BoolVar(&cfg.Local.SystemProxy, "system-proxy", false, "enable system proxy settings")
-	localCmd.Flags().BoolVar(&cfg.Server[0].Udp, "udp-relay", false, "enable udp relay for client SOCKS proxy")
 
 	// ssr
 	localCmd.Flags().StringVarP(&cfg.Server[0].Type, "type", "T", "", "enable shadowsocksr")
@@ -51,18 +50,15 @@ func init() {
 	localCmd.Flags().StringVarP(&cfg.Server[0].SSR.ObfsParam, "ssr-obfs-param", "g", "", "ssr obfs param")
 
 	// tun mode
-	localCmd.Flags().BoolVar(&cfg.Local.EnableTun, "enable-tun", false, "enable the local tun device, administrator privileges are required")
-	localCmd.Flags().StringVar(&cfg.Local.Tun.Name, "tun-name", "utun3", "tun interface name")
+	localCmd.Flags().BoolVar(&cfg.Local.Tun.Enable, "tun-enable", false, "enable the local tun device, administrator privileges are required")
+	localCmd.Flags().StringVar(&cfg.Local.Tun.Name, "tun-name", "utun9", "tun interface name")
 	localCmd.Flags().StringVar(&cfg.Local.Tun.Cidr, "tun-cidr", "198.18.0.1/16", "tun interface cidr")
 	localCmd.Flags().IntVar(&cfg.Local.Tun.Mtu, "tun-mtu", enhancer.DefaultMTU, "tun interface mtu")
 
 	// fake dns mode
 	localCmd.Flags().StringVar(&cfg.Local.FakeDNS.Listen, "fake-dns-listen", ":53", "fake-dns listening address")
-	localCmd.Flags().StringSliceVar(&cfg.Local.FakeDNS.Nameservers, "fake-dns-nameservers", dns.DefaultDnsNameservers, "fake-dns nameservers")
-
-	// interface
-	localCmd.PersistentFlags().StringVar(&cfg.Iface, "iface", "", "bind outbound interface")
-	localCmd.PersistentFlags().BoolVar(&cfg.AutoDetectIface, "auto-detect-iface", false, "enable auto-detect interface")
+	localCmd.Flags().StringSliceVar(&cfg.Local.FakeDNS.Nameservers, "fake-dns-nameservers", resolver.DefaultDnsNameservers, "fake-dns nameservers")
+	localCmd.Flags().BoolVar(&cfg.Local.FakeDNS.DisableRewrite, "fake-dns-disable-rewrite", false, "fake-dns disable to rewrite dns to system config file")
 
 	// mitm mode
 	localCmd.Flags().BoolVar(&cfg.Local.Mitm.Enable, "mitm-mode", false, "enable mitm mode")
@@ -71,17 +67,13 @@ func init() {
 }
 
 func StartLocal() {
-	if len(cfg.Server) == 0 || cfg.Server[0].Addr == "" {
-		logger.Logger.FatalBy(errors.New("server node is empty"))
-		return
-	}
 	defer func() {
 		if err := recover(); err != nil {
 			if e, ok := err.(error); ok {
 				logger.Logger.FatalBy(e)
 			}
 		}
-		if cfg.Local.EnableTun {
+		if cfg.Local.Tun != nil && cfg.Local.Tun.Enable {
 			dnsutil.UnsetLocalDnsServer()
 		}
 		if cfg.Local.SystemProxy {
@@ -92,6 +84,7 @@ func StartLocal() {
 }
 
 func startLocal() {
+	logger.Logger.Info("build info", logx.String("version", Version), logx.String("git_commit", GitCommit))
 	if err := geoip.OpenDB("Country.mmdb"); err != nil {
 		logger.Logger.FatalBy(err)
 		return

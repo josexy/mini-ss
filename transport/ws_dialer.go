@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,12 +16,12 @@ var WsProxyFuncForTesting func(req *http.Request) (*url.URL, error)
 
 type wsDialer struct {
 	tcpDialer
-	Opts *WsOptions
+	opts *WsOptions
 }
 
-func (d *wsDialer) Dial(addr string) (net.Conn, error) {
+func (d *wsDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
 	scheme := "ws"
-	tlsConfig, err := d.Opts.GetClientTlsConfig()
+	tlsConfig, err := d.opts.GetClientTlsConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -30,23 +31,23 @@ func (d *wsDialer) Dial(addr string) (net.Conn, error) {
 	urls := url.URL{
 		Scheme: scheme,
 		Host:   addr,
-		Path:   d.Opts.Path,
+		Path:   d.opts.Path,
 	}
 	dialer := &websocket.Dialer{
-		NetDial: func(network, addr string) (net.Conn, error) {
-			return d.tcpDialer.Dial(addr)
+		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return d.tcpDialer.Dial(ctx, addr)
 		},
 		Proxy:             WsProxyFuncForTesting,
-		ReadBufferSize:    d.Opts.RevBuffer,
-		WriteBufferSize:   d.Opts.SndBuffer,
-		EnableCompression: d.Opts.Compress,
+		ReadBufferSize:    d.opts.RevBuffer,
+		WriteBufferSize:   d.opts.SndBuffer,
+		EnableCompression: d.opts.Compress,
 		TLSClientConfig:   tlsConfig,
 		HandshakeTimeout:  30 * time.Second,
 	}
 	header := http.Header{}
-	header.Set("Host", d.Opts.Host)
-	if d.Opts.UserAgent != "" {
-		header.Add("User-Agent", d.Opts.UserAgent)
+	header.Set("Host", d.opts.Host)
+	if d.opts.UserAgent != "" {
+		header.Add("User-Agent", d.opts.UserAgent)
 	}
 	conn, resp, err := dialer.Dial(urls.String(), header)
 	if err != nil {

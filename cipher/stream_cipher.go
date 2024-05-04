@@ -15,8 +15,8 @@ type StreamCipher interface {
 	KeySize() int
 	IVSize() int
 	Key() []byte
-	Encrypter([]byte) (cipher.Stream, error)
-	Decrypter([]byte) (cipher.Stream, error)
+	GetEncrypter([]byte) (cipher.Stream, error)
+	GetDecrypter([]byte) (cipher.Stream, error)
 }
 
 type metaStreamCipher struct {
@@ -26,23 +26,17 @@ type metaStreamCipher struct {
 	makeDecrypter func(key, iv []byte) (cipher.Stream, error)
 }
 
-func (m *metaStreamCipher) Key() []byte {
-	return m.key
-}
+func (m *metaStreamCipher) Key() []byte { return m.key }
 
-func (m *metaStreamCipher) KeySize() int {
-	return len(m.key)
-}
+func (m *metaStreamCipher) KeySize() int { return len(m.key) }
 
-func (m *metaStreamCipher) IVSize() int {
-	return m.ivSize
-}
+func (m *metaStreamCipher) IVSize() int { return m.ivSize }
 
-func (m *metaStreamCipher) Encrypter(iv []byte) (cipher.Stream, error) {
+func (m *metaStreamCipher) GetEncrypter(iv []byte) (cipher.Stream, error) {
 	return m.makeEncrypter(m.key, iv)
 }
 
-func (m *metaStreamCipher) Decrypter(iv []byte) (cipher.Stream, error) {
+func (m *metaStreamCipher) GetDecrypter(iv []byte) (cipher.Stream, error) {
 	return m.makeDecrypter(m.key, iv)
 }
 
@@ -54,7 +48,7 @@ func aesCTR(key, iv []byte) (cipher.Stream, error) {
 	return cipher.NewCTR(blk, iv), nil
 }
 
-func AESCTR(key []byte, ivSize int) (StreamCipher, error) {
+func AesCtr(key []byte, ivSize int) (StreamCipher, error) {
 	// nopadding
 	return &metaStreamCipher{
 		key:           key,
@@ -64,7 +58,7 @@ func AESCTR(key []byte, ivSize int) (StreamCipher, error) {
 	}, nil
 }
 
-func AESCFB(key []byte, ivSize int) (StreamCipher, error) {
+func AesCfb(key []byte, ivSize int) (StreamCipher, error) {
 	// nopadding
 	return &metaStreamCipher{
 		key:    key,
@@ -86,7 +80,7 @@ func AESCFB(key []byte, ivSize int) (StreamCipher, error) {
 	}, nil
 }
 
-func BFCFB(key []byte, ivSize int) (StreamCipher, error) {
+func BfCfb(key []byte, ivSize int) (StreamCipher, error) {
 	return &metaStreamCipher{
 		key:    key,
 		ivSize: ivSize,
@@ -115,7 +109,7 @@ func rc4MD5(key, iv []byte) (cipher.Stream, error) {
 	return rc4.NewCipher(rc4key)
 }
 
-func RC4MD5(key []byte, ivSize int) (StreamCipher, error) {
+func Rc4Md5(key []byte, ivSize int) (StreamCipher, error) {
 	return &metaStreamCipher{
 		key:           key,
 		ivSize:        ivSize,
@@ -141,7 +135,7 @@ func (s *salsa20Wrapper) XORKeyStream(dst, src []byte) {
 	salsa20.XORKeyStream(dst, src, s.nonce[:], (*[32]byte)(s.key[:32]))
 }
 
-func SALSA20(key []byte, ivSize int) (StreamCipher, error) {
+func Salsa20(key []byte, ivSize int) (StreamCipher, error) {
 	return &metaStreamCipher{
 		key:           key,
 		ivSize:        ivSize,
@@ -167,7 +161,7 @@ func (c *chacha20Wrapper) XORKeyStream(dst, src []byte) {
 	c.cp.XORKeyStream(dst, src)
 }
 
-func CHACHA20(key []byte, ivSize int) (StreamCipher, error) {
+func Chacha20(key []byte, ivSize int) (StreamCipher, error) {
 	return &metaStreamCipher{
 		key:           key,
 		ivSize:        ivSize,
@@ -176,6 +170,6 @@ func CHACHA20(key []byte, ivSize int) (StreamCipher, error) {
 	}, nil
 }
 
-func CHACHA20IETF(key []byte, ivSize int) (StreamCipher, error) {
-	return CHACHA20(key, ivSize)
+func Chacha20Ietf(key []byte, ivSize int) (StreamCipher, error) {
+	return Chacha20(key, ivSize)
 }

@@ -47,7 +47,7 @@ func (tt *tcpTunServer) ServeTCP(conn net.Conn) {
 		defer statistic.DefaultManager.Remove(tcpTracker)
 		conn = tcpTracker
 	}
-	if err = selector.ProxySelector.Select(proxy)(conn, tt.RemoteAddr); err != nil {
+	if err = selector.ProxySelector.Select(proxy).Invoke(conn, tt.RemoteAddr); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
 }

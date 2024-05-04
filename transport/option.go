@@ -205,6 +205,7 @@ type ObfsOptions struct {
 func (opts *ObfsOptions) Update() {}
 
 type QuicOptions struct {
+	TlsOptions
 	HandshakeIdleTimeout time.Duration
 	KeepAlivePeriod      time.Duration
 	MaxIdleTimeout       time.Duration

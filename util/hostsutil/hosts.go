@@ -19,6 +19,7 @@ func initHostsMap() {
 	mp, err := hostsfile.ParseHosts(hostsfile.ReadHostsFile())
 	if err != nil {
 		logger.Logger.ErrorBy(err)
+		return
 	}
 	for ip, hosts := range mp {
 		for _, host := range hosts {

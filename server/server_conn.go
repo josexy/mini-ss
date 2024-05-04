@@ -26,25 +26,21 @@ func (c *onceCloseConn) Close() error {
 }
 
 type Conn struct {
-	conn   *onceCloseConn
+	*onceCloseConn
 	server Server
 }
 
-func newConn(conn net.Conn, server Server) Conn {
-	return Conn{
-		conn:   &onceCloseConn{Conn: conn},
-		server: server,
+func newConn(conn net.Conn, server Server) *Conn {
+	return &Conn{
+		server:        server,
+		onceCloseConn: &onceCloseConn{Conn: conn},
 	}
-}
-
-func (c *Conn) close() error {
-	return c.conn.Close()
 }
 
 func (c *Conn) serve() {
 	defer func() {
 		// if an error occurs, close the client connection
-		c.close()
+		_ = c.onceCloseConn.Close()
 		if err := recover(); err != nil {
 			buf := stackTraceBufferPool.Get()
 			n := runtime.Stack(*buf, false)

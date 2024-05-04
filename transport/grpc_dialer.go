@@ -14,25 +14,23 @@ import (
 
 type grpcDialer struct {
 	tcpDialer
-	Opts *GrpcOptions
+	opts *GrpcOptions
 }
 
-func (d *grpcDialer) Dial(addr string) (net.Conn, error) {
-	ctx := context.Background()
-
+func (d *grpcDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
 	var dialOpts []grpc.DialOption
 	var callOpts []grpc.CallOption
 
-	if d.Opts.SndBuffer > 0 {
-		dialOpts = append(dialOpts, grpc.WithWriteBufferSize(d.Opts.SndBuffer))
+	if d.opts.SndBuffer > 0 {
+		dialOpts = append(dialOpts, grpc.WithWriteBufferSize(d.opts.SndBuffer))
 	}
-	if d.Opts.RevBuffer > 0 {
-		dialOpts = append(dialOpts, grpc.WithReadBufferSize(d.Opts.RevBuffer))
+	if d.opts.RevBuffer > 0 {
+		dialOpts = append(dialOpts, grpc.WithReadBufferSize(d.opts.RevBuffer))
 	}
 	callOpts = append(callOpts, grpc.UseCompressor(gzip.Name))
 
 	cred := insecure.NewCredentials()
-	tlsConfig, err := d.Opts.TlsOptions.GetClientTlsConfig()
+	tlsConfig, err := d.opts.TlsOptions.GetClientTlsConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -43,22 +41,17 @@ func (d *grpcDialer) Dial(addr string) (net.Conn, error) {
 	dialOpts = append(dialOpts,
 		grpc.WithDefaultCallOptions(callOpts...),
 		grpc.WithTransportCredentials(cred),
-		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
-			return d.tcpDialer.Dial(s)
-		}),
+		grpc.WithContextDialer(d.tcpDialer.Dial),
 	)
 
-	conn, err := grpc.DialContext(ctx,
-		addr,
-		dialOpts...,
-	)
+	conn, err := grpc.DialContext(ctx, addr, dialOpts...)
 	if err != nil {
 		return nil, err
 	}
 	client := proto.NewStreamServiceClient(conn)
-	sc, err := client.Transfer(ctx)
+	cStream, err := client.Transfer(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return connection.NewGrpcClientStreamConn(sc, conn), nil
+	return connection.NewGrpcClientStreamConn(cStream, conn), nil
 }

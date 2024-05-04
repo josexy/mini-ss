@@ -107,6 +107,11 @@ func GenerateCertificate(subject pkix.Name, dnsNames []string, ipAddresses []net
 	if err != nil {
 		return
 	}
+	// Self-signed without CA
+	if caCertTemplate == nil || caPrivateKey == nil {
+		caCertTemplate = template
+		caPrivateKey = privateKey
+	}
 	certBytes, err := x509.CreateCertificate(rand.Reader, template, caCertTemplate, &privateKey.PublicKey, caPrivateKey)
 	if err != nil {
 		return

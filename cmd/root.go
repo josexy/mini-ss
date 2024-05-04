@@ -13,7 +13,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var Version = "unknown"
+var (
+	Version   = ""
+	GitCommit = ""
+)
 
 var rootCmd = &cobra.Command{
 	Use:     "mini-ss",
@@ -60,6 +63,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfg.Server[0].Password, "password", "p", "", "the password for cipher method")
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "server or client configuration file")
 	rootCmd.PersistentFlags().StringVarP(&cfg.Server[0].Transport, "transport", "t", "default", "the transport type between ss-local and ss-server (default, kcp, quic, ws)")
+	rootCmd.PersistentFlags().BoolVar(&cfg.Server[0].Udp, "udp-relay", false, "enable udp relay")
 	// logger options
 	rootCmd.PersistentFlags().BoolVarP(&cfg.Log.Color, "color", "C", false, "enable output color mode")
 	rootCmd.PersistentFlags().StringVarP(&cfg.Log.LogLevel, "level", "L", "info", "log level (trace, debug, info, warn, error, fatal, panic)")
@@ -83,6 +87,11 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Obfs.Host, "obfs-host", "www.baidu.com", "obfs host")
 	// quic options
 	rootCmd.PersistentFlags().IntVar(&cfg.Server[0].Quic.Conns, "quic-max-conn", 3, "maximum number of quic connections")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Quic.TLS.Mode, "quic-tls-mode", "", "quic tls mode (tls, mtls)")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Quic.TLS.KeyPath, "quic-tls-key", "", "quic tls key path")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Quic.TLS.CertPath, "quic-tls-cert", "", "quic tls cert path")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Quic.TLS.CAPath, "quic-tls-ca", "", "quic tls ca path")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Quic.TLS.Hostname, "quic-tls-host", "", "quic tls common name")
 	// grpc options
 	rootCmd.PersistentFlags().IntVar(&cfg.Server[0].Grpc.SendBufferSize, "grpc-send-buf", 0, "grpc send buffer size")
 	rootCmd.PersistentFlags().IntVar(&cfg.Server[0].Grpc.RecvBufferSize, "grpc-recv-buf", 0, "grpc recv buffer size")
@@ -91,6 +100,9 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Grpc.TLS.CertPath, "grpc-tls-cert", "", "grpc tls cert path")
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Grpc.TLS.CAPath, "grpc-tls-ca", "", "grpc tls ca path")
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Grpc.TLS.Hostname, "grpc-tls-host", "", "grpc tls common name")
+	// interface
+	rootCmd.PersistentFlags().StringVar(&cfg.Iface, "iface", "", "bind outbound interface")
+	rootCmd.PersistentFlags().BoolVar(&cfg.AutoDetectIface, "auto-detect-iface", false, "enable auto-detect interface")
 }
 
 func initConfig() {

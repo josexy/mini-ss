@@ -3,16 +3,22 @@ package resolver
 import (
 	"errors"
 	"net/netip"
+	"time"
 
+	"github.com/josexy/logx"
+	"github.com/josexy/mini-ss/util/cache"
 	"github.com/josexy/mini-ss/util/dnsutil"
+	"github.com/josexy/mini-ss/util/logger"
 	"github.com/miekg/dns"
 )
 
-const fakeIPDnsRecordTTL uint32 = 60
+var (
+	DefaultFakeIPDnsRecordTTL  = 60 * time.Second
+	DefaultFakeIPCacheInterval = 30 * time.Second
+)
 
 type Record struct {
 	Domain string
-	RealIP netip.Addr
 	FakeIP netip.Addr
 	Query  *dns.Msg
 	Reply  *dns.Msg
@@ -20,78 +26,110 @@ type Record struct {
 
 type fakeIPResolver struct {
 	// fake ip pool
-	pool *fakeIPPool
+	pool *ipPool
 	// host:record
-	cache *LruCache
+	cache cache.Cache[string, *Record]
 	// ip:host
-	ipCache *LruCache
+	ipCache   cache.Cache[netip.Addr, *Record]
+	dnsIP     netip.Addr
+	tunPrefix netip.Prefix
 }
 
-func newFakeIPResolver(cidr string) *fakeIPResolver {
-	r := &fakeIPResolver{
-		pool: newFakeIPPool(cidr),
+func newFakeIPResolver(cidr string) (*fakeIPResolver, error) {
+	pool, err := newIPPool(cidr)
+	if err != nil {
+		return nil, err
 	}
-	r.cache = newLruCache(
-		WithSize(4096),
-		WithStale(false),
-		WithUpdateAgeOnGet(),
-		WithAge(int64(fakeIPDnsRecordTTL)),
-		WithEvict(EvictCallback(r.onReleaseFakeIP)),
+
+	// pre-allocated tun ip and fake dns ip
+	prefix := netip.MustParsePrefix(cidr)
+	tunIP, ok := pool.allocateFor(prefix.Addr())
+	if !ok {
+		return nil, errors.New("can not allocate ip for tun device")
+	}
+	dnsIP, ok := pool.allocateFor(tunIP.Next())
+	if !ok {
+		logger.Logger.ErrorBy(errors.New("can not allocate ip for fake dns"))
+	}
+	logger.Logger.Infof("pre-allocated ip for tun device: %s, dns: %s", tunIP.String(), dnsIP.String())
+
+	r := &fakeIPResolver{
+		pool:      pool,
+		dnsIP:     dnsIP,
+		tunPrefix: netip.PrefixFrom(tunIP, pool.Bits()),
+	}
+	r.cache = cache.NewCache[string, *Record](
+		cache.WithMaxSize(4096),
+		cache.WithInterval(DefaultFakeIPCacheInterval),
+		cache.WithExpiration(DefaultFakeIPDnsRecordTTL),
+		cache.WithEvictCallback(r.onReleaseFakeIP),
+		cache.WithDeleteExpiredCacheOnGet(),
+		cache.WithBackgroundCheckCache(),
 	)
-	r.ipCache = newLruCache(
-		WithSize(4096),
-		WithStale(false),
-		WithUpdateAgeOnGet(),
-		WithAge(int64(fakeIPDnsRecordTTL)),
+	r.ipCache = cache.NewCache[netip.Addr, *Record](
+		cache.WithMaxSize(4096),
+		cache.WithInterval(DefaultFakeIPCacheInterval),
+		cache.WithExpiration(DefaultFakeIPDnsRecordTTL),
+		cache.WithDeleteExpiredCacheOnGet(),
+		cache.WithBackgroundCheckCache(),
 	)
-	return r
+	return r, nil
 }
 
 func (r *fakeIPResolver) onReleaseFakeIP(_ any, value any) {
-	r.pool.Release(value.(*Record).FakeIP)
+	record := value.(*Record)
+	logger.Logger.Trace("release fake ip", logx.String("ip", record.FakeIP.String()), logx.String("domain", record.Domain))
+	r.pool.Release(record.FakeIP)
 }
 
-func (r *fakeIPResolver) Find(host string) *Record {
-	if value, ok := r.cache.Get(host); ok {
-		return value.(*Record)
+func (r *fakeIPResolver) GetAllocatedTunPrefix() netip.Prefix { return r.tunPrefix }
+
+func (r *fakeIPResolver) GetAllocatedDnsIP() netip.Addr { return r.dnsIP }
+
+func (r *fakeIPResolver) IsFakeIP(ip netip.Addr) bool { return r.pool.Contains(ip) }
+
+func (r *fakeIPResolver) find(host string) (*Record, error) { return r.cache.Get(host) }
+
+func (r *fakeIPResolver) FindByIP(ip netip.Addr) (*Record, error) {
+	if host, err := r.ipCache.Get(ip); err == nil {
+		return r.find(host.Domain)
+	} else {
+		return nil, err
 	}
-	return nil
 }
 
-func (r *fakeIPResolver) FindByIP(ip netip.Addr) *Record {
-	if value, ok := r.ipCache.Get(ip); ok {
-		return r.Find(value.(string))
+func (r *fakeIPResolver) makeNewFakeDnsRecord(host string, request *dns.Msg) (*Record, error) {
+	// allocate a fake ip for dns query host
+	fakeIP, err := r.pool.Allocate(host)
+	if err != nil {
+		return nil, err
 	}
-	return nil
-}
-
-func (r *fakeIPResolver) makeFakeDnsRecord(host string, req *dns.Msg) (*Record, error) {
-	ip := r.pool.Alloc(host)
-	if !ip.IsValid() {
+	if !fakeIP.IsValid() {
 		return nil, errors.New("unable to allocate fake ip from pool")
 	}
 	reply := &dns.Msg{}
-	reply.SetReply(req)
+	reply.SetReply(request)
 	reply.RecursionAvailable = true
 	reply.Answer = append(reply.Answer, &dns.A{
 		Hdr: dns.RR_Header{
 			Name:   dns.Fqdn(host),
 			Rrtype: dns.TypeA,
 			Class:  dns.ClassINET,
-			Ttl:    fakeIPDnsRecordTTL,
+			Ttl:    uint32(DefaultFakeIPDnsRecordTTL.Seconds()),
 		},
-		A: ip.AsSlice(),
+		A: fakeIP.AsSlice(),
 	})
 
 	record := &Record{
 		Domain: host,
-		FakeIP: ip,
-		Query:  req,
+		FakeIP: fakeIP,
+		Query:  request,
 		Reply:  reply,
 	}
-	// save to lru cache
+	// save to cache
 	r.cache.Set(host, record)
-	r.ipCache.Set(ip, host)
+	r.ipCache.Set(fakeIP, record)
+	logger.Logger.Trace("allocate fake ip", logx.String("ip", fakeIP.String()), logx.String("domain", host))
 	return record, nil
 }
 
@@ -105,15 +143,13 @@ func (r *fakeIPResolver) makeFakeDnsRecord(host string, req *dns.Msg) (*Record, 
 // instead of directly to the TUN device, otherwise it will cause a loop
 func (r *fakeIPResolver) query(req *dns.Msg) (*dns.Msg, error) {
 	domain := dnsutil.TrimDomain(req.Question[0].Name)
-
-	value, hit := r.cache.Get(domain)
-	if hit {
-		record := value.(*Record)
-		record.Reply.SetReply(req)
+	// dns record exists in cache
+	if record, err := r.find(domain); err == nil {
+		record.Reply.SetReply(req.Copy())
 		return record.Reply, nil
 	}
-	// dns record dose not exist
-	record, err := r.makeFakeDnsRecord(domain, req.Copy())
+	// dns record dose not exist and create a new record
+	record, err := r.makeNewFakeDnsRecord(domain, req.Copy())
 	if err != nil {
 		return nil, err
 	}

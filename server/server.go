@@ -86,7 +86,9 @@ func (f GrpcHandlerFunc) ServeGRPC(conn net.Conn) { f(conn) }
 
 func closeWithContextDoneErr(ctx context.Context, server Server) {
 	<-ctx.Done()
-	// stop the server if already listened
+	// If the cause error from context is not context.Canceled, close all the servers.
+	// Since there are some errors occurred when starting the server
+	// And if the cause error is context.Canceled, means the server is closed normally.
 	if err := context.Cause(ctx); err != context.Canceled {
 		server.Close()
 	}

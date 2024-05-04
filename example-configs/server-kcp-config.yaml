@@ -10,6 +10,7 @@ server:
       mode: fast2
       compress: false
       conns: 3
-color: true
-verbose: true
-verbose_level: 2
+log:
+  color: true
+  log_level: trace
+  verbose_level: 3

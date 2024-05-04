@@ -10,111 +10,96 @@ import (
 )
 
 /*
-generate protobufs code:
-protoc --proto_path=./proto \
+Generate golang code from proto buffer file:
+> protoc --proto_path=./proto \
 	--go_out=paths=source_relative:./proto \
 	--go-grpc_out=paths=source_relative:./proto ./proto/stream.proto
 */
 
-type ConnExt interface {
-	net.Conn
-	CloseSender() error
-}
-
 type grpcStream interface {
-	SendMsg(m interface{}) error
-	RecvMsg(m interface{}) error
+	SendMsg(interface{}) error
+	RecvMsg(interface{}) error
 }
 
-type grpcRW struct {
-	grpcRW grpcStream
-	req    *proto.PacketData
-	resp   *proto.PacketData
+type grpcStreamReaderWriter struct {
+	grpcStream
+	reqMsg *proto.PacketData
+	rspMsg *proto.PacketData
 	rbuf   []byte // remaining buffer data
 }
 
-func newGrpcRW(rw grpcStream) *grpcRW {
-	return &grpcRW{
-		grpcRW: rw,
-		req:    new(proto.PacketData),
-		resp:   new(proto.PacketData),
+func newGrpcStreamReaderWriter(stream grpcStream) *grpcStreamReaderWriter {
+	return &grpcStreamReaderWriter{
+		grpcStream: stream,
+		reqMsg:     new(proto.PacketData),
+		rspMsg:     new(proto.PacketData),
 	}
 }
 
-func (rw *grpcRW) Read(b []byte) (int, error) {
+func (rw *grpcStreamReaderWriter) Read(b []byte) (int, error) {
 	if len(rw.rbuf) == 0 {
-		rw.resp.Reset()
-		err := rw.grpcRW.RecvMsg(rw.resp)
+		rw.rspMsg.Reset()
+		err := rw.RecvMsg(rw.rspMsg)
 		if err != nil {
 			return 0, err
 		}
-		rw.rbuf = rw.resp.Data
+		rw.rbuf = rw.rspMsg.Data
 	}
 	n := copy(b, rw.rbuf)
 	rw.rbuf = rw.rbuf[n:]
 	return n, nil
 }
 
-func (rw *grpcRW) Write(b []byte) (int, error) {
-	rw.req.Reset()
-	rw.req.Data = b
-	return len(b), rw.grpcRW.SendMsg(rw.req)
+func (rw *grpcStreamReaderWriter) Write(b []byte) (int, error) {
+	rw.reqMsg.Reset()
+	rw.reqMsg.Data = b
+	return len(b), rw.SendMsg(rw.reqMsg)
 }
 
-var _ ConnExt = &GrpcStreamConn{}
-
 type GrpcStreamConn struct {
-	*grpcRW
-	ss         grpc.ServerStream
-	sc         grpc.ClientStream
+	*grpcStreamReaderWriter
+	sStream    grpc.ServerStream
+	cStream    grpc.ClientStream
 	clientConn *grpc.ClientConn
 	localAddr  net.Addr
 	remoteAddr net.Addr
 	isServer   bool
 }
 
-func NewGrpcServerStreamConn(ss grpc.ServerStream, lAddr net.Addr) *GrpcStreamConn {
-	peer, ok := peer.FromContext(ss.Context())
-	var rAddr net.Addr
-	if ok {
-		rAddr = peer.Addr
+func NewGrpcServerStreamConn(sStream grpc.ServerStream) *GrpcStreamConn {
+	var lAddr, rAddr net.Addr
+	if peerCtx, ok := peer.FromContext(sStream.Context()); ok {
+		lAddr = peerCtx.LocalAddr
+		rAddr = peerCtx.Addr
 	}
 	return &GrpcStreamConn{
-		ss:         ss,
-		grpcRW:     newGrpcRW(ss),
-		localAddr:  lAddr,
-		remoteAddr: rAddr,
-		isServer:   true,
+		sStream:                sStream,
+		localAddr:              lAddr,
+		remoteAddr:             rAddr,
+		isServer:               true,
+		grpcStreamReaderWriter: newGrpcStreamReaderWriter(sStream),
 	}
 }
 
-func NewGrpcClientStreamConn(sc grpc.ClientStream, conn *grpc.ClientConn) *GrpcStreamConn {
-	peer, ok := peer.FromContext(sc.Context())
-	var rAddr net.Addr
-	if ok {
-		rAddr = peer.Addr
+func NewGrpcClientStreamConn(cStream grpc.ClientStream, conn *grpc.ClientConn) *GrpcStreamConn {
+	var lAddr, rAddr net.Addr
+	if peerCtx, ok := peer.FromContext(cStream.Context()); ok {
+		lAddr = peerCtx.LocalAddr
+		rAddr = peerCtx.Addr
 	}
-	lAddr, _ := net.ResolveTCPAddr("tcp", conn.Target())
 	return &GrpcStreamConn{
-		sc:         sc,
-		clientConn: conn,
-		grpcRW:     newGrpcRW(sc),
-		localAddr:  lAddr,
-		remoteAddr: rAddr,
+		cStream:                cStream,
+		clientConn:             conn,
+		localAddr:              lAddr,
+		remoteAddr:             rAddr,
+		grpcStreamReaderWriter: newGrpcStreamReaderWriter(cStream),
 	}
 }
 
 func (c *GrpcStreamConn) Close() error {
 	if !c.isServer {
-		c.sc.CloseSend()
+		_ = c.cStream.CloseSend()
 		return c.clientConn.Close()
-	}
-	return nil
-}
-
-func (c *GrpcStreamConn) CloseSender() error {
-	if !c.isServer {
-		return c.sc.CloseSend()
 	}
 	return nil
 }
@@ -123,13 +108,13 @@ func (c *GrpcStreamConn) LocalAddr() net.Addr { return c.localAddr }
 
 func (c *GrpcStreamConn) RemoteAddr() net.Addr { return c.remoteAddr }
 
+func (c *GrpcStreamConn) SetReadDeadline(t time.Time) error { return nil }
+
+func (c *GrpcStreamConn) SetWriteDeadline(t time.Time) error { return nil }
+
 func (c *GrpcStreamConn) SetDeadline(t time.Time) error {
 	if err := c.SetReadDeadline(t); err != nil {
 		return err
 	}
 	return c.SetWriteDeadline(t)
 }
-
-func (c *GrpcStreamConn) SetReadDeadline(t time.Time) error { return nil }
-
-func (c *GrpcStreamConn) SetWriteDeadline(t time.Time) error { return nil }

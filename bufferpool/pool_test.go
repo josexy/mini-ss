@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"sync"
 	"testing"
+
+	"github.com/valyala/bytebufferpool"
 )
 
 const bufferSize = 1024
@@ -26,42 +28,63 @@ var bpByteBuffer = sync.Pool{
 }
 
 func BenchmarkWithoutBufferPoolByteBuffer(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		buf := bytes.NewBuffer(make([]byte, bufferSize))
-		buf.Reset()
-		buf.Write(testString)
-	}
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			buf := bytes.NewBuffer(make([]byte, bufferSize))
+			buf.Reset()
+			buf.Write(testString)
+		}
+	})
 }
 
 func BenchmarkWithoutBufferPoolSlice(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		buf := make([]byte, bufferSize)
-		copy(buf, testString)
-	}
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			buf := make([]byte, bufferSize)
+			copy(buf, testString)
+		}
+	})
 }
 
 func BenchmarkWithBufferPoolByteBuffer(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		buf := bpByteBuffer.Get()
-		buf.(*bytes.Buffer).Write(testString)
-		buf.(*bytes.Buffer).Reset()
-		bpByteBuffer.Put(buf)
-	}
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			buf := bpByteBuffer.Get()
+			buf.(*bytes.Buffer).Write(testString)
+			buf.(*bytes.Buffer).Reset()
+			bpByteBuffer.Put(buf)
+		}
+	})
 }
 
 func BenchmarkWithBufferPoolSlice(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		buf := bpSlice.Get()
-		copy(buf.([]byte), testString)
-		bpSlice.Put(buf)
-	}
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			buf := bpSlice.Get()
+			copy(buf.([]byte), testString)
+			bpSlice.Put(buf)
+		}
+	})
 }
 
 func BenchmarkWithBufferPoolSlicePtr(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		buf := bpSlicePtr.Get()
-		copy(*buf, testString)
-		*buf = (*buf)[:0]
-		bpSlicePtr.Put((buf))
-	}
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			buf := bpSlicePtr.Get()
+			copy(*buf, testString)
+			*buf = (*buf)[:0]
+			bpSlicePtr.Put((buf))
+		}
+	})
+}
+
+func BenchmarkWithByteBufferPool(b *testing.B) {
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			buf := bytebufferpool.Get()
+			buf.Reset()
+			buf.Write(testString)
+			bytebufferpool.Put((buf))
+		}
+	})
 }

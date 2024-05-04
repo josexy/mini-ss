@@ -6,7 +6,6 @@ import (
 
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/cipher"
-	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/enhancer"
 	"github.com/josexy/mini-ss/geoip"
 	"github.com/josexy/mini-ss/resolver"
@@ -49,16 +48,16 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 		o.applyTo(&s.Opts)
 	}
 
-	// whether to support auto-detect-interface
+	// check whether support auto-detect-interface
 	if transport.DefaultDialerOutboundOption.AutoDetectInterface {
 		if ifaceName, err := iface.DefaultRouteInterface(); err == nil {
 			transport.DefaultDialerOutboundOption.Interface = ifaceName
-			logger.Logger.Infof("auto detect outbound interface: %q", ifaceName)
+			logger.Logger.Infof("auto detect outbound interface: %s", ifaceName)
 		}
 	}
 
 	// init the global default dns resolver
-	resolver.DefaultResolver = resolver.NewDnsResolver(dns.DefaultDnsNameservers)
+	resolver.DefaultResolver = resolver.NewDnsResolver(resolver.DefaultDnsNameservers)
 
 	// only one proxy node with command line
 	if len(s.Opts.serverOpts) == 1 && s.Opts.serverOpts[0].name == "" && rule.MatchRuler.GlobalTo == "" {
@@ -76,7 +75,7 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 
 	// enable mixed proxy
 	if s.Opts.localOpts.mixedAddr != "" {
-		s.srvGroup.AddServer(newMixedServer(s.Opts.localOpts.mixedAddr))
+		s.srvGroup.AddServer(newMixedServer(s.Opts.localOpts.mixedAddr, s.Opts.localOpts.httpAuth, s.Opts.localOpts.socksAuth).WithMitmMode(s.Opts.localOpts.mitmConfig))
 	} else {
 		if s.Opts.localOpts.httpAddr != "" {
 			// http proxy

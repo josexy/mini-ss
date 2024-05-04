@@ -1,10 +1,29 @@
 NAME=mini-ss
-VERSION=1.0.1
 BINDIR=bin
-GOBUILD=CGO_ENABLED=0 go build -ldflags '-X github.com/josexy/mini-ss/cmd.Version=$(VERSION) -w -s -buildid='
+MODULE=github.com/josexy/mini-ss
 PACKAGE=cmd/miniss/miniss.go
+COMMIT=$(shell git rev-parse --short HEAD)
+VERSION=$(shell git describe --abbrev=0 --tags HEAD 2> /dev/null)
+LDFLAGS+=-w -s -buildid=
+LDFLAGS+=-X "$(MODULE)/cmd.GitCommit=$(COMMIT)"
+LDFLAGS+=-X "$(MODULE)/cmd.Version=$(VERSION)"
 
-all: linux-amd64 linux-arm64 macos-amd64 macos-arm64 win-amd64 win-arm64
+GOBUILD=CGO_ENABLED=0 go build -ldflags '$(LDFLAGS)'
+
+UNIX_ARCH_LIST = \
+	darwin-amd64 \
+	darwin-arm64 \
+	linux-amd64 \
+	linux-arm64 \
+	linux-armv5 \
+	linux-armv6 \
+	linux-armv7
+
+WINDOWS_ARCH_LIST = \
+	windows-amd64 \
+	windows-arm64
+
+all: linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64
 
 linux-amd64:
 	GOARCH=amd64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@ $(PACKAGE)
@@ -12,28 +31,37 @@ linux-amd64:
 linux-arm64:
 	GOARCH=arm64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@ $(PACKAGE)
 
-macos-amd64:
+linux-armv5:
+	GOARCH=arm GOARM=5 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@ $(PACKAGE)
+
+linux-armv6:
+	GOARCH=arm GOARM=6 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@ $(PACKAGE)
+
+linux-armv7:
+	GOARCH=arm GOARM=7 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@ $(PACKAGE)
+
+darwin-amd64:
 	GOARCH=amd64 GOOS=darwin $(GOBUILD) -o $(BINDIR)/$(NAME)-$@ $(PACKAGE)
 
-macos-arm64:
+darwin-arm64:
 	GOARCH=arm64 GOOS=darwin $(GOBUILD) -o $(BINDIR)/$(NAME)-$@ $(PACKAGE)
 
-win-amd64:
+windows-amd64:
 	GOARCH=amd64 GOOS=windows $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe $(PACKAGE)
 
-win-arm64:
+windows-arm64:
 	GOARCH=arm64 GOOS=windows $(GOBUILD) -o $(BINDIR)/$(NAME)-$@.exe $(PACKAGE)
 
-releases: linux-amd64 linux-arm64 macos-amd64 macos-arm64 win-amd64 win-arm64
-	chmod +x $(BINDIR)/$(NAME)-*
-	tar czf $(BINDIR)/$(NAME)-linux-amd64.tgz -C $(BINDIR) $(NAME)-linux-amd64
-	tar czf $(BINDIR)/$(NAME)-linux-arm64.tgz -C $(BINDIR) $(NAME)-linux-arm64
-	gzip $(BINDIR)/$(NAME)-linux-amd64
-	gzip $(BINDIR)/$(NAME)-linux-arm64
-	gzip $(BINDIR)/$(NAME)-macos-amd64
-	gzip $(BINDIR)/$(NAME)-macos-arm64
-	zip -m -j $(BINDIR)/$(NAME)-win-amd64.zip $(BINDIR)/$(NAME)-win-amd64.exe
-	zip -m -j $(BINDIR)/$(NAME)-win-arm64.zip $(BINDIR)/$(NAME)-win-arm64.exe
+unix_releases := $(addsuffix .zip, $(UNIX_ARCH_LIST))
+windows_releases := $(addsuffix .zip, $(WINDOWS_ARCH_LIST))
+
+$(unix_releases): %.zip: %
+	@zip -qmj $(BINDIR)/$(NAME)-$(basename $@).zip $(BINDIR)/$(NAME)-$(basename $@)
+
+$(windows_releases): %.zip: %
+	@zip -qmj $(BINDIR)/$(NAME)-$(basename $@).zip $(BINDIR)/$(NAME)-$(basename $@).exe
+
+releases: $(unix_releases) $(windows_releases)
 
 clean:
-	rm $(BINDIR)/mini-ss-*
+	rm $(BINDIR)/$(NAME)-*

@@ -34,33 +34,33 @@ const (
 
 var (
 	streamCipherMap = map[string]streamCipherWrapper{
-		aes128CTR:    {16, 16, AESCTR},
-		aes192CTR:    {24, 16, AESCTR},
-		aes256CTR:    {32, 16, AESCTR},
-		aes128CFB:    {16, 16, AESCFB},
-		aes192CFB:    {24, 16, AESCFB},
-		aes256CFB:    {32, 16, AESCFB},
-		salsa20_:     {32, 8, SALSA20},
-		bfCFB:        {16, 8, BFCFB},
-		rc4Md5:       {16, 16, RC4MD5},
-		chacha20_:    {32, 8, CHACHA20},
-		chacha20IETF: {32, 12, CHACHA20IETF},
+		aes128CTR:    {16, 16, AesCtr},
+		aes192CTR:    {24, 16, AesCtr},
+		aes256CTR:    {32, 16, AesCtr},
+		aes128CFB:    {16, 16, AesCfb},
+		aes192CFB:    {24, 16, AesCfb},
+		aes256CFB:    {32, 16, AesCfb},
+		salsa20_:     {32, 8, Salsa20},
+		bfCFB:        {16, 8, BfCfb},
+		rc4Md5:       {16, 16, Rc4Md5},
+		chacha20_:    {32, 8, Chacha20},
+		chacha20IETF: {32, 12, Chacha20Ietf},
 	}
 
 	aeadCipherMap = map[string]aeadCipherWrapper{
-		aes128GCM:         {16, 16, 12, 16, AESGCM},
-		aes192GCM:         {24, 24, 12, 16, AESGCM},
-		aes256GCM:         {32, 32, 12, 16, AESGCM},
-		chacha20Poly1305:  {32, 32, 12, 16, CHACHA20POLY1305},
-		xchacha20Poly1305: {32, 32, 12, 16, XCHACHA20POLY1305},
+		aes128GCM:         {16, 16, 12, 16, AesGcm},
+		aes192GCM:         {24, 24, 12, 16, AesGcm},
+		aes256GCM:         {32, 32, 12, 16, AesGcm},
+		chacha20Poly1305:  {32, 32, 12, 16, Chacha20Poly1305},
+		xchacha20Poly1305: {32, 32, 12, 16, XChacha20Poly1305},
 	}
 )
 
 type (
 	streamCipherWrapper struct {
-		KeySize int
-		IVSize  int
-		New     func(key []byte, ivSize int) (StreamCipher, error)
+		KeySize   int
+		IVSize    int
+		NewCipher func(key []byte, ivSize int) (StreamCipher, error)
 	}
 
 	aeadCipherWrapper struct {
@@ -68,7 +68,7 @@ type (
 		SaltSize  int
 		NonceSize int
 		TagSize   int
-		New       func(key []byte, saltSize int) (AEADCipher, error)
+		NewCipher func(key []byte, saltSize int) (AEADCipher, error)
 	}
 )
 
@@ -79,7 +79,7 @@ func GetCipher(method, password string) (sc StreamCipher, ac AEADCipher, err err
 	if _, ok := streamCipherMap[method]; ok {
 		sc, err = NewStreamCipher(method, password)
 	} else if _, ok = aeadCipherMap[method]; ok {
-		ac, err = NewAEADipher(method, password)
+		ac, err = NewAEADCipher(method, password)
 	} else {
 		err = fmt.Errorf("not support method: %s", method)
 	}
@@ -93,17 +93,17 @@ func NewStreamCipher(method, password string) (StreamCipher, error) {
 	}
 	// simple EVP_BytesToKey()
 	key := Kdf(password, x.KeySize)
-	return x.New(key, x.IVSize)
+	return x.NewCipher(key, x.IVSize)
 }
 
-func NewAEADipher(method, password string) (AEADCipher, error) {
+func NewAEADCipher(method, password string) (AEADCipher, error) {
 	x, ok := aeadCipherMap[method]
 	if !ok {
 		return nil, fmt.Errorf("not support aead cipher: %s", method)
 	}
 	// simple EVP_BytesToKey()
 	key := Kdf(password, x.KeySize)
-	return x.New(key, x.SaltSize)
+	return x.NewCipher(key, x.SaltSize)
 }
 
 /*

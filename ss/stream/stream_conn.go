@@ -6,8 +6,8 @@ import (
 	"io"
 	"net"
 
+	"github.com/josexy/mini-ss/bufferpool"
 	cipherx "github.com/josexy/mini-ss/cipher"
-	"github.com/josexy/mini-ss/constant"
 )
 
 type streamReader struct {
@@ -20,7 +20,7 @@ func newStreamReader(c net.Conn, cipher cipher.Stream) *streamReader {
 	return &streamReader{
 		Conn:   c,
 		Stream: cipher,
-		buf:    make([]byte, constant.MaxTcpBufferSize),
+		buf:    make([]byte, bufferpool.MaxTcpBufferSize),
 	}
 }
 
@@ -65,7 +65,7 @@ func newStreamWriter(c net.Conn, cipher cipher.Stream) *streamWriter {
 	return &streamWriter{
 		Conn:   c,
 		Stream: cipher,
-		buf:    make([]byte, constant.MaxTcpBufferSize),
+		buf:    make([]byte, bufferpool.MaxTcpBufferSize),
 	}
 }
 
@@ -125,7 +125,7 @@ func (c *StreamConn) initReader() error {
 		return err
 	}
 	// init decrypter
-	cp, err := c.cipher.Decrypter(iv)
+	cp, err := c.cipher.GetDecrypter(iv)
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (c *StreamConn) initWriter() error {
 	if _, err := c.Conn.Write(iv); err != nil {
 		return err
 	}
-	cp, err := c.cipher.Encrypter(iv)
+	cp, err := c.cipher.GetEncrypter(iv)
 	if err != nil {
 		return err
 	}

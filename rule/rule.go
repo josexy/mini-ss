@@ -29,7 +29,7 @@ type (
 
 var (
 	errEmptyGlobalProxyNode = errors.New("empty global proxy node")
-	errRuleDropped          = errors.New("rule dropped")
+	ErrRuleMatchDropped     = errors.New("rule matched dropped")
 )
 
 var (
@@ -153,7 +153,7 @@ func (r *Ruler) Select() (proxy string, err error) {
 		case r.matched.Proxy != "":
 			return r.matched.Proxy, nil
 		default:
-			return "", errRuleDropped
+			return "", ErrRuleMatchDropped
 		}
 	}
 

@@ -6,6 +6,8 @@ import (
 	"crypto/tls"
 	"io"
 	"net/http"
+
+	"github.com/valyala/bytebufferpool"
 )
 
 type WSDirection byte
@@ -37,12 +39,21 @@ func (f WebsocketDelegatedInvokerFunc) Invoke(t int, data []byte) error         
 type baseImmutableHTTPInterceptor struct{ fn ImmutableHTTPInterceptor }
 
 func (b baseImmutableHTTPInterceptor) InvokeInterceptor(req *http.Request, invoker HTTPDelegatedInvoker) (*http.Response, error) {
-	copiedReq := cloneHttpRequest(req)
+	var reqBodyBuf, rspBodyBuf *bytebufferpool.ByteBuffer
+	if req.Body != nil {
+		reqBodyBuf = bytebufferpool.Get()
+		defer bytebufferpool.Put(reqBodyBuf)
+	}
+	copiedReq := cloneHttpRequest(req, reqBodyBuf)
 	rsp, err := invoker.Invoke(req)
 	if err != nil {
 		return rsp, err
 	}
-	copiedRsp := cloneHttpResponse(rsp)
+	if rsp.Body != nil {
+		rspBodyBuf = bytebufferpool.Get()
+		defer bytebufferpool.Put(rspBodyBuf)
+	}
+	copiedRsp := cloneHttpResponse(rsp, rspBodyBuf)
 	copiedRsp.Request = copiedReq
 	b.fn(copiedReq, copiedRsp)
 	return rsp, err
@@ -57,10 +68,14 @@ func (b baseMutableHTTPInterceptor) InvokeInterceptor(req *http.Request, invoker
 type baseImmutableWebsocketInterceptor struct{ fn ImmutableWebsocketInterceptor }
 
 func (b baseImmutableWebsocketInterceptor) InvokeInterceptor(d WSDirection, req *http.Request, t int, data []byte, invoker WebsocketDelegatedInvoker) error {
-	copiedData := make([]byte, len(data))
-	copy(copiedData, data)
+	msgBuf := bytebufferpool.Get()
+	defer bytebufferpool.Put(msgBuf)
+
+	msgBuf.Reset()
+	msgBuf.Write(data)
+
 	err := invoker.Invoke(t, data)
-	b.fn(d, req, t, copiedData)
+	b.fn(d, req, t, msgBuf.Bytes())
 	return err
 }
 
@@ -70,30 +85,30 @@ func (b baseMutableWebsocketInterceptor) InvokeInterceptor(d WSDirection, req *h
 	return b.fn(d, req, t, data, invoker)
 }
 
-func copyBody(body io.ReadCloser) (io.ReadCloser, io.ReadCloser) {
-	if body == nil {
+func copyBody(body io.ReadCloser, buf *bytebufferpool.ByteBuffer) (io.ReadCloser, io.ReadCloser) {
+	if body == nil || buf == nil {
 		return nil, nil
 	}
-	rawData, err := io.ReadAll(body)
+	_, err := buf.ReadFrom(body)
 	if err != nil {
 		return nil, nil
 	}
 	body.Close()
-	return io.NopCloser(bytes.NewReader(rawData)), io.NopCloser(bytes.NewReader(rawData))
+	return io.NopCloser(bytes.NewReader(buf.Bytes())), io.NopCloser(bytes.NewReader(buf.Bytes()))
 }
 
-func cloneHttpRequest(req *http.Request) *http.Request {
+func cloneHttpRequest(req *http.Request, buf *bytebufferpool.ByteBuffer) *http.Request {
 	newReq := req.Clone(context.Background())
-	newReq.Body, req.Body = copyBody(req.Body)
+	newReq.Body, req.Body = copyBody(req.Body, buf)
 	return newReq
 }
 
-func cloneHttpResponse(rsp *http.Response) *http.Response {
+func cloneHttpResponse(rsp *http.Response, buf *bytebufferpool.ByteBuffer) *http.Response {
 	newRsp := new(http.Response)
 	*newRsp = *rsp
 	newRsp.Header = rsp.Header.Clone()
 	newRsp.Trailer = rsp.Trailer.Clone()
-	newRsp.Body, rsp.Body = copyBody(rsp.Body)
+	newRsp.Body, rsp.Body = copyBody(rsp.Body, buf)
 	newRsp.Request = nil
 	if s := rsp.TransferEncoding; s != nil {
 		s2 := make([]string, len(s))

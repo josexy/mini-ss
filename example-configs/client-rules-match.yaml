@@ -64,9 +64,9 @@ local:
   tcp_tun_addr:
     - ':10002=www.google.com:80'
   system_proxy: false
-  enable_tun: false
   tun:
-    name: utun3
+    enable: false
+    name: utun9
     cidr: 198.18.0.1/16
     mtu: 1350
   fake_dns:
@@ -74,9 +74,10 @@ local:
     nameservers:
       - 114.114.114.114
       - 8.8.8.8
-color: true
-verbose: true
-verbose_level: 2
+log:
+  color: true
+  log_level: trace
+  verbose_level: 2
 iface: en5
 auto_detect_iface: true
 rules:

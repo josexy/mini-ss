@@ -5,6 +5,13 @@ import (
 	"sync"
 )
 
+const (
+	MaxAddressBufferSize = 259
+	MaxSocksBufferSize   = 515
+	MaxUdpBufferSize     = 64 * 1024
+	MaxTcpBufferSize     = 16 * 1024
+)
+
 type BufferPool struct {
 	pool sync.Pool
 }
@@ -21,7 +28,7 @@ func NewBufferPool(size int) *BufferPool {
 func NewBytesBufferPool() *BufferPool {
 	bp := new(BufferPool)
 	bp.pool.New = func() any {
-		return bytes.NewBuffer(make([]byte, 0, 4096))
+		return bytes.NewBuffer(make([]byte, 0, 2048))
 	}
 	return bp
 }

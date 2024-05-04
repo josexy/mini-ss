@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"net"
 
 	"github.com/josexy/mini-ss/connection"
@@ -8,13 +9,13 @@ import (
 
 type obfsDialer struct {
 	tcpDialer
-	Opts *ObfsOptions
+	opts *ObfsOptions
 }
 
-func (d *obfsDialer) Dial(addr string) (net.Conn, error) {
-	conn, err := d.tcpDialer.Dial(addr)
+func (d *obfsDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
+	conn, err := d.tcpDialer.Dial(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
-	return connection.NewObfsConn(conn, d.Opts.Host, false), nil
+	return connection.NewObfsConn(conn, d.opts.Host, false), nil
 }

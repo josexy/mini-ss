@@ -5,7 +5,6 @@ import (
 	"runtime"
 
 	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/util/dnsutil"
 	"github.com/josexy/mini-ss/util/logger"
@@ -14,31 +13,36 @@ import (
 )
 
 type EnhancerConfig struct {
-	Tun     tun.TunConfig
-	FakeDNS string
-	tunCidr netip.Prefix
+	Tun            tun.TunConfig
+	FakeDNS        string
+	DisableRewrite bool
 }
 
 type Enhancer struct {
 	nameserver netip.Addr
 	config     EnhancerConfig
 	nt         *netstackgo.TunNetstack
-	fakeDns    *dns.DnsServer
+	fakeDns    *resolver.DnsServer
 	handler    *enhancerHandler
 }
 
 func NewEnhancer(config EnhancerConfig) *Enhancer {
 	eh := &Enhancer{
 		config:  config,
-		nt:      netstackgo.New(config.Tun),
-		fakeDns: dns.NewDnsServer(config.FakeDNS),
+		fakeDns: resolver.NewDnsServer(config.FakeDNS),
 	}
 	eh.handler = newEnhancerHandler(eh)
 	return eh
 }
 
 func (eh *Enhancer) Start() (err error) {
+	// init fake ip pool and cache
+	if err = resolver.DefaultResolver.EnableEnhancerMode(eh.config.Tun.Addr); err != nil {
+		return
+	}
 
+	eh.config.Tun.Addr = resolver.DefaultResolver.GetAllocatedTunPrefix().String()
+	eh.nt = netstackgo.New(eh.config.Tun)
 	eh.nt.RegisterConnHandler(eh.handler)
 
 	// start low-level gVisor netstack
@@ -46,21 +50,17 @@ func (eh *Enhancer) Start() (err error) {
 		return
 	}
 
-	// start local fake dns server
-	resolver.DefaultResolver.EnableEnhancerMode(eh.config.Tun.Addr)
 	go func() {
 		if err := eh.fakeDns.Start(); err != nil {
 			logger.Logger.Warnf("%s", err.Error())
 		}
 	}()
 
-	eh.config.tunCidr = netip.MustParsePrefix(eh.config.Tun.Addr)
-	ip := eh.config.tunCidr.Masked().Addr()
-	ip = ip.Next().Next()
-	eh.nameserver = ip
+	eh.nameserver = resolver.DefaultResolver.GetAllocatedDnsIP()
 
 	// set local dns server configuration
-	if runtime.GOOS != "windows" {
+	if runtime.GOOS != "windows" && !eh.config.DisableRewrite && eh.nameserver.IsValid() {
+		logger.Logger.Infof("rewrite dns fake ip %s to system config file", eh.nameserver)
 		dnsutil.SetLocalDnsServer(eh.nameserver.String())
 	}
 

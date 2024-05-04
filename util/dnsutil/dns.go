@@ -11,15 +11,19 @@ func TrimDomain(name string) string {
 	return strings.TrimSuffix(name, ".")
 }
 
-func MsgToIP(reply *dns.Msg) []netip.Addr {
-	var ips []netip.Addr
+func MsgToAddrs(reply *dns.Msg) []netip.Addr {
+	var addrs []netip.Addr
 	for _, answer := range reply.Answer {
 		switch ans := answer.(type) {
 		case *dns.A:
-			if ip, ok := netip.AddrFromSlice(ans.A.To4()); ok {
-				ips = append(ips, ip)
+			if addr, ok := netip.AddrFromSlice(ans.A.To4()); ok {
+				addrs = append(addrs, addr)
+			}
+		case *dns.AAAA:
+			if addr, ok := netip.AddrFromSlice(ans.AAAA.To16()); ok {
+				addrs = append(addrs, addr)
 			}
 		}
 	}
-	return ips
+	return addrs
 }

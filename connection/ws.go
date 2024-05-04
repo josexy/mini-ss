@@ -34,13 +34,13 @@ func (c *WebsocketConn) LocalAddr() net.Addr { return c.conn.LocalAddr() }
 
 func (c *WebsocketConn) RemoteAddr() net.Addr { return c.conn.RemoteAddr() }
 
+func (c *WebsocketConn) SetReadDeadline(t time.Time) error { return c.conn.SetReadDeadline(t) }
+
+func (c *WebsocketConn) SetWriteDeadline(t time.Time) error { return c.conn.SetWriteDeadline(t) }
+
 func (c *WebsocketConn) SetDeadline(t time.Time) error {
 	if err := c.SetReadDeadline(t); err != nil {
 		return err
 	}
 	return c.SetWriteDeadline(t)
 }
-
-func (c *WebsocketConn) SetReadDeadline(t time.Time) error { return c.conn.SetReadDeadline(t) }
-
-func (c *WebsocketConn) SetWriteDeadline(t time.Time) error { return c.conn.SetWriteDeadline(t) }

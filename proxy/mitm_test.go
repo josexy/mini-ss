@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
 	"io"
 	"net"
@@ -14,11 +15,9 @@ import (
 	"strings"
 	"testing"
 	"time"
-)
 
-const (
-	caCrt = "../certs/ca.crt"
-	caKey = "../certs/ca.key"
+	"github.com/josexy/mini-ss/util/cert"
+	"github.com/stretchr/testify/assert"
 )
 
 func parseHostPort(req *http.Request) (host, port string) {
@@ -56,7 +55,7 @@ func startSimpleHttpServer(addr string, handler http.Handler) *http.Server {
 }
 
 func testHTTPRequest(addr string, isHttps bool) {
-	caCrtPem, err := os.ReadFile(caCrt)
+	caCrtPem, err := os.ReadFile("/tmp/cert/ca.crt")
 	if err != nil {
 		panic(err)
 	}
@@ -90,11 +89,25 @@ func testHTTPRequest(addr string, isHttps bool) {
 	fmt.Printf("status code: %d, headers: %+v, body: %s\n", rsp.StatusCode, rsp.Header, res)
 }
 
+func genCACertAndKey(t *testing.T) {
+	caPrivateKey, err := cert.GeneratePrivateKey()
+	assert.NoError(t, err)
+	_, _, certPem, keyPem, err := cert.GenerateCACertificate(
+		pkix.Name{CommonName: "example.ca.com"}, caPrivateKey)
+	assert.NoError(t, err)
+
+	os.Mkdir("/tmp/cert", 0755)
+	os.WriteFile("/tmp/cert/ca.crt", certPem, 0644)
+	os.WriteFile("/tmp/cert/ca.key", keyPem, 0644)
+}
+
 func TestMitmHandlerForHTTPTraffic(t *testing.T) {
+	genCACertAndKey(t)
+	defer os.RemoveAll("/tmp/cert")
 	handler, err := NewMitmHandler(MimtOption{
 		Enable:  true,
-		CaPath:  caCrt,
-		KeyPath: caKey,
+		CaPath:  "/tmp/cert/ca.crt",
+		KeyPath: "/tmp/cert/ca.key",
 	})
 	handler.SetMutableHTTPInterceptor(func(req *http.Request, invoker HTTPDelegatedInvoker) (*http.Response, error) {
 		data, _ := httputil.DumpRequest(req, true)

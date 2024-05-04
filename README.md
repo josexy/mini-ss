@@ -5,6 +5,7 @@ Mini shadowsocks server and client in Golang
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/josexy/mini-ss)](https://goreportcard.com/report/github.com/josexy/mini-ss)
 [![License](https://img.shields.io/github/license/josexy/mini-ss)](https://github.com/josexy/mini-ss/blob/main/LICENSE)
+[![Publish Go Releases](https://github.com/josexy/mini-ss/actions/workflows/go-release.yml/badge.svg)](https://github.com/josexy/mini-ss/actions/workflows/go-release.yml)
 
 ## Usage
 

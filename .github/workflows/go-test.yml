@@ -31,10 +31,11 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Go test and save test results
-        run: go test -v ./... -json > TestResults-${{ matrix.os }}-${{ matrix.go-version }}.json
+        # run: go test -v ./... -json > TestResults-${{ matrix.os }}-${{ matrix.go-version }}.json
+        run: go test -v ./...
 
-      - name: Upload Go test results
-        uses: actions/upload-artifact@v4
-        with:
-          name: Go-results-${{ matrix.os }}-${{ matrix.go-version }}
-          path: TestResults-${{ matrix.os }}-${{ matrix.go-version }}.json
+      # - name: Upload Go test results
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: Go-results-${{ matrix.os }}-${{ matrix.go-version }}
+      #     path: TestResults-${{ matrix.os }}-${{ matrix.go-version }}.json

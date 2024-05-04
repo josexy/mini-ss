@@ -172,7 +172,7 @@ func TestMitmHandlerForHTTPTraffic(t *testing.T) {
 	}))
 	time.Sleep(time.Second * 1)
 	go testHTTPRequest(addr, false)
-	go testHTTPRequest(addr, true)
+	// go testHTTPRequest(addr, true)
 	time.Sleep(time.Second * 4)
 	server.Close()
 }

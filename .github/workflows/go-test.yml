@@ -30,7 +30,7 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Go test and save test results
+      - name: Go test
         # run: go test -v ./... -json > TestResults-${{ matrix.os }}-${{ matrix.go-version }}.json
         run: go test -v ./...
 

@@ -68,10 +68,6 @@ func init() {
 }
 
 func StartLocal() {
-	// if len(cfg.Server) == 0 || cfg.Server[0].Addr == "" {
-	// 	logger.Logger.FatalBy(errors.New("server node is empty"))
-	// 	return
-	// }
 	defer func() {
 		if err := recover(); err != nil {
 			if e, ok := err.(error); ok {

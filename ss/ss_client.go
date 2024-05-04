@@ -6,7 +6,6 @@ import (
 
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/cipher"
-	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/enhancer"
 	"github.com/josexy/mini-ss/geoip"
 	"github.com/josexy/mini-ss/resolver"
@@ -58,7 +57,7 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 	}
 
 	// init the global default dns resolver
-	resolver.DefaultResolver = resolver.NewDnsResolver(dns.DefaultDnsNameservers)
+	resolver.DefaultResolver = resolver.NewDnsResolver(resolver.DefaultDnsNameservers)
 
 	// only one proxy node with command line
 	if len(s.Opts.serverOpts) == 1 && s.Opts.serverOpts[0].name == "" && rule.MatchRuler.GlobalTo == "" {

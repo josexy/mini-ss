@@ -18,7 +18,7 @@ func doQuery(t *testing.T, r *fakeIPResolver, host string) netip.Addr {
 	fakeReply, err := r.query(req)
 	assert.Nil(t, err)
 	t.Logf("dns reply host: %s, ttl: %d", host, fakeReply.Answer[0].Header().Ttl)
-	return dnsutil.MsgToIP(fakeReply)[0]
+	return dnsutil.MsgToAddrs(fakeReply)[0]
 }
 
 func TestFakeIPResolverQueryTTL(t *testing.T) {

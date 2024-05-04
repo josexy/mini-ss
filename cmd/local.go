@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/enhancer"
 	"github.com/josexy/mini-ss/geoip"
+	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/ss"
 	"github.com/josexy/mini-ss/util/dnsutil"
 	"github.com/josexy/mini-ss/util/logger"
@@ -57,7 +57,7 @@ func init() {
 
 	// fake dns mode
 	localCmd.Flags().StringVar(&cfg.Local.FakeDNS.Listen, "fake-dns-listen", ":53", "fake-dns listening address")
-	localCmd.Flags().StringSliceVar(&cfg.Local.FakeDNS.Nameservers, "fake-dns-nameservers", dns.DefaultDnsNameservers, "fake-dns nameservers")
+	localCmd.Flags().StringSliceVar(&cfg.Local.FakeDNS.Nameservers, "fake-dns-nameservers", resolver.DefaultDnsNameservers, "fake-dns nameservers")
 	localCmd.Flags().BoolVar(&cfg.Local.FakeDNS.DisableRewrite, "fake-dns-disable-rewrite", false, "fake-dns disable to rewrite dns to system config file")
 
 	// mitm mode

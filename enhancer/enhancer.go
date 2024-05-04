@@ -5,7 +5,6 @@ import (
 	"runtime"
 
 	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/util/dnsutil"
 	"github.com/josexy/mini-ss/util/logger"
@@ -23,14 +22,14 @@ type Enhancer struct {
 	nameserver netip.Addr
 	config     EnhancerConfig
 	nt         *netstackgo.TunNetstack
-	fakeDns    *dns.DnsServer
+	fakeDns    *resolver.DnsServer
 	handler    *enhancerHandler
 }
 
 func NewEnhancer(config EnhancerConfig) *Enhancer {
 	eh := &Enhancer{
 		config:  config,
-		fakeDns: dns.NewDnsServer(config.FakeDNS),
+		fakeDns: resolver.NewDnsServer(config.FakeDNS),
 	}
 	eh.handler = newEnhancerHandler(eh)
 	return eh

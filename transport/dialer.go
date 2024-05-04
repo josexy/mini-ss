@@ -74,7 +74,7 @@ func resolveIP(host string) netip.Addr {
 	var err error
 	// the host may be a ip address or domain name
 	if ip, err = netip.ParseAddr(host); err != nil {
-		ip = resolver.DefaultResolver.ResolveHost(host)
+		ip = resolver.DefaultResolver.LookupHost(context.Background(), host)
 	}
 	return ip
 }

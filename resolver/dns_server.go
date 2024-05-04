@@ -1,11 +1,10 @@
-package dns
+package resolver
 
 import (
 	"net"
 	"strconv"
 	"time"
 
-	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/util/logger"
 	"github.com/miekg/dns"
 )
@@ -32,15 +31,14 @@ func NewDnsServer(addr string) *DnsServer {
 	port, _ := strconv.ParseUint(p, 10, 16)
 	s := &DnsServer{Addr: addr, Port: int(port)}
 	// local dns server
-	dnsServer := &dns.Server{
+	s.server = &dns.Server{
 		Addr:         addr,
 		Net:          "udp",
 		UDPSize:      4096,
 		Handler:      dns.HandlerFunc(s.serveDNS),
-		ReadTimeout:  time.Second * 5,
-		WriteTimeout: time.Second * 5,
+		ReadTimeout:  2 * time.Second,
+		WriteTimeout: 2 * time.Second,
 	}
-	s.server = dnsServer
 	return s
 }
 
@@ -58,11 +56,11 @@ func (s *DnsServer) LocalAddress() string {
 }
 
 func (s *DnsServer) serveDNS(w dns.ResponseWriter, r *dns.Msg) {
-	reply, err := resolver.DefaultResolver.Query(r)
+	reply, err := DefaultResolver.Query(r)
 	if err != nil {
+		logger.Logger.ErrorBy(err)
 		dns.HandleFailed(w, r)
 	} else {
-		logger.Logger.ErrorBy(err)
 		w.WriteMsg(reply)
 	}
 }

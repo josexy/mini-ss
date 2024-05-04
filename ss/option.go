@@ -3,9 +3,9 @@ package ss
 import (
 	"time"
 
-	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/enhancer"
 	"github.com/josexy/mini-ss/proxy"
+	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/ssr"
 	"github.com/josexy/mini-ss/transport"
@@ -97,7 +97,7 @@ func WithDefaultDnsNameservers(ns []string) SSOption {
 		if len(ns) == 0 {
 			return
 		}
-		dns.DefaultDnsNameservers = ns
+		resolver.DefaultDnsNameservers = ns
 	})
 }
 

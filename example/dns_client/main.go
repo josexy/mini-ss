@@ -55,11 +55,7 @@ func httpMain() {
 		},
 	}
 
-	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return dialer.DialContext(ctx, network, addr)
-	}
-
-	http.DefaultTransport.(*http.Transport).DialContext = dialContext
+	http.DefaultTransport.(*http.Transport).DialContext = dialer.DialContext
 	httpClient := http.DefaultClient
 
 	resp, err := httpClient.Get(domain)

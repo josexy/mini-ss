@@ -63,6 +63,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfg.Server[0].Password, "password", "p", "", "the password for cipher method")
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "server or client configuration file")
 	rootCmd.PersistentFlags().StringVarP(&cfg.Server[0].Transport, "transport", "t", "default", "the transport type between ss-local and ss-server (default, kcp, quic, ws)")
+	rootCmd.PersistentFlags().BoolVar(&cfg.Server[0].Udp, "udp-relay", false, "enable udp relay")
 	// logger options
 	rootCmd.PersistentFlags().BoolVarP(&cfg.Log.Color, "color", "C", false, "enable output color mode")
 	rootCmd.PersistentFlags().StringVarP(&cfg.Log.LogLevel, "level", "L", "info", "log level (trace, debug, info, warn, error, fatal, panic)")

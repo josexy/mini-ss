@@ -41,7 +41,6 @@ func init() {
 	localCmd.Flags().StringVarP(&cfg.Local.MixedAddr, "mixed", "M", "", "mixed proxy for SOCKS and HTTP")
 	localCmd.Flags().StringSliceVar(&cfg.Local.TCPTunAddr, "tcp-tun", nil, "simple tcp tun listening address (format: \"local:port=remote:port\")")
 	localCmd.Flags().BoolVar(&cfg.Local.SystemProxy, "system-proxy", false, "enable system proxy settings")
-	localCmd.Flags().BoolVar(&cfg.Server[0].Udp, "udp-relay", false, "enable udp relay for client SOCKS proxy")
 
 	// ssr
 	localCmd.Flags().StringVarP(&cfg.Server[0].Type, "type", "T", "", "enable shadowsocksr")
@@ -52,7 +51,7 @@ func init() {
 
 	// tun mode
 	localCmd.Flags().BoolVar(&cfg.Local.Tun.Enable, "tun-enable", false, "enable the local tun device, administrator privileges are required")
-	localCmd.Flags().StringVar(&cfg.Local.Tun.Name, "tun-name", "utun3", "tun interface name")
+	localCmd.Flags().StringVar(&cfg.Local.Tun.Name, "tun-name", "utun9", "tun interface name")
 	localCmd.Flags().StringVar(&cfg.Local.Tun.Cidr, "tun-cidr", "198.18.0.1/16", "tun interface cidr")
 	localCmd.Flags().IntVar(&cfg.Local.Tun.Mtu, "tun-mtu", enhancer.DefaultMTU, "tun interface mtu")
 

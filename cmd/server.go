@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/ss"
 	"github.com/josexy/mini-ss/util/logger"
 	"github.com/spf13/cobra"
@@ -46,6 +47,7 @@ func StartServer() {
 }
 
 func startServer() {
+	logger.Logger.Info("build info", logx.String("version", Version), logx.String("git_commit", GitCommit))
 	opts := cfg.BuildServerOptions()
 
 	srv := ss.NewShadowsocksServer(opts...)

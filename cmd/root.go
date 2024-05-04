@@ -13,7 +13,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var Version = "unknown"
+var (
+	Version   = ""
+	GitCommit = ""
+)
 
 var rootCmd = &cobra.Command{
 	Use:     "mini-ss",

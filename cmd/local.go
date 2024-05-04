@@ -6,6 +6,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/dns"
 	"github.com/josexy/mini-ss/enhancer"
 	"github.com/josexy/mini-ss/geoip"
@@ -88,6 +89,7 @@ func StartLocal() {
 }
 
 func startLocal() {
+	logger.Logger.Info("build info", logx.String("version", Version), logx.String("git_commit", GitCommit))
 	if err := geoip.OpenDB("Country.mmdb"); err != nil {
 		logger.Logger.FatalBy(err)
 		return

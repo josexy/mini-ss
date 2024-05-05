@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/relay"
 	"github.com/josexy/mini-ss/server"
 	"github.com/josexy/mini-ss/transport"
@@ -17,7 +18,7 @@ import (
 type echoSrv struct{}
 
 // multiplexing quic dialer
-var dialer = transport.NewDialer(transport.Quic, transport.DefaultQuicOptions)
+var dialer = transport.NewDialer(transport.Quic, options.DefaultQuicOptions)
 
 func (echoSrv) ServeTCP(conn net.Conn) {
 	log.Println(conn.RemoteAddr().String())

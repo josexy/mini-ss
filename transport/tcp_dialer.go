@@ -3,51 +3,45 @@ package transport
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 
+	"github.com/josexy/mini-ss/options"
+	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/netstackgo/bind"
 )
 
 type tcpDialer struct{}
 
 func (d *tcpDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
-	if DefaultDialerOutboundOption.Interface == "" {
+	if options.DefaultOptions.OutboundInterface == "" {
 		dialer := &net.Dialer{Timeout: DefaultDialTimeout}
 		return dialer.DialContext(ctx, "tcp", addr)
 	}
 	network := "tcp"
 	switch network {
 	case "tcp4", "tcp6":
-		return dialSingle(ctx, network, addr)
+		return d.dialSingle(ctx, network, addr)
 	case "tcp":
-		return dualStackDialContext(ctx, network, addr)
+		return d.dualStackDialContext(ctx, network, addr)
 	default:
 		return nil, errors.New("network invalid")
 	}
 }
 
-func dialSingle(ctx context.Context, network string, addr string) (net.Conn, error) {
+func (d *tcpDialer) dialSingle(ctx context.Context, network string, addr string) (net.Conn, error) {
 	dialer := &net.Dialer{Timeout: DefaultDialTimeout}
 
-	host, port, err := net.SplitHostPort(addr)
+	tcpAddr, err := resolver.DefaultResolver.ResolveTCPAddr(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
-
-	ip := resolveIP(host)
-
-	if !ip.IsValid() {
-		return nil, fmt.Errorf("can not look up host: %s", addr)
-	}
-
-	if err := bind.BindToDeviceForTCP(DefaultDialerOutboundOption.Interface, dialer, network, ip); err != nil {
+	if err := bind.BindToDeviceForTCP(options.DefaultOptions.OutboundInterface, dialer, network, tcpAddr.AddrPort().Addr()); err != nil {
 		return nil, err
 	}
-	return dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+	return dialer.DialContext(ctx, network, tcpAddr.String())
 }
 
-func dualStackDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func (d *tcpDialer) dualStackDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
@@ -75,7 +69,7 @@ func dualStackDialContext(ctx context.Context, network, addr string) (net.Conn, 
 				}
 			}
 		}()
-		result.Conn, result.error = dialSingle(ctx, network, addr)
+		result.Conn, result.error = d.dialSingle(ctx, network, addr)
 	}
 
 	go startRacer(ctx, network+"4", host, false)

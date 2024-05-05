@@ -2,13 +2,10 @@ package transport
 
 import (
 	"context"
-	"fmt"
 	"net"
-	"net/netip"
-	"strconv"
 	"time"
 
-	"github.com/josexy/mini-ss/resolver"
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/netstackgo/bind"
 )
 
@@ -48,51 +45,25 @@ type Dialer interface {
 	Dial(context.Context, string) (net.Conn, error)
 }
 
-func NewDialer(tr Type, opt Options) Dialer {
+func NewDialer(tr Type, opt options.Options) Dialer {
 	var dialer Dialer
 	switch tr {
 	case Tcp:
 		dialer = &tcpDialer{}
 	case Kcp:
-		dialer = &kcpDialer{opts: opt.(*KcpOptions)}
+		dialer = &kcpDialer{opts: opt.(*options.KcpOptions)}
 	case Websocket:
-		dialer = &wsDialer{opts: opt.(*WsOptions)}
+		dialer = &wsDialer{opts: opt.(*options.WsOptions)}
 	case Quic:
-		dialer = &quicDialer{opts: opt.(*QuicOptions)}
+		dialer = &quicDialer{opts: opt.(*options.QuicOptions)}
 	case Obfs:
-		dialer = &obfsDialer{opts: opt.(*ObfsOptions)}
+		dialer = &obfsDialer{opts: opt.(*options.ObfsOptions)}
 	case Grpc:
-		dialer = &grpcDialer{opts: opt.(*GrpcOptions)}
+		dialer = &grpcDialer{opts: opt.(*options.GrpcOptions)}
 	default:
-		panic("not supported type")
+		panic("unsupported transport dialer type")
 	}
 	return dialer
-}
-
-func resolveIP(host string) netip.Addr {
-	var ip netip.Addr
-	var err error
-	// the host may be a ip address or domain name
-	if ip, err = netip.ParseAddr(host); err != nil {
-		ip = resolver.DefaultResolver.LookupHost(context.Background(), host)
-	}
-	return ip
-}
-
-func resolveUDPAddr(addr string) (*net.UDPAddr, error) {
-	host, p, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, err
-	}
-	ip := resolveIP(host)
-	if !ip.IsValid() {
-		return nil, fmt.Errorf("can not lookup host: %s", addr)
-	}
-	port, _ := strconv.ParseUint(p, 10, 16)
-	return &net.UDPAddr{
-		IP:   ip.AsSlice(),
-		Port: int(port),
-	}, nil
 }
 
 func DialTCP(ctx context.Context, addr string) (net.Conn, error) {
@@ -102,11 +73,11 @@ func DialTCP(ctx context.Context, addr string) (net.Conn, error) {
 
 // ListenUDP create an unconnected udp connection with the specified local addr
 func ListenUDP(ctx context.Context, addr string) (net.PacketConn, error) {
-	if DefaultDialerOutboundOption.Interface == "" {
+	if options.DefaultOptions.OutboundInterface == "" {
 		return (&net.ListenConfig{}).ListenPacket(ctx, "udp", addr)
 	}
 	var lc net.ListenConfig
-	addr, err := bind.BindToDeviceForUDP(DefaultDialerOutboundOption.Interface, &lc, "udp", addr)
+	addr, err := bind.BindToDeviceForUDP(options.DefaultOptions.OutboundInterface, &lc, "udp", addr)
 	if err != nil {
 		return nil, err
 	}

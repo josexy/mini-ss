@@ -1,8 +1,11 @@
 package enhancer
 
 import (
+	"net"
 	"net/netip"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/resolver"
@@ -41,6 +44,7 @@ func (eh *Enhancer) Start() (err error) {
 		return
 	}
 
+	eh.config.Tun.Name = calcTunName(eh.config.Tun.Name)
 	eh.config.Tun.Addr = resolver.DefaultResolver.GetAllocatedTunPrefix().String()
 	eh.nt = netstackgo.New(eh.config.Tun)
 	eh.nt.RegisterConnHandler(eh.handler)
@@ -74,4 +78,30 @@ func (eh *Enhancer) Start() (err error) {
 func (eh *Enhancer) Close() error {
 	eh.fakeDns.Close()
 	return eh.nt.Close()
+}
+
+func calcTunName(name string) string {
+	if name != "" {
+		return name
+	}
+	var tunName string
+	if runtime.GOOS == "darwin" {
+		tunName = "utun"
+	} else {
+		tunName = "tun"
+	}
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return tunName
+	}
+	var tunIndex int
+	for _, iface := range interfaces {
+		if strings.HasPrefix(iface.Name, tunName) {
+			index, err := strconv.ParseInt(iface.Name[len(tunName):], 10, 16)
+			if err == nil {
+				tunIndex = int(index) + 1
+			}
+		}
+	}
+	return tunName + strconv.FormatInt(int64(tunIndex), 10)
 }

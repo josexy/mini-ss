@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/ss"
-	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/logger"
 	"gopkg.in/yaml.v3"
 )
@@ -336,9 +336,9 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 			}
 			switch opt.Ws.TLS.Mode {
 			case "tls":
-				opts = append(opts, ss.WithWsTLS(transport.TLS))
+				opts = append(opts, ss.WithWsTLS(options.TLS))
 			case "mtls":
-				opts = append(opts, ss.WithWsTLS(transport.MTLS))
+				opts = append(opts, ss.WithWsTLS(options.MTLS))
 			}
 		case "obfs":
 			opts = append(opts, ss.WithObfsTransport())
@@ -352,9 +352,9 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 			opts = append(opts, ss.WithQuicHostname(opt.Quic.TLS.Hostname))
 			switch opt.Quic.TLS.Mode {
 			case "tls":
-				opts = append(opts, ss.WithQuicTLS(transport.TLS))
+				opts = append(opts, ss.WithQuicTLS(options.TLS))
 			case "mtls":
-				opts = append(opts, ss.WithQuicTLS(transport.MTLS))
+				opts = append(opts, ss.WithQuicTLS(options.MTLS))
 			}
 		case "grpc":
 			opts = append(opts, ss.WithGrpcTransport())
@@ -365,9 +365,9 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 			opts = append(opts, ss.WithGrpcHostname(opt.Grpc.TLS.Hostname))
 			switch opt.Grpc.TLS.Mode {
 			case "tls":
-				opts = append(opts, ss.WithGrpcTLS(transport.TLS))
+				opts = append(opts, ss.WithGrpcTLS(options.TLS))
 			case "mtls":
-				opts = append(opts, ss.WithGrpcTLS(transport.MTLS))
+				opts = append(opts, ss.WithGrpcTLS(options.MTLS))
 			}
 		case "default":
 			// whether to support ssr
@@ -444,12 +444,13 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 		opts = append(opts, ss.WithTunName(cfg.Local.Tun.Name))
 		opts = append(opts, ss.WithTunCIDR(cfg.Local.Tun.Cidr))
 		opts = append(opts, ss.WithTunMTU(uint32(cfg.Local.Tun.Mtu)))
-
-		// fake dns server
-		opts = append(opts, ss.WithFakeDnsServer(cfg.Local.FakeDNS.Listen))
-		opts = append(opts, ss.WithDefaultDnsNameservers(cfg.Local.FakeDNS.Nameservers))
-		opts = append(opts, ss.WithFakeDnsDisableRewrite(cfg.Local.FakeDNS.DisableRewrite))
 	}
+	if cfg.Local.FakeDNS != nil {
+		opts = append(opts, ss.WithFakeDnsServer(cfg.Local.FakeDNS.Listen))
+		opts = append(opts, ss.WithFakeDnsDisableRewrite(cfg.Local.FakeDNS.DisableRewrite))
+		opts = append(opts, ss.WithDefaultDnsNameservers(cfg.Local.FakeDNS.Nameservers))
+	}
+
 	if cfg.Local.SystemProxy {
 		opts = append(opts, ss.WithSystemProxy())
 	}

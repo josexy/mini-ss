@@ -9,7 +9,7 @@ import (
 
 	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/mux"
-	"github.com/josexy/mini-ss/transport"
+	"github.com/josexy/mini-ss/options"
 	"github.com/xtaci/kcp-go"
 	"github.com/xtaci/smux"
 )
@@ -22,17 +22,17 @@ type KcpServer struct {
 	Handler    KcpHandler
 	smuxConfig *smux.Config
 	once       sync.Once
-	opts       *transport.KcpOptions
+	opts       *options.KcpOptions
 	running    atomic.Bool
 	err        chan error
 }
 
-func NewKcpServer(addr string, handler KcpHandler, opts transport.Options) *KcpServer {
+func NewKcpServer(addr string, handler KcpHandler, opts options.Options) *KcpServer {
 	return &KcpServer{
 		Addr:    addr,
 		Handler: handler,
 		err:     make(chan error, 1),
-		opts:    opts.((*transport.KcpOptions)),
+		opts:    opts.((*options.KcpOptions)),
 	}
 }
 

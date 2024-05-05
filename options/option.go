@@ -1,4 +1,4 @@
-package transport
+package options
 
 import (
 	"crypto/sha1"
@@ -50,20 +50,16 @@ func (o *TlsOptions) GetClientTlsConfig() (*tls.Config, error) {
 	return tlsConfig, err
 }
 
-type defaultDialerOutboundOption struct {
-	Interface           string
+type Options interface{ Update() }
+
+type defaultOptions struct {
+	OutboundInterface   string
 	AutoDetectInterface bool
 }
 
-var DefaultDialerOutboundOption = &defaultDialerOutboundOption{}
+func (defaultOptions) Update() {}
 
-type Options interface{ Update() }
-
-type defaultDialerOption struct{}
-
-func (defaultDialerOption) Update() {}
-
-var DefaultOptions = &defaultDialerOption{}
+var DefaultOptions = &defaultOptions{}
 
 var DefaultKcpOptions = &KcpOptions{
 	Crypt:       "none",

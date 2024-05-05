@@ -8,7 +8,7 @@ import (
 
 	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/connection/proto"
-	"github.com/josexy/mini-ss/transport"
+	"github.com/josexy/mini-ss/options"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -23,15 +23,15 @@ type GrpcServer struct {
 	server  *grpc.Server
 	Addr    string
 	Handler GrpcHandler
-	opts    *transport.GrpcOptions
+	opts    *options.GrpcOptions
 	running atomic.Bool
 }
 
-func NewGrpcServer(addr string, handler GrpcHandler, opts transport.Options) *GrpcServer {
+func NewGrpcServer(addr string, handler GrpcHandler, opts options.Options) *GrpcServer {
 	return &GrpcServer{
 		Addr:    addr,
 		Handler: handler,
-		opts:    opts.(*transport.GrpcOptions),
+		opts:    opts.(*options.GrpcOptions),
 	}
 }
 

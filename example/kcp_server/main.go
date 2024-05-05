@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/relay"
 	"github.com/josexy/mini-ss/server"
 	"github.com/josexy/mini-ss/transport"
@@ -28,7 +29,7 @@ func (customSrv) ServeKCP(conn net.Conn) {
 }
 
 func main() {
-	srv := server.NewKcpServer(":10001", &customSrv{}, transport.DefaultKcpOptions)
+	srv := server.NewKcpServer(":10001", &customSrv{}, options.DefaultKcpOptions)
 	go func() {
 		err := srv.Start(context.Background())
 		log.Println("close server with err:", err)

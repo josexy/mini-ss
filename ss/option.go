@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/josexy/mini-ss/enhancer"
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/proxy"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/rule"
@@ -18,7 +19,7 @@ type serverOptions struct {
 	password  string
 	transport transport.Type
 	udp       bool
-	opts      transport.Options
+	opts      options.Options
 	ssr       bool
 	ssrOpt    ssr.ShadowsocksROption
 }
@@ -87,7 +88,7 @@ func WithFakeDnsDisableRewrite(disable bool) SSOption {
 // WithOutboundInterface set the outgoing interface name
 func WithOutboundInterface(ifaceName string) SSOption {
 	return ssOptionFunc(func(*ssOptions) {
-		transport.DefaultDialerOutboundOption.Interface = ifaceName
+		options.DefaultOptions.OutboundInterface = ifaceName
 	})
 }
 
@@ -103,7 +104,7 @@ func WithDefaultDnsNameservers(ns []string) SSOption {
 
 func WithAutoDetectInterface(enable bool) SSOption {
 	return ssOptionFunc(func(*ssOptions) {
-		transport.DefaultDialerOutboundOption.AutoDetectInterface = enable
+		options.DefaultOptions.AutoDetectInterface = enable
 	})
 }
 
@@ -198,7 +199,7 @@ func WithPassword(password string) SSOption {
 func WithDefaultTransport() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.serverOpts[0].transport = transport.Tcp
-		clone := *transport.DefaultOptions
+		clone := *options.DefaultOptions
 		so.serverOpts[0].opts = &clone
 	})
 }
@@ -282,85 +283,85 @@ func WithMitmFakeCertPool(capacity, interval, expireSecond int) SSOption {
 func WithObfsTransport() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.serverOpts[0].transport = transport.Obfs
-		clone := *transport.DefaultObfsOptions
+		clone := *options.DefaultObfsOptions
 		so.serverOpts[0].opts = &clone
 	})
 }
 
 func WithObfsHost(host string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.ObfsOptions).Host = host
+		so.serverOpts[0].opts.(*options.ObfsOptions).Host = host
 	})
 }
 
 func WithKcpTransport() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.serverOpts[0].transport = transport.Kcp
-		clone := *transport.DefaultKcpOptions
+		clone := *options.DefaultKcpOptions
 		so.serverOpts[0].opts = &clone
 	})
 }
 
 func WithKcpKey(key string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).Key = key
+		so.serverOpts[0].opts.(*options.KcpOptions).Key = key
 	})
 }
 
 // WithKcpCrypt support: none, aes-128, aes-192, salsa20, blowfish, twofish, cast5, 3des, tea, xtea, xor, sm4
 func WithKcpCrypt(crypt string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).Crypt = crypt
+		so.serverOpts[0].opts.(*options.KcpOptions).Crypt = crypt
 	})
 }
 
 // WithKcpMode fast3, fast2, fast, normal, manual
 func WithKcpMode(mode string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).Mode = mode
+		so.serverOpts[0].opts.(*options.KcpOptions).Mode = mode
 	})
 }
 
 func WithKcpMTU(mtu int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).Mtu = mtu
+		so.serverOpts[0].opts.(*options.KcpOptions).Mtu = mtu
 	})
 }
 
 func WithKcpSndRevWnd(sndWnd, revWnd int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).SndWnd = sndWnd
-		so.serverOpts[0].opts.(*transport.KcpOptions).RevWnd = revWnd
+		so.serverOpts[0].opts.(*options.KcpOptions).SndWnd = sndWnd
+		so.serverOpts[0].opts.(*options.KcpOptions).RevWnd = revWnd
 	})
 }
 
 func WithKcpDataShard(dataShard int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).DataShard = dataShard
+		so.serverOpts[0].opts.(*options.KcpOptions).DataShard = dataShard
 	})
 }
 
 func WithKcpParityShard(parityShard int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).ParityShard = parityShard
+		so.serverOpts[0].opts.(*options.KcpOptions).ParityShard = parityShard
 	})
 }
 
 func WithKcpDscp(dscp int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).Dscp = dscp
+		so.serverOpts[0].opts.(*options.KcpOptions).Dscp = dscp
 	})
 }
 
 func WithKcpCompress() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).NoCompress = false
+		so.serverOpts[0].opts.(*options.KcpOptions).NoCompress = false
 	})
 }
 
 func WithKcpAckNoDelay() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).AckNoDelay = true
+		so.serverOpts[0].opts.(*options.KcpOptions).AckNoDelay = true
 	})
 }
 
@@ -373,55 +374,55 @@ func WithKcpAckNoDelay() SSOption {
 // nc: 0:normal congestion control(default), 1:disable congestion control
 func WithKcpNoDelay(noDelay int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).NoDelay = noDelay
+		so.serverOpts[0].opts.(*options.KcpOptions).NoDelay = noDelay
 	})
 }
 
 func WithKcpInterval(interval int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).Interval = interval
+		so.serverOpts[0].opts.(*options.KcpOptions).Interval = interval
 	})
 }
 
 func WithKcpResend(resend int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).Resend = resend
+		so.serverOpts[0].opts.(*options.KcpOptions).Resend = resend
 	})
 }
 
 func WithKcpNc(nc int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).Nc = nc
+		so.serverOpts[0].opts.(*options.KcpOptions).Nc = nc
 	})
 }
 
 func WithKcpSockBuf(sockBuf int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).SockBuf = sockBuf
+		so.serverOpts[0].opts.(*options.KcpOptions).SockBuf = sockBuf
 	})
 }
 
 func WithKcpSmuxVer(smuxVer int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).SmuxVer = smuxVer
+		so.serverOpts[0].opts.(*options.KcpOptions).SmuxVer = smuxVer
 	})
 }
 
 func WithKcpSmuxBuf(smuxBuf int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).SmuxBuf = smuxBuf
+		so.serverOpts[0].opts.(*options.KcpOptions).SmuxBuf = smuxBuf
 	})
 }
 
 func WithKcpStreamBuf(streamBuf int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).StreamBuf = streamBuf
+		so.serverOpts[0].opts.(*options.KcpOptions).StreamBuf = streamBuf
 	})
 }
 
 func WithKcpKeepAlive(second int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.KcpOptions).KeepAlive = second
+		so.serverOpts[0].opts.(*options.KcpOptions).KeepAlive = second
 	})
 }
 
@@ -430,33 +431,33 @@ func WithKcpConns(conns int) SSOption {
 		if conns <= 0 {
 			return
 		}
-		so.serverOpts[0].opts.(*transport.KcpOptions).Conns = conns
+		so.serverOpts[0].opts.(*options.KcpOptions).Conns = conns
 	})
 }
 
 func WithQuicTransport() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.serverOpts[0].transport = transport.Quic
-		clone := *transport.DefaultQuicOptions
+		clone := *options.DefaultQuicOptions
 		so.serverOpts[0].opts = &clone
 	})
 }
 
 func WithQuicHandshakeIdleTimeout(timeout time.Duration) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.QuicOptions).HandshakeIdleTimeout = timeout
+		so.serverOpts[0].opts.(*options.QuicOptions).HandshakeIdleTimeout = timeout
 	})
 }
 
 func WithQuicKeepAlivePeriod(timeout time.Duration) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.QuicOptions).KeepAlivePeriod = timeout
+		so.serverOpts[0].opts.(*options.QuicOptions).KeepAlivePeriod = timeout
 	})
 }
 
 func WithQuicMaxIdleTimeout(timeout time.Duration) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.QuicOptions).MaxIdleTimeout = timeout
+		so.serverOpts[0].opts.(*options.QuicOptions).MaxIdleTimeout = timeout
 	})
 }
 
@@ -465,150 +466,150 @@ func WithQuicConns(conns int) SSOption {
 		if conns <= 0 {
 			return
 		}
-		so.serverOpts[0].opts.(*transport.QuicOptions).Conns = conns
+		so.serverOpts[0].opts.(*options.QuicOptions).Conns = conns
 	})
 }
 
-func WithQuicTLS(mode transport.TlsMode) SSOption {
+func WithQuicTLS(mode options.TlsMode) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.QuicOptions).TlsOptions.Mode = mode
+		so.serverOpts[0].opts.(*options.QuicOptions).TlsOptions.Mode = mode
 	})
 }
 
 func WithQuicHostname(hostname string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.QuicOptions).TlsOptions.Hostname = hostname
+		so.serverOpts[0].opts.(*options.QuicOptions).TlsOptions.Hostname = hostname
 	})
 }
 
 func WithQuicCertPath(certFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.QuicOptions).TlsOptions.CertFile = certFile
+		so.serverOpts[0].opts.(*options.QuicOptions).TlsOptions.CertFile = certFile
 	})
 }
 
 func WithQuicKeyPath(keyFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.QuicOptions).TlsOptions.KeyFile = keyFile
+		so.serverOpts[0].opts.(*options.QuicOptions).TlsOptions.KeyFile = keyFile
 	})
 }
 
 func WithQuicCAPath(caFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.QuicOptions).TlsOptions.CAFile = caFile
+		so.serverOpts[0].opts.(*options.QuicOptions).TlsOptions.CAFile = caFile
 	})
 }
 
 func WithWsTransport() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.serverOpts[0].transport = transport.Websocket
-		clone := *transport.DefaultWsOptions
+		clone := *options.DefaultWsOptions
 		so.serverOpts[0].opts = &clone
 	})
 }
 
 func WithWsHost(host string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.WsOptions).Host = host
+		so.serverOpts[0].opts.(*options.WsOptions).Host = host
 	})
 }
 
 func WithWsPath(path string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.WsOptions).Path = path
+		so.serverOpts[0].opts.(*options.WsOptions).Path = path
 	})
 }
 
 func WithWsSndRevBuffer(sndBuffer, revBuffer int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.WsOptions).SndBuffer = sndBuffer
-		so.serverOpts[0].opts.(*transport.WsOptions).RevBuffer = revBuffer
+		so.serverOpts[0].opts.(*options.WsOptions).SndBuffer = sndBuffer
+		so.serverOpts[0].opts.(*options.WsOptions).RevBuffer = revBuffer
 	})
 }
 
 func WithWsCompress() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.WsOptions).Compress = true
+		so.serverOpts[0].opts.(*options.WsOptions).Compress = true
 	})
 }
 
 func WithWsUserAgent(userAgent string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.WsOptions).UserAgent = userAgent
+		so.serverOpts[0].opts.(*options.WsOptions).UserAgent = userAgent
 	})
 }
 
-func WithWsTLS(mode transport.TlsMode) SSOption {
+func WithWsTLS(mode options.TlsMode) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.WsOptions).TlsOptions.Mode = mode
+		so.serverOpts[0].opts.(*options.WsOptions).TlsOptions.Mode = mode
 	})
 }
 
 func WithWsHostname(hostname string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.WsOptions).TlsOptions.Hostname = hostname
+		so.serverOpts[0].opts.(*options.WsOptions).TlsOptions.Hostname = hostname
 	})
 }
 
 func WithWsCertPath(certFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.WsOptions).TlsOptions.CertFile = certFile
+		so.serverOpts[0].opts.(*options.WsOptions).TlsOptions.CertFile = certFile
 	})
 }
 
 func WithWsKeyPath(keyFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.WsOptions).TlsOptions.KeyFile = keyFile
+		so.serverOpts[0].opts.(*options.WsOptions).TlsOptions.KeyFile = keyFile
 	})
 }
 
 func WithWsCAPath(caFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.WsOptions).TlsOptions.CAFile = caFile
+		so.serverOpts[0].opts.(*options.WsOptions).TlsOptions.CAFile = caFile
 	})
 }
 
 func WithGrpcTransport() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.serverOpts[0].transport = transport.Grpc
-		clone := *transport.DefaultGrpcOptions
+		clone := *options.DefaultGrpcOptions
 		so.serverOpts[0].opts = &clone
 	})
 }
 
-func WithGrpcTLS(mode transport.TlsMode) SSOption {
+func WithGrpcTLS(mode options.TlsMode) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.GrpcOptions).TlsOptions.Mode = mode
+		so.serverOpts[0].opts.(*options.GrpcOptions).TlsOptions.Mode = mode
 	})
 }
 
 func WithGrpcHostname(hostname string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.GrpcOptions).Hostname = hostname
+		so.serverOpts[0].opts.(*options.GrpcOptions).Hostname = hostname
 	})
 }
 
 func WithGrpcCertPath(certFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.GrpcOptions).TlsOptions.CertFile = certFile
+		so.serverOpts[0].opts.(*options.GrpcOptions).TlsOptions.CertFile = certFile
 	})
 }
 
 func WithGrpcKeyPath(keyFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.GrpcOptions).TlsOptions.KeyFile = keyFile
+		so.serverOpts[0].opts.(*options.GrpcOptions).TlsOptions.KeyFile = keyFile
 	})
 }
 
 func WithGrpcCAPath(caFile string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.GrpcOptions).TlsOptions.CAFile = caFile
+		so.serverOpts[0].opts.(*options.GrpcOptions).TlsOptions.CAFile = caFile
 	})
 }
 
 func WithGrpcSndRevBuffer(sndBuffer, revBuffer int) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.serverOpts[0].opts.(*transport.GrpcOptions).SndBuffer = sndBuffer
-		so.serverOpts[0].opts.(*transport.GrpcOptions).RevBuffer = revBuffer
+		so.serverOpts[0].opts.(*options.GrpcOptions).SndBuffer = sndBuffer
+		so.serverOpts[0].opts.(*options.GrpcOptions).RevBuffer = revBuffer
 	})
 }

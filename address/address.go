@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	errAddrTypeNotSupported = errors.New("address type not supported")
+	errAddrTypeNotSupported = errors.New("unsupported address type")
 	errDomainLengthToLong   = errors.New("domain length to long")
 	errInvalidHostOrPort    = errors.New("invalid host or port")
 )

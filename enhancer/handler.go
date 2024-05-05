@@ -17,15 +17,21 @@ import (
 
 const DefaultMTU = 1350
 
-var pool = bufferpool.NewBufferPool(bufferpool.MaxUdpBufferSize)
+type enhancerHandler struct {
+	owner *Enhancer
+	pool  *bufferpool.BufferPool
+}
 
-type enhancerHandler struct{ owner *Enhancer }
-
-func newEnhancerHandler(eh *Enhancer) *enhancerHandler { return &enhancerHandler{owner: eh} }
+func newEnhancerHandler(eh *Enhancer) *enhancerHandler {
+	return &enhancerHandler{
+		owner: eh,
+		pool:  bufferpool.NewBufferPool(4096 * 2),
+	}
+}
 
 func (handler *enhancerHandler) relayFakeDnsRequest(conn net.PacketConn) error {
-	b := pool.Get()
-	defer pool.Put(b)
+	b := handler.pool.Get()
+	defer handler.pool.Put(b)
 
 	n, srcAddr, err := conn.ReadFrom(*b)
 	if err != nil {
@@ -46,6 +52,7 @@ func (handler *enhancerHandler) relayFakeDnsRequest(conn net.PacketConn) error {
 	return nil
 }
 
+// TODO: Support hijack dns msg for dns over TCP/TLS/HTTPS via ip and domain
 func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn net.Conn) {
 	// the target address(info.DstAddr.Addr()) may be a fake ip address or real ip address
 	// for example `curl www.google.com` or `curl 74.125.24.103:80`
@@ -62,6 +69,8 @@ func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn ne
 	if resolver.DefaultResolver.IsFakeIP(dstIp) {
 		if fakeDnsRecord, err := resolver.DefaultResolver.FindByIP(dstIp); err == nil {
 			remote = fakeDnsRecord.Domain
+			logger.Logger.Trace("find the domain from fake ip",
+				logx.String("fakeip", dstIp.String()), logx.String("domain", fakeDnsRecord.Domain))
 		} else {
 			// fake ip/record not found or expired
 			logger.Logger.ErrorBy(err)

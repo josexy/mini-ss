@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/josexy/mini-ss/connection"
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/cert"
 	"github.com/josexy/mini-ss/util/logger"
@@ -21,14 +22,14 @@ type QuicServer struct {
 	Handler QuicHandler
 	running atomic.Bool
 	conns   []quic.EarlyConnection
-	opts    *transport.QuicOptions
+	opts    *options.QuicOptions
 }
 
-func NewQuicServer(addr string, handler QuicHandler, opts transport.Options) *QuicServer {
+func NewQuicServer(addr string, handler QuicHandler, opts options.Options) *QuicServer {
 	return &QuicServer{
 		Addr:    addr,
 		Handler: handler,
-		opts:    opts.(*transport.QuicOptions),
+		opts:    opts.(*options.QuicOptions),
 		conns:   make([]quic.EarlyConnection, 0, 32),
 	}
 }

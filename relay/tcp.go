@@ -8,6 +8,7 @@ import (
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/address"
 	"github.com/josexy/mini-ss/bufferpool"
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/logger"
 )
@@ -74,7 +75,7 @@ type ProxyTCPRelayer struct {
 	proxyServerAddr string
 }
 
-func NewProxyTCPRelayer(proxyServerAddr string, typ transport.Type, opts transport.Options,
+func NewProxyTCPRelayer(proxyServerAddr string, typ transport.Type, opts options.Options,
 	inbound, outbound transport.TcpConnBound) *ProxyTCPRelayer {
 	return &ProxyTCPRelayer{
 		typ:             typ,

@@ -73,7 +73,7 @@ func StartLocal() {
 				logger.Logger.FatalBy(e)
 			}
 		}
-		if cfg.Local.Tun != nil && cfg.Local.Tun.Enable {
+		if cfg.Local.Tun != nil && cfg.Local.Tun.Enable && cfg.Local.FakeDNS != nil && !cfg.Local.FakeDNS.DisableRewrite {
 			dnsutil.UnsetLocalDnsServer()
 		}
 		if cfg.Local.SystemProxy {

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/relay"
 	"github.com/josexy/mini-ss/server"
 	"github.com/josexy/mini-ss/transport"
@@ -28,7 +29,7 @@ func (customSrv) ServeQUIC(conn net.Conn) {
 }
 
 func main() {
-	srv := server.NewQuicServer(":10001", &customSrv{}, transport.DefaultQuicOptions)
+	srv := server.NewQuicServer(":10001", &customSrv{}, options.DefaultQuicOptions)
 
 	go func() {
 		err := srv.Start(context.Background())

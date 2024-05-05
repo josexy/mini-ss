@@ -11,6 +11,7 @@ import (
 
 	"github.com/josexy/mini-ss/address"
 	"github.com/josexy/mini-ss/bufferpool"
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/transport"
 )
 
@@ -36,7 +37,7 @@ func NewSocks5Client(addr string) *Socks5Client {
 		timeout:    10 * time.Second,
 		authMethod: 0x00,
 		buf:        make([]byte, bufferpool.MaxSocksBufferSize),
-		dialer:     transport.NewDialer(transport.Tcp, transport.DefaultOptions),
+		dialer:     transport.NewDialer(transport.Tcp, options.DefaultOptions),
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/transport"
 )
 
@@ -17,7 +18,7 @@ func main() {
 		// return url.Parse("socks5://127.0.0.1:10086")
 		return url.Parse("http://127.0.0.1:10087")
 	}
-	options := &transport.WsOptions{
+	options := &options.WsOptions{
 		Host:      "www.baidu.com",
 		Path:      "/ws",
 		SndBuffer: 4096,

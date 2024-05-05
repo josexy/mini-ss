@@ -3,9 +3,13 @@ package resolver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
 	"net/netip"
+	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,40 +27,103 @@ var (
 
 var DefaultResolver *Resolver
 
+type nameserverExt struct {
+	addr   string
+	dnsNet string
+}
+
 type Resolver struct {
 	*fakeIPResolver
-	client      *dns.Client
-	nameservers []string
+	// UDP/TCP/DoT/DoH
+	clients     map[string]*DnsClient
+	nameservers []nameserverExt
+}
+
+func parseNameserver(nameservers []string) []nameserverExt {
+	addPrefix := func(nameserver string) string {
+		if strings.Contains(nameserver, "://") {
+			return nameserver
+		}
+		if ip, err := netip.ParseAddr(nameserver); err != nil {
+			return "udp://" + nameserver
+		} else {
+			if ip.Is4() {
+				return "udp://" + nameserver
+			} else {
+				return "udp://[" + nameserver + "]"
+			}
+		}
+	}
+	formatNameserver := func(hostport, defaultPort string) (string, error) {
+		host, port, err := net.SplitHostPort(hostport)
+		if err != nil {
+			if !strings.Contains(err.Error(), "missing port in address") {
+				return "", err
+			}
+			hostport = hostport + ":" + defaultPort
+			if host, port, err = net.SplitHostPort(hostport); err != nil {
+				return "", err
+			}
+		}
+		return net.JoinHostPort(host, port), nil
+	}
+	var list []nameserverExt
+	for _, ns := range nameservers {
+		ns = addPrefix(ns)
+		urlres, err := url.Parse(ns)
+		if err != nil {
+			logger.Logger.ErrorBy(err)
+			continue
+		}
+		var addr, dnsNet string
+		switch urlres.Scheme {
+		case "udp":
+			dnsNet = "udp"
+			addr, err = formatNameserver(urlres.Host, "53") // DNS over UDP
+		case "tcp":
+			dnsNet = "tcp"
+			addr, err = formatNameserver(urlres.Host, "53") // DNS over TCP
+		case "tls":
+			dnsNet = "tcp-tls"
+			addr, err = formatNameserver(urlres.Host, "853") // DNS over TLS
+		case "https":
+			dnsNet = "https"
+			addr, err = formatNameserver(urlres.Host, "443") // DNS over HTTPS
+			if err == nil {
+				urlInfo := url.URL{Scheme: "https", Host: addr, Path: urlres.Path, User: urlres.User}
+				addr = urlInfo.String()
+			}
+		default:
+			logger.Logger.Errorf("unsupported dns scheme: %s", urlres.Scheme)
+			continue
+		}
+		if err != nil {
+			logger.Logger.ErrorBy(err)
+			continue
+		}
+		list = append(list, nameserverExt{
+			addr:   addr,
+			dnsNet: dnsNet,
+		})
+	}
+	return list
 }
 
 func NewDnsResolver(nameservers []string) *Resolver {
 	// read local dns configuration
 	localDnsList := dnsutil.GetLocalDnsList()
 	nameservers = append(nameservers, localDnsList...)
-	var nss []string
-	for i := 0; i < len(nameservers); i++ {
-		host, port, _ := net.SplitHostPort(nameservers[i])
-		if host == "" || port == "" {
-			host = nameservers[i]
-			port = "53"
-		}
-		if ip, err := netip.ParseAddr(host); err == nil && (ip.Is4() || ip.Is6() || ip.Is4In6()) {
-			addr := net.JoinHostPort(host, port)
-			nss = append(nss, addr)
-			logger.Logger.Infof("dns nameserver: %s", addr)
-		}
-	}
+	nsRes := parseNameserver(nameservers)
 
-	return &Resolver{
-		nameservers: nss,
-		client: &dns.Client{
-			Net:          "", // UDP
-			UDPSize:      4096,
-			Timeout:      2 * time.Second,
-			ReadTimeout:  2 * time.Second,
-			WriteTimeout: 2 * time.Second,
-		},
+	resolver := &Resolver{
+		clients:     make(map[string]*DnsClient),
+		nameservers: nsRes,
 	}
+	for _, ns := range nsRes {
+		logger.Logger.Infof("dns nameserver: type: %s, addr: %s", ns.dnsNet, ns.addr)
+		resolver.clients[ns.dnsNet+ns.addr] = NewDnsClient(ns.dnsNet, ns.addr, time.Second*2)
+	}
+	return resolver
 }
 
 func (r *Resolver) IsEnhancerMode() bool {
@@ -106,6 +173,38 @@ func (r *Resolver) LookupIP(ctx context.Context, host string) ([]netip.Addr, err
 	return ips, nil
 }
 
+func (r *Resolver) ResolveTCPAddr(ctx context.Context, addr string) (*net.TCPAddr, error) {
+	host, p, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	ip := r.LookupHost(ctx, host)
+	if !ip.IsValid() {
+		return nil, fmt.Errorf("can not lookup address: %s", addr)
+	}
+	port, _ := strconv.ParseUint(p, 10, 16)
+	return &net.TCPAddr{
+		IP:   ip.AsSlice(),
+		Port: int(port),
+	}, nil
+}
+
+func (r *Resolver) ResolveUDPAddr(ctx context.Context, addr string) (*net.UDPAddr, error) {
+	host, p, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	ip := r.LookupHost(ctx, host)
+	if !ip.IsValid() {
+		return nil, fmt.Errorf("can not lookup address: %s", addr)
+	}
+	port, _ := strconv.ParseUint(p, 10, 16)
+	return &net.UDPAddr{
+		IP:   ip.AsSlice(),
+		Port: int(port),
+	}, nil
+}
+
 func (r *Resolver) lookupIP(ctx context.Context, host string, dnsType uint16) ([]netip.Addr, error) {
 	req := &dns.Msg{}
 	req.SetQuestion(dns.Fqdn(host), dnsType)
@@ -130,11 +229,11 @@ func (r *Resolver) exchangeContextWithoutCache(ctx context.Context, req *dns.Msg
 	defer ticker.Stop()
 	wg := sync.WaitGroup{}
 
-	getReplyDnsMsg := func(ctx context.Context, nameserver string) {
+	getReplyDnsMsg := func(ctx context.Context, key string) {
 		defer wg.Done()
-		logger.Logger.Tracef("dns query via %s", nameserver)
-		reply, _, err := r.client.ExchangeContext(ctx, req, nameserver)
+		reply, err := r.clients[key].ExchangeContext(ctx, req)
 		if err != nil {
+			logger.Logger.ErrorBy(err)
 			return
 		}
 		if reply.Rcode != dns.RcodeSuccess {
@@ -142,14 +241,15 @@ func (r *Resolver) exchangeContextWithoutCache(ctx context.Context, req *dns.Msg
 		}
 		select {
 		case replyCh <- reply:
-			logger.Logger.Tracef("dns query via %s succeed", nameserver)
+			logger.Logger.Tracef("dns query via %s succeed", key)
 		default:
 		}
 	}
 
 	for _, nameserver := range r.nameservers {
 		wg.Add(1)
-		go getReplyDnsMsg(ctx, nameserver)
+		go getReplyDnsMsg(ctx, nameserver.dnsNet+nameserver.addr)
+		logger.Logger.Tracef("dns query via %s", nameserver.dnsNet+nameserver.addr)
 		select {
 		case reply := <-replyCh:
 			return reply, nil

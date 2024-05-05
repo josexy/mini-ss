@@ -6,8 +6,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/ss"
-	"github.com/josexy/mini-ss/transport"
 )
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 			ss.WithPassword("12345"),
 			ss.WithWsTransport(),
 			ss.WithWsHost("www.baidu.com"),
-			ss.WithWsTLS(transport.TLS),
+			ss.WithWsTLS(options.TLS),
 			ss.WithWsPath("/ws"),
 			ss.WithWsKeyPath("certs/server.key"),
 			ss.WithWsCertPath("certs/server.crt"),
@@ -39,7 +39,7 @@ func main() {
 			ss.WithMethod("none"),
 			ss.WithPassword("12345"),
 			ss.WithGrpcTransport(),
-			ss.WithGrpcTLS(transport.TLS),
+			ss.WithGrpcTLS(options.TLS),
 			ss.WithGrpcKeyPath("certs/server.key"),
 			ss.WithGrpcCertPath("certs/server.crt"),
 			ss.WithUDPRelay(true),

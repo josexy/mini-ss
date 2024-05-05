@@ -50,7 +50,7 @@ func httpMain() {
 				d := net.Dialer{
 					Timeout: time.Duration(dnsResolverTimeoutMs) * time.Millisecond,
 				}
-				return d.DialContext(ctx, dnsResolverProto, dnsResolverIP)
+				return d.DialContext(ctx, dnsResolverProto, address)
 			},
 		},
 	}

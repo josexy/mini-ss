@@ -17,11 +17,12 @@ import (
 	"github.com/josexy/mini-ss/util/hostsutil"
 	"github.com/josexy/mini-ss/util/logger"
 	"github.com/miekg/dns"
+	"golang.org/x/sync/singleflight"
 )
 
 var (
 	errCannotLookupIPFromHostsFile = errors.New("cannot lookup ip from local hosts file")
-	errCannotLookupIPv4v6          = errors.New("cannot lookup ipv4 and ipv6")
+	errCannotLookupIPv4v6          = errors.New("cannot lookup ipv4 and ipv6 from host")
 	errDnsExchangedFailed          = errors.New("dns exchanged failed")
 )
 
@@ -35,8 +36,9 @@ type nameserverExt struct {
 type Resolver struct {
 	*fakeIPResolver
 	// UDP/TCP/DoT/DoH
-	clients     map[string]*DnsClient
 	nameservers []nameserverExt
+	clients     map[string]*DnsClient
+	lookupGroup singleflight.Group
 }
 
 func parseNameserver(nameservers []string) []nameserverExt {
@@ -110,18 +112,29 @@ func parseNameserver(nameservers []string) []nameserverExt {
 }
 
 func NewDnsResolver(nameservers []string) *Resolver {
-	// read local dns configuration
-	localDnsList := dnsutil.GetLocalDnsList()
-	nameservers = append(nameservers, localDnsList...)
-	nsRes := parseNameserver(nameservers)
+	nameserver := parseNameserver(nameservers)
+	// default system config dns
+	fallback := parseNameserver(dnsutil.GetLocalDnsList())
+	if len(fallback) == 0 {
+		logger.Logger.Warn("read system dns config empty")
+	}
 
 	resolver := &Resolver{
 		clients:     make(map[string]*DnsClient),
-		nameservers: nsRes,
+		nameservers: append(nameserver, fallback...),
 	}
-	for _, ns := range nsRes {
+
+	fallbackDnsClient := make([]*DnsClient, 0, len(fallback))
+	for _, ns := range fallback {
 		logger.Logger.Infof("dns nameserver: type: %s, addr: %s", ns.dnsNet, ns.addr)
-		resolver.clients[ns.dnsNet+ns.addr] = NewDnsClient(ns.dnsNet, ns.addr, time.Second*2)
+		client := NewDnsClient(ns.dnsNet, ns.addr, time.Second*2, nil, resolver)
+		resolver.clients[ns.dnsNet+":"+ns.addr] = client
+		fallbackDnsClient = append(fallbackDnsClient, client)
+	}
+
+	for _, ns := range nameserver {
+		logger.Logger.Infof("dns nameserver: type: %s, addr: %s", ns.dnsNet, ns.addr)
+		resolver.clients[ns.dnsNet+":"+ns.addr] = NewDnsClient(ns.dnsNet, ns.addr, time.Second*2, fallbackDnsClient, resolver)
 	}
 	return resolver
 }
@@ -209,11 +222,34 @@ func (r *Resolver) lookupIP(ctx context.Context, host string, dnsType uint16) ([
 	req := &dns.Msg{}
 	req.SetQuestion(dns.Fqdn(host), dnsType)
 	req.RecursionDesired = true
-	reply, err := r.exchangeContext(ctx, req)
-	if err != nil {
-		return nil, err
+
+	lookupCtx, lookupCancel := context.WithCancel(ctx)
+
+	ch := r.lookupGroup.DoChan(host, func() (interface{}, error) {
+		return r.exchangeContext(lookupCtx, req)
+	})
+
+	select {
+	case <-ctx.Done():
+		lookupCancel()
+		return nil, ctx.Err()
+	case r := <-ch:
+		lookupCancel()
+		if r.Err != nil {
+			return nil, r.Err
+		}
+		if reply, ok := r.Val.(*dns.Msg); ok {
+			addrs := dnsutil.MsgToAddrs(reply)
+			if r.Shared {
+				clone := make([]netip.Addr, len(addrs))
+				copy(clone, addrs)
+				addrs = clone
+			}
+			return addrs, nil
+		} else {
+			return nil, errors.New("invalid dns lookup msg")
+		}
 	}
-	return dnsutil.MsgToAddrs(reply), nil
 }
 
 func (r *Resolver) exchangeContext(ctx context.Context, req *dns.Msg) (msg *dns.Msg, err error) {
@@ -233,7 +269,6 @@ func (r *Resolver) exchangeContextWithoutCache(ctx context.Context, req *dns.Msg
 		defer wg.Done()
 		reply, err := r.clients[key].ExchangeContext(ctx, req)
 		if err != nil {
-			logger.Logger.ErrorBy(err)
 			return
 		}
 		if reply.Rcode != dns.RcodeSuccess {
@@ -241,15 +276,14 @@ func (r *Resolver) exchangeContextWithoutCache(ctx context.Context, req *dns.Msg
 		}
 		select {
 		case replyCh <- reply:
-			logger.Logger.Tracef("dns query via %s succeed", key)
 		default:
 		}
 	}
 
 	for _, nameserver := range r.nameservers {
 		wg.Add(1)
-		go getReplyDnsMsg(ctx, nameserver.dnsNet+nameserver.addr)
-		logger.Logger.Tracef("dns query via %s", nameserver.dnsNet+nameserver.addr)
+		key := nameserver.dnsNet + ":" + nameserver.addr
+		go getReplyDnsMsg(ctx, key)
 		select {
 		case reply := <-replyCh:
 			return reply, nil

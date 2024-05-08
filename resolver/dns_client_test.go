@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/josexy/mini-ss/util/dnsutil"
 	"github.com/miekg/dns"
-	"github.com/stretchr/testify/assert"
+	"golang.org/x/sync/singleflight"
 )
 
 func TestDnsClient_ExchangeContext(t *testing.T) {
@@ -26,15 +27,39 @@ func TestDnsClient_ExchangeContext(t *testing.T) {
 		{"https://dns.alidns.com/dns-query", "https"},
 	}
 
+	group := singleflight.Group{}
 	for _, nameserver := range nameservers {
-		client := NewDnsClient(nameserver.dnsNet, nameserver.addr, 5*time.Second)
-		req := new(dns.Msg)
-		req.SetQuestion(dns.Fqdn("www.example.com"), dns.TypeA)
-		req.RecursionDesired = true
-		reply, err := client.ExchangeContext(context.Background(), req)
-		assert.Nil(t, err)
-		if reply != nil {
-			t.Log(nameserver.dnsNet, nameserver.addr, reply.Answer)
+		client := NewDnsClient(nameserver.dnsNet, nameserver.addr, 5*time.Second, nil, nil)
+		for i := 0; i < 5; i++ {
+			go func() {
+				timeout := time.Millisecond * time.Duration(i*50)
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
+				defer cancel()
+				lookupCtx, lookupCancel := context.WithCancel(ctx)
+				key := nameserver.dnsNet + nameserver.addr
+				resCh := group.DoChan(key, func() (interface{}, error) {
+					req := new(dns.Msg)
+					req.SetQuestion(dns.Fqdn("www.example.com"), dns.TypeA)
+					req.RecursionDesired = true
+					reply, err := client.ExchangeContext(lookupCtx, req)
+					return reply, err
+				})
+				select {
+				case <-ctx.Done():
+					t.Log(timeout, nameserver.dnsNet, nameserver.addr, ctx.Err())
+					lookupCancel()
+					return
+				case res := <-resCh:
+					dnsMsg, ok := res.Val.(*dns.Msg)
+					if ok && dnsMsg != nil {
+						t.Log(timeout, nameserver.dnsNet, nameserver.addr, dnsutil.MsgToAddrs(dnsMsg), res.Err, res.Shared)
+					} else {
+						t.Log(timeout, nameserver.dnsNet, nameserver.addr, res.Err, res.Shared)
+					}
+					lookupCancel()
+				}
+			}()
 		}
 	}
+	time.Sleep(time.Second * 3)
 }

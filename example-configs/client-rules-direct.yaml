@@ -27,15 +27,15 @@ local:
       - www.example.com
       - www.google.com
     nameservers:
-      # - 114.114.114.114
-      # - 223.5.5.5
-      # - 8.8.8.8
-      # - 2001:4860:4860::8888
+      - 114.114.114.114
+      - 223.5.5.5
+      - 8.8.8.8
+      - 2001:4860:4860::8888
       - tls://dns.alidns.com
-      # - https://dns.alidns.com/dns-query
+      - https://dns.alidns.com/dns-query
 log:
   color: true
-  log_level: trace
+  log_level: trace 
   verbose_level: 2
 iface: en5
 auto_detect_iface: true

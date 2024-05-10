@@ -12,6 +12,7 @@ import (
 
 type tcpDialer struct{}
 
+// FIXME: need dual stack dial?
 func (d *tcpDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
 	if options.DefaultOptions.OutboundInterface == "" {
 		dialer := &net.Dialer{Timeout: DefaultDialTimeout}

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/util/dnsutil"
 	"github.com/josexy/mini-ss/util/hostsutil"
 	"github.com/josexy/mini-ss/util/logger"
@@ -176,7 +177,7 @@ func (r *Resolver) LookupIP(ctx context.Context, host string) ([]netip.Addr, err
 	}()
 	// lookup ipv4 address
 	ips, err := r.lookupIP(ctx, host, dns.TypeA)
-	if err == nil {
+	if err == nil && len(ips) > 0 {
 		return ips, nil
 	}
 	ips, ok := <-ipsCh
@@ -225,7 +226,7 @@ func (r *Resolver) lookupIP(ctx context.Context, host string, dnsType uint16) ([
 
 	lookupCtx, lookupCancel := context.WithCancel(ctx)
 
-	ch := r.lookupGroup.DoChan(host, func() (interface{}, error) {
+	ch := r.lookupGroup.DoChan(dns.TypeToString[dnsType]+":"+host, func() (interface{}, error) {
 		return r.exchangeContext(lookupCtx, req)
 	})
 
@@ -240,7 +241,14 @@ func (r *Resolver) lookupIP(ctx context.Context, host string, dnsType uint16) ([
 		}
 		if reply, ok := r.Val.(*dns.Msg); ok {
 			addrs := dnsutil.MsgToAddrs(reply)
-			if r.Shared {
+			logger.Logger.Trace("lookupIP succeed",
+				logx.String("query", host),
+				logx.String("type", dns.TypeToString[dnsType]),
+				logx.String("rcode", dns.RcodeToString[reply.Rcode]),
+				logx.Slice3("ips", addrs),
+				logx.Bool("shared", r.Shared),
+			)
+			if len(addrs) > 0 && r.Shared {
 				clone := make([]netip.Addr, len(addrs))
 				copy(clone, addrs)
 				addrs = clone

@@ -65,20 +65,30 @@ local:
     - ':10002=www.google.com:80'
   system_proxy: false
   tun:
-    enable: false
-    name: utun9
+    enable: true
+    name: ""
     cidr: 198.18.0.1/16
-    mtu: 1350
-  fake_dns:
+    mtu: 9000
+    dns_hijack:
+      - 8.8.8.8:53 
+      - any:53
+  dns:
     listen: ':53'
+    # disable_rewrite: true
+    domain_filter:
+      - www.example.com
     nameservers:
-      - 114.114.114.114
       - 8.8.8.8
+      - 223.5.5.5
+      - 114.114.114.114
+      - 2400:3200:baba::1 
+      - tls://dns.alidns.com
+      - https://dns.alidns.com/dns-query
 log:
   color: true
   log_level: trace
   verbose_level: 2
-iface: en5
+# iface: en5
 auto_detect_iface: true
 rules:
   mode: match

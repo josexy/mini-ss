@@ -54,11 +54,13 @@ func init() {
 	localCmd.Flags().StringVar(&cfg.Local.Tun.Name, "tun-name", "utun9", "tun interface name")
 	localCmd.Flags().StringVar(&cfg.Local.Tun.Cidr, "tun-cidr", "198.18.0.1/16", "tun interface cidr")
 	localCmd.Flags().IntVar(&cfg.Local.Tun.Mtu, "tun-mtu", enhancer.DefaultMTU, "tun interface mtu")
+	localCmd.Flags().StringSliceVar(&cfg.Local.Tun.DnsHijack, "tun-dns-hijack", nil, "tun dns hijack")
 
 	// fake dns mode
-	localCmd.Flags().StringVar(&cfg.Local.FakeDNS.Listen, "fake-dns-listen", ":53", "fake-dns listening address")
-	localCmd.Flags().StringSliceVar(&cfg.Local.FakeDNS.Nameservers, "fake-dns-nameservers", resolver.DefaultDnsNameservers, "fake-dns nameservers")
-	localCmd.Flags().BoolVar(&cfg.Local.FakeDNS.DisableRewrite, "fake-dns-disable-rewrite", false, "fake-dns disable to rewrite dns to system config file")
+	localCmd.Flags().StringVar(&cfg.Local.DNS.Listen, "fake-dns-listen", ":53", "fake-dns listening address")
+	localCmd.Flags().StringSliceVar(&cfg.Local.DNS.Nameservers, "fake-dns-nameservers", resolver.DefaultDnsNameservers, "fake-dns nameservers")
+	localCmd.Flags().StringSliceVar(&cfg.Local.DNS.DomainFilter, "fake-dns-domain-filter", nil, "fake-dns domain filter")
+	localCmd.Flags().BoolVar(&cfg.Local.DNS.DisableRewrite, "fake-dns-disable-rewrite", false, "fake-dns disable to rewrite dns to system config file")
 
 	// mitm mode
 	localCmd.Flags().BoolVar(&cfg.Local.Mitm.Enable, "mitm-mode", false, "enable mitm mode")
@@ -73,7 +75,7 @@ func StartLocal() {
 				logger.Logger.FatalBy(e)
 			}
 		}
-		if cfg.Local.Tun != nil && cfg.Local.Tun.Enable && cfg.Local.FakeDNS != nil && !cfg.Local.FakeDNS.DisableRewrite {
+		if cfg.Local.Tun != nil && cfg.Local.Tun.Enable && cfg.Local.DNS != nil && !cfg.Local.DNS.DisableRewrite {
 			dnsutil.UnsetLocalDnsServer()
 		}
 		if cfg.Local.SystemProxy {

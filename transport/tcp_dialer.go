@@ -15,8 +15,12 @@ type tcpDialer struct{}
 // FIXME: need dual stack dial?
 func (d *tcpDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
 	if options.DefaultOptions.OutboundInterface == "" {
+		tcpAddr, err := resolver.DefaultResolver.ResolveTCPAddr(ctx, addr)
+		if err != nil {
+			return nil, err
+		}
 		dialer := &net.Dialer{Timeout: DefaultDialTimeout}
-		return dialer.DialContext(ctx, "tcp", addr)
+		return dialer.DialContext(ctx, "tcp", tcpAddr.String())
 	}
 	network := "tcp"
 	switch network {

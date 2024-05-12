@@ -12,11 +12,8 @@ import (
 	"github.com/miekg/dns"
 )
 
-var domain string
-var dnsResolverIP string
-
-// go run main.go query 192.168.1.1:53 www.google.com A
-// go run main.go http 192.168.1.1:53 http://www.baidu.com
+// go run main.go query 8.8.8.8:53 www.google.com A
+// go run main.go http 8.8.8.8:53 http://www.baidu.com
 
 func main() {
 	switch os.Args[1] {
@@ -28,8 +25,8 @@ func main() {
 }
 
 func httpMain() {
-	dnsResolverIP = "127.0.0.1:53"
-	domain = "http://myip.ipip.net"
+	dnsResolverIP := "127.0.0.1:53"
+	domain := "http://myip.ipip.net"
 
 	if len(os.Args) > 2 {
 		dnsResolverIP = os.Args[2]
@@ -50,7 +47,7 @@ func httpMain() {
 				d := net.Dialer{
 					Timeout: time.Duration(dnsResolverTimeoutMs) * time.Millisecond,
 				}
-				return d.DialContext(ctx, dnsResolverProto, address)
+				return d.DialContext(ctx, dnsResolverProto, dnsResolverIP)
 			},
 		},
 	}

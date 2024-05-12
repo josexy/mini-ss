@@ -125,17 +125,9 @@ func NewDnsResolver(nameservers []string) *Resolver {
 		nameservers: append(nameserver, fallback...),
 	}
 
-	fallbackDnsClient := make([]*DnsClient, 0, len(fallback))
-	for _, ns := range fallback {
+	for _, ns := range resolver.nameservers {
 		logger.Logger.Infof("dns nameserver: type: %s, addr: %s", ns.dnsNet, ns.addr)
-		client := NewDnsClient(ns.dnsNet, ns.addr, time.Second*2, nil, resolver)
-		resolver.clients[ns.dnsNet+":"+ns.addr] = client
-		fallbackDnsClient = append(fallbackDnsClient, client)
-	}
-
-	for _, ns := range nameserver {
-		logger.Logger.Infof("dns nameserver: type: %s, addr: %s", ns.dnsNet, ns.addr)
-		resolver.clients[ns.dnsNet+":"+ns.addr] = NewDnsClient(ns.dnsNet, ns.addr, time.Second*2, fallbackDnsClient, resolver)
+		resolver.clients[ns.dnsNet+":"+ns.addr] = NewDnsClient(ns.dnsNet, ns.addr, time.Second*5)
 	}
 	return resolver
 }
@@ -224,9 +216,24 @@ func (r *Resolver) lookupIP(ctx context.Context, host string, dnsType uint16) ([
 	req.SetQuestion(dns.Fqdn(host), dnsType)
 	req.RecursionDesired = true
 
+	reply, err := r.lookupIPWithMsg(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	addrs := dnsutil.MsgToAddrs(reply)
+	logger.Logger.Debug("lookupIP succeed",
+		logx.String("query", host),
+		logx.String("type", dns.TypeToString[dnsType]),
+		logx.String("rcode", dns.RcodeToString[reply.Rcode]),
+		logx.Slice3("ips", addrs),
+	)
+	return addrs, nil
+}
+
+func (r *Resolver) lookupIPWithMsg(ctx context.Context, req *dns.Msg) (*dns.Msg, error) {
 	lookupCtx, lookupCancel := context.WithCancel(ctx)
 
-	ch := r.lookupGroup.DoChan(dns.TypeToString[dnsType]+":"+host, func() (interface{}, error) {
+	ch := r.lookupGroup.DoChan(req.Question[0].String(), func() (interface{}, error) {
 		return r.exchangeContext(lookupCtx, req)
 	})
 
@@ -240,20 +247,10 @@ func (r *Resolver) lookupIP(ctx context.Context, host string, dnsType uint16) ([
 			return nil, r.Err
 		}
 		if reply, ok := r.Val.(*dns.Msg); ok {
-			addrs := dnsutil.MsgToAddrs(reply)
-			logger.Logger.Trace("lookupIP succeed",
-				logx.String("query", host),
-				logx.String("type", dns.TypeToString[dnsType]),
-				logx.String("rcode", dns.RcodeToString[reply.Rcode]),
-				logx.Slice3("ips", addrs),
-				logx.Bool("shared", r.Shared),
-			)
-			if len(addrs) > 0 && r.Shared {
-				clone := make([]netip.Addr, len(addrs))
-				copy(clone, addrs)
-				addrs = clone
+			if r.Shared {
+				reply = reply.Copy()
 			}
-			return addrs, nil
+			return reply, nil
 		} else {
 			return nil, errors.New("invalid dns lookup msg")
 		}
@@ -353,6 +350,11 @@ func (r *Resolver) Query(req *dns.Msg) (reply *dns.Msg, err error) {
 	}
 
 	if req.Question[0].Qclass == dns.ClassINET && req.Question[0].Qtype == dns.TypeA {
+		if r.matchDomainFilter(req) {
+			logger.Logger.Debugf("domain filter matched for %s", req.Question[0].Name)
+			reply, err = r.lookupIPWithMsg(context.Background(), req)
+			return
+		}
 		// ipv4 dns query, return fake ip address
 		reply, err = r.fakeIPResolver.query(req)
 	} else {
@@ -361,4 +363,18 @@ func (r *Resolver) Query(req *dns.Msg) (reply *dns.Msg, err error) {
 		reply.SetReply(req)
 	}
 	return
+}
+
+func (r *Resolver) matchDomainFilter(req *dns.Msg) bool {
+	if len(DefaultDomainFilter) == 0 {
+		return false
+	}
+	domain := dnsutil.TrimDomain(req.Question[0].Name)
+	// TODO: support wildcard domain match?
+	for _, name := range DefaultDomainFilter {
+		if domain == name {
+			return true
+		}
+	}
+	return false
 }

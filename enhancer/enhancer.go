@@ -19,6 +19,7 @@ type EnhancerConfig struct {
 	Tun            tun.TunConfig
 	FakeDNS        string
 	DisableRewrite bool
+	DnsHijack      []netip.AddrPort
 }
 
 type Enhancer struct {

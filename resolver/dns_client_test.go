@@ -29,7 +29,7 @@ func TestDnsClient_ExchangeContext(t *testing.T) {
 
 	group := singleflight.Group{}
 	for _, nameserver := range nameservers {
-		client := NewDnsClient(nameserver.dnsNet, nameserver.addr, 5*time.Second, nil, nil)
+		client := NewDnsClient(nameserver.dnsNet, nameserver.addr, 5*time.Second)
 		for i := 0; i < 5; i++ {
 			go func() {
 				timeout := time.Millisecond * time.Duration(i*50)

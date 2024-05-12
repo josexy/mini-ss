@@ -135,7 +135,6 @@ func (ss *ShadowsocksClient) initServerOption(opt *serverOptions) {
 		logx.Bool("udp", opt.udp),
 	)
 	selector.ProxySelector.AddProxy(opt.name, item)
-	// enable udp relay for default tcp transport
 	if opt.udp {
 		selector.ProxySelector.AddPacketProxy(opt.name, item)
 	}

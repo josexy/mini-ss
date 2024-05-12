@@ -60,7 +60,7 @@ func (r *TCPDirectRelayer) RelayToServer(conn net.Conn, remoteServerAddr string)
 	}
 
 	logger.Logger.Info("tcp-direct",
-		logx.String("relayer", conn.RemoteAddr().String()),
+		logx.Any("relayer", conn.RemoteAddr()),
 		logx.String("remote", remoteServerAddr),
 	)
 
@@ -105,8 +105,8 @@ func (r *ProxyTCPRelayer) RelayToProxyServer(conn net.Conn, remoteServerAddr str
 
 	logger.Logger.Info("tcp-relay",
 		logx.String("type", r.typ.String()),
-		logx.String("client", conn.RemoteAddr().String()),
-		logx.String("relayer", conn.LocalAddr().String()),
+		logx.Any("client", conn.RemoteAddr()),
+		logx.Any("relayer", conn.LocalAddr()),
 		logx.String("server", r.proxyServerAddr),
 		logx.String("remote", remoteServerAddr),
 	)
@@ -135,8 +135,8 @@ func (r *ProxyTCPRelayer) RelayToServer(conn net.Conn) error {
 
 	logger.Logger.Info("tcp-relay",
 		logx.String("type", r.typ.String()),
-		logx.String("client", conn.RemoteAddr().String()),
-		logx.String("relayer", conn.LocalAddr().String()),
+		logx.Any("client", conn.RemoteAddr()),
+		logx.Any("relayer", conn.LocalAddr()),
 		logx.String("remote", remoteAddr),
 	)
 

@@ -1,6 +1,9 @@
 package ss
 
 import (
+	"net"
+	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/josexy/mini-ss/enhancer"
@@ -70,6 +73,35 @@ func WithTunCIDR(cidr string) SSOption {
 func WithTunMTU(mtu uint32) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.localOpts.enhancerConfig.Tun.MTU = mtu
+	})
+}
+
+func WithTunDnsHijack(dns []string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		for _, addr := range dns {
+			if strings.Contains(addr, "any") {
+				addr = strings.ReplaceAll(addr, "any", "0.0.0.0")
+			}
+			host, port, _ := net.SplitHostPort(addr)
+			if host == "" || port == "" {
+				port = "53"
+				addr = net.JoinHostPort(addr, port)
+			}
+			if port != "53" {
+				continue
+			}
+			addrPort, err := netip.ParseAddrPort(addr)
+			if err != nil || !addrPort.IsValid() {
+				continue
+			}
+			so.localOpts.enhancerConfig.DnsHijack = append(so.localOpts.enhancerConfig.DnsHijack, addrPort)
+		}
+	})
+}
+
+func WithFakeDnsDomainFilter(domain []string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		resolver.DefaultDomainFilter = domain
 	})
 }
 

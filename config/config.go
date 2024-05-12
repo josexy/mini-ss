@@ -76,14 +76,16 @@ type ServerConfig struct {
 }
 
 type TunOption struct {
-	Enable bool   `yaml:"enable" json:"enable"`
-	Name   string `yaml:"name" json:"name"`
-	Cidr   string `yaml:"cidr" json:"cidr"`
-	Mtu    int    `yaml:"mtu" json:"mtu"`
+	Enable    bool     `yaml:"enable" json:"enable"`
+	Name      string   `yaml:"name" json:"name"`
+	Cidr      string   `yaml:"cidr" json:"cidr"`
+	Mtu       int      `yaml:"mtu" json:"mtu"`
+	DnsHijack []string `yaml:"dns_hijack,omitempty" json:"dns_hijack,omitempty"`
 }
 
-type FakeDnsOption struct {
+type DnsOption struct {
 	Listen         string   `yaml:"listen" json:"listen"`
+	DomainFilter   []string `yaml:"domain_filter" json:"domain_filter"`
 	Nameservers    []string `yaml:"nameservers" json:"nameservers"`
 	DisableRewrite bool     `yaml:"disable_rewrite" json:"disable_rewrite"`
 }
@@ -102,16 +104,16 @@ type MitmOption struct {
 }
 
 type LocalConfig struct {
-	SocksAddr   string         `yaml:"socks_addr,omitempty" json:"socks_addr,omitempty"`
-	HTTPAddr    string         `yaml:"http_addr,omitempty" json:"http_addr,omitempty"`
-	SocksAuth   string         `yaml:"socks_auth,omitempty" json:"socks_auth,omitempty"`
-	HTTPAuth    string         `yaml:"http_auth,omitempty" json:"http_auth,omitempty"`
-	MixedAddr   string         `yaml:"mixed_addr,omitempty" json:"mixed_addr,omitempty"`
-	TCPTunAddr  []string       `yaml:"tcp_tun_addr,omitempty" json:"tcp_tun_addr,omitempty"`
-	SystemProxy bool           `yaml:"system_proxy,omitempty" json:"system_proxy,omitempty"`
-	Mitm        *MitmOption    `yaml:"mitm,omitempty" json:"mitm,omitempty"`
-	Tun         *TunOption     `yaml:"tun,omitempty" json:"tun,omitempty"`
-	FakeDNS     *FakeDnsOption `yaml:"fake_dns,omitempty" json:"fake_dns,omitempty"`
+	SocksAddr   string      `yaml:"socks_addr,omitempty" json:"socks_addr,omitempty"`
+	HTTPAddr    string      `yaml:"http_addr,omitempty" json:"http_addr,omitempty"`
+	SocksAuth   string      `yaml:"socks_auth,omitempty" json:"socks_auth,omitempty"`
+	HTTPAuth    string      `yaml:"http_auth,omitempty" json:"http_auth,omitempty"`
+	MixedAddr   string      `yaml:"mixed_addr,omitempty" json:"mixed_addr,omitempty"`
+	TCPTunAddr  []string    `yaml:"tcp_tun_addr,omitempty" json:"tcp_tun_addr,omitempty"`
+	SystemProxy bool        `yaml:"system_proxy,omitempty" json:"system_proxy,omitempty"`
+	Mitm        *MitmOption `yaml:"mitm,omitempty" json:"mitm,omitempty"`
+	Tun         *TunOption  `yaml:"tun,omitempty" json:"tun,omitempty"`
+	DNS         *DnsOption  `yaml:"dns,omitempty" json:"dns,omitempty"`
 }
 
 type Domain struct {
@@ -437,18 +439,20 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 		}
 	}
 	if cfg.Local.Tun != nil && cfg.Local.Tun.Enable {
-		if cfg.Local.FakeDNS == nil {
+		if cfg.Local.DNS == nil {
 			logger.Logger.Fatal("if tun mode is enabled, the fake dns configuration must be configured")
 		}
 		opts = append(opts, ss.WithEnableTun())
 		opts = append(opts, ss.WithTunName(cfg.Local.Tun.Name))
 		opts = append(opts, ss.WithTunCIDR(cfg.Local.Tun.Cidr))
 		opts = append(opts, ss.WithTunMTU(uint32(cfg.Local.Tun.Mtu)))
+		opts = append(opts, ss.WithTunDnsHijack(cfg.Local.Tun.DnsHijack))
 	}
-	if cfg.Local.FakeDNS != nil {
-		opts = append(opts, ss.WithFakeDnsServer(cfg.Local.FakeDNS.Listen))
-		opts = append(opts, ss.WithFakeDnsDisableRewrite(cfg.Local.FakeDNS.DisableRewrite))
-		opts = append(opts, ss.WithDefaultDnsNameservers(cfg.Local.FakeDNS.Nameservers))
+	if cfg.Local.DNS != nil {
+		opts = append(opts, ss.WithFakeDnsServer(cfg.Local.DNS.Listen))
+		opts = append(opts, ss.WithFakeDnsDisableRewrite(cfg.Local.DNS.DisableRewrite))
+		opts = append(opts, ss.WithFakeDnsDomainFilter(cfg.Local.DNS.DomainFilter))
+		opts = append(opts, ss.WithDefaultDnsNameservers(cfg.Local.DNS.Nameservers))
 	}
 
 	if cfg.Local.SystemProxy {

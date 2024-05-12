@@ -11,9 +11,6 @@
 .idea
 bin
 certs
-build/bin
-node_modules
-gui/frontend/dist
 # Test binary, built with `go test -c`
 *.test
 
@@ -21,7 +18,7 @@ gui/frontend/dist
 *.out
 
 # Dependency directories (remove the comment below to include it)
-# vendor/
+vendor/
 
 # Go workspace file
 go.work*

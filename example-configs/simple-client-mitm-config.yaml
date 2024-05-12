@@ -1,0 +1,17 @@
+local:
+  mixed_addr: :10088
+  mitm:
+    enable: true
+    ca_path: "certs/ca.crt"
+    key_path: "certs/ca.key"
+    fake_cert_pool:
+      capacity: 50
+      interval: 30000
+      expire_second: 15000
+log:
+  color: true
+  log_level: trace
+  verbose_level: 2
+
+# iface: lo
+auto_detect_iface: true

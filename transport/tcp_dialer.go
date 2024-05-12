@@ -40,7 +40,7 @@ func (d *tcpDialer) dialSingle(ctx context.Context, network string, addr string)
 	if err != nil {
 		return nil, err
 	}
-	if err := bind.BindToDeviceForTCP(options.DefaultOptions.OutboundInterface, dialer, network, tcpAddr.AddrPort().Addr()); err != nil {
+	if err := bind.BindToDeviceForConn(options.DefaultOptions.OutboundInterface, dialer, network, tcpAddr.AddrPort().Addr()); err != nil {
 		return nil, err
 	}
 	return dialer.DialContext(ctx, network, tcpAddr.String())

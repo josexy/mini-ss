@@ -9,7 +9,7 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/jaytaylor/go-hostsfile v0.0.0-20220426042432-61485ac1fa6c
 	github.com/josexy/logx v0.0.0-20240327003801-569dac32550f
-	github.com/josexy/netstackgo v0.0.0-20240430151659-d8e606eb983a
+	github.com/josexy/netstackgo v0.0.0-20240512093137-f3a3a289fca8
 	github.com/josexy/proxyutil v0.0.0-20230321142224-a6e70ef9e37c
 	github.com/miekg/dns v1.1.50
 	github.com/oschwald/geoip2-golang v1.8.0

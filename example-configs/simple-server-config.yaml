@@ -5,6 +5,7 @@ server:
     method: aes-128-cfb
     # method: none
     transport: default
+    udp: true
 log:
   color: true
   log_level: trace

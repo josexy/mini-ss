@@ -9,6 +9,8 @@ import (
 
 	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/mux"
+	"github.com/josexy/mini-ss/options"
+	"github.com/josexy/mini-ss/resolver"
 	"github.com/xtaci/kcp-go"
 	"github.com/xtaci/smux"
 )
@@ -16,7 +18,7 @@ import (
 type kcpDialer struct {
 	sessions []*mux.MuxBindSession
 	cfg      *smux.Config
-	opts     *KcpOptions
+	opts     *options.KcpOptions
 	once     sync.Once
 	rrIndex  uint16
 	numConn  uint16
@@ -75,7 +77,7 @@ func (d *kcpDialer) dialWithOptions(ctx context.Context, addr string) (*kcp.UDPS
 		return nil, err
 	}
 	var raddr *net.UDPAddr
-	if raddr, err = resolveUDPAddr(addr); err != nil {
+	if raddr, err = resolver.DefaultResolver.ResolveUDPAddr(ctx, addr); err != nil {
 		return nil, err
 	}
 	return kcp.NewConn2(raddr, d.opts.BC, d.opts.DataShard, d.opts.ParityShard, conn)

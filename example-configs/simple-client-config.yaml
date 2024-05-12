@@ -7,19 +7,11 @@ server:
     transport: default
     udp: true
 local:
-  # socks_addr: :10086
-  # http_addr: :10087
+  socks_addr: :10086
+  http_addr: :10087
   mixed_addr: :10088
   # socks_auth: "123:123"
   # http_auth: '123:123'
-  mitm:
-    enable: true
-    ca_path: "certs/ca.crt"
-    key_path: "certs/ca.key"
-    fake_cert_pool:
-      capacity: 50
-      interval: 30000
-      expire_second: 15000
 log:
   color: true
   log_level: trace
@@ -27,6 +19,6 @@ log:
 # iface: lo
 # auto_detect_iface: true
 rules:
-  mode: direct
+  mode: global
   direct_to: ""
   global_to: "ss"

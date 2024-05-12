@@ -25,6 +25,9 @@ WINDOWS_ARCH_LIST = \
 
 all: linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64
 
+build: 
+	$(GOBUILD) -o $(BINDIR)/$(NAME) $(PACKAGE)
+
 linux-amd64:
 	GOARCH=amd64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@ $(PACKAGE)
 

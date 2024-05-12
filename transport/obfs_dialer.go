@@ -5,11 +5,12 @@ import (
 	"net"
 
 	"github.com/josexy/mini-ss/connection"
+	"github.com/josexy/mini-ss/options"
 )
 
 type obfsDialer struct {
 	tcpDialer
-	opts *ObfsOptions
+	opts *options.ObfsOptions
 }
 
 func (d *obfsDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {

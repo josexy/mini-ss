@@ -8,6 +8,8 @@ import (
 	"sync"
 
 	"github.com/josexy/mini-ss/connection"
+	"github.com/josexy/mini-ss/options"
+	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/util/logger"
 	"github.com/quic-go/quic-go"
 )
@@ -24,7 +26,7 @@ type quicDialer struct {
 	tlsConfig *tls.Config
 	tlsErr    error
 	conns     []*quicConn
-	opts      *QuicOptions
+	opts      *options.QuicOptions
 }
 
 func TlsConfigQuicALPN(config *tls.Config) *tls.Config {
@@ -36,7 +38,7 @@ func TlsConfigQuicALPN(config *tls.Config) *tls.Config {
 func (d *quicDialer) dial(ctx context.Context, addr string) (quic.EarlyConnection, error) {
 	var raddr *net.UDPAddr
 	var err error
-	if raddr, err = resolveUDPAddr(addr); err != nil {
+	if raddr, err = resolver.DefaultResolver.ResolveUDPAddr(ctx, addr); err != nil {
 		return nil, err
 	}
 	conn, err := ListenLocalUDP(ctx)

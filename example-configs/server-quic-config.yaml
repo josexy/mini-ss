@@ -16,3 +16,5 @@ log:
   log_level: trace
   verbose_level: 2
 
+# iface: en5
+# auto_detect_iface: true

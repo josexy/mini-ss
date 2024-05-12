@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/josexy/mini-ss/geoip"
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/ss"
-	"github.com/josexy/mini-ss/transport"
 )
 
 func main() {
@@ -33,7 +33,7 @@ func main() {
 			ss.WithPassword("12345"),
 			ss.WithWsTransport(),
 			ss.WithWsHost("www.baidu.com"),
-			ss.WithWsTLS(transport.TLS),
+			ss.WithWsTLS(options.TLS),
 			ss.WithWsPath("/ws"),
 			ss.WithWsHostname("www.helloworld.com"),
 			ss.WithWsCAPath("certs/ca.crt"),
@@ -45,7 +45,7 @@ func main() {
 			ss.WithMethod("none"),
 			ss.WithPassword("12345"),
 			ss.WithGrpcTransport(),
-			ss.WithGrpcTLS(transport.TLS),
+			ss.WithGrpcTLS(options.TLS),
 			ss.WithGrpcHostname("www.helloworld.com"),
 			ss.WithGrpcCAPath("certs/ca.crt"),
 			ss.WithUDPRelay(true),

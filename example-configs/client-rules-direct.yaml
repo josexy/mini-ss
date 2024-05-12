@@ -12,22 +12,30 @@ local:
   mixed_addr: 127.0.0.1:10088
   tun:
     enable: true
-    name: utun9
+    name: ""
     cidr: 198.18.0.1/16
     mtu: 9000
-  fake_dns:
+    dns_hijack:
+      - 8.8.8.8:53 
+      - any:53
+  dns:
     listen: ':53'
-    disable_rewrite: true
+    # disable_rewrite: true
+    domain_filter:
+      - www.example.com
+      - www.google.com
     nameservers:
-      - 114.114.114.114
-      - 223.5.5.5
       - 8.8.8.8
-      - 2001:4860:4860::8888
+      - 223.5.5.5
+      - 114.114.114.114
+      - 2400:3200:baba::1 
+      - tls://dns.alidns.com
+      - https://dns.alidns.com/dns-query
 log:
   color: true
   log_level: trace
   verbose_level: 2
-iface: en5
+# iface: en5
 auto_detect_iface: true
 rules:
   mode: direct

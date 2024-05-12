@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/relay"
 	"github.com/josexy/mini-ss/server"
 	"github.com/josexy/mini-ss/transport"
@@ -17,7 +18,7 @@ import (
 type echoSrv struct{}
 
 // multiplexing kcp dialer
-var dialer = transport.NewDialer(transport.Kcp, transport.DefaultKcpOptions)
+var dialer = transport.NewDialer(transport.Kcp, options.DefaultKcpOptions)
 
 func (echoSrv) ServeTCP(conn net.Conn) {
 	log.Println(conn.RemoteAddr().String())

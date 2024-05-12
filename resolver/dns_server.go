@@ -15,6 +15,8 @@ var (
 		"114.114.114.114",
 		"8.8.8.8",
 	}
+
+	DefaultDomainFilter []string
 )
 
 type DnsServer struct {

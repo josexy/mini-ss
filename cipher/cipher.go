@@ -81,7 +81,7 @@ func GetCipher(method, password string) (sc StreamCipher, ac AEADCipher, err err
 	} else if _, ok = aeadCipherMap[method]; ok {
 		ac, err = NewAEADCipher(method, password)
 	} else {
-		err = fmt.Errorf("not support method: %s", method)
+		err = fmt.Errorf("unsupported method: %s", method)
 	}
 	return
 }
@@ -89,7 +89,7 @@ func GetCipher(method, password string) (sc StreamCipher, ac AEADCipher, err err
 func NewStreamCipher(method, password string) (StreamCipher, error) {
 	x, ok := streamCipherMap[method]
 	if !ok {
-		return nil, fmt.Errorf("not support stream cipher: %s", method)
+		return nil, fmt.Errorf("unsupported stream cipher: %s", method)
 	}
 	// simple EVP_BytesToKey()
 	key := Kdf(password, x.KeySize)
@@ -99,7 +99,7 @@ func NewStreamCipher(method, password string) (StreamCipher, error) {
 func NewAEADCipher(method, password string) (AEADCipher, error) {
 	x, ok := aeadCipherMap[method]
 	if !ok {
-		return nil, fmt.Errorf("not support aead cipher: %s", method)
+		return nil, fmt.Errorf("unsupported aead cipher: %s", method)
 	}
 	// simple EVP_BytesToKey()
 	key := Kdf(password, x.KeySize)

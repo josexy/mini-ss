@@ -17,3 +17,6 @@ log:
   color: true
   log_level: debug
   verbose_level: 3
+
+# iface: en5
+# auto_detect_iface: true

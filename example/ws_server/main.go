@@ -9,12 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/server"
-	"github.com/josexy/mini-ss/transport"
 )
 
 func main() {
-	options := &transport.WsOptions{
+	options := &options.WsOptions{
 		Host:      "www.baidu.com",
 		Path:      "/ws",
 		SndBuffer: 4096,

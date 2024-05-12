@@ -54,6 +54,8 @@ github.com/josexy/logx v0.0.0-20240327003801-569dac32550f h1:gQ2rFC0pq4/rGZoExup
 github.com/josexy/logx v0.0.0-20240327003801-569dac32550f/go.mod h1:N1PLHofANbzMOB/DOIlfNLUeZQTDced29bH2HolqrAc=
 github.com/josexy/netstackgo v0.0.0-20240430151659-d8e606eb983a h1:+pTy9fOgf17hFz7ClAL4JNQ9wnrylfA/PwP5HfBgOlY=
 github.com/josexy/netstackgo v0.0.0-20240430151659-d8e606eb983a/go.mod h1:MGBvNlazcIkp4Q+hqtrVmchfQTiGsgaCGYJdk3Iu4eI=
+github.com/josexy/netstackgo v0.0.0-20240512093137-f3a3a289fca8 h1:ThXFNKRcdeEX9e/M/JYcHTSm2ABi9Uia1krfsDHVOQI=
+github.com/josexy/netstackgo v0.0.0-20240512093137-f3a3a289fca8/go.mod h1:MGBvNlazcIkp4Q+hqtrVmchfQTiGsgaCGYJdk3Iu4eI=
 github.com/josexy/proxyutil v0.0.0-20230321142224-a6e70ef9e37c h1:6+sPVaYY+mtxs+QcheOGTGda2hDhZjWbRbU20rITJI4=
 github.com/josexy/proxyutil v0.0.0-20230321142224-a6e70ef9e37c/go.mod h1:+Ox49VTIsAT1JvST8BfaEhZZcaymfSrBN5KlLVLTZxM=
 github.com/klauspost/cpuid/v2 v2.1.1 h1:t0wUqjowdm8ezddV5k0tLWVklVuvLJpoHeb4WBdydm0=

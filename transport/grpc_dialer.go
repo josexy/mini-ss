@@ -6,6 +6,7 @@ import (
 
 	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/connection/proto"
+	"github.com/josexy/mini-ss/options"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -14,7 +15,7 @@ import (
 
 type grpcDialer struct {
 	tcpDialer
-	opts *GrpcOptions
+	opts *options.GrpcOptions
 }
 
 func (d *grpcDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {

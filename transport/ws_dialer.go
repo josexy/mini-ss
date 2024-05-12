@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/josexy/mini-ss/connection"
+	"github.com/josexy/mini-ss/options"
 )
 
 // WsProxyFuncForTesting this global function used for testing
@@ -16,7 +17,7 @@ var WsProxyFuncForTesting func(req *http.Request) (*url.URL, error)
 
 type wsDialer struct {
 	tcpDialer
-	opts *WsOptions
+	opts *options.WsOptions
 }
 
 func (d *wsDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {

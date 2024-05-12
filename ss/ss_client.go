@@ -8,6 +8,7 @@ import (
 	"github.com/josexy/mini-ss/cipher"
 	"github.com/josexy/mini-ss/enhancer"
 	"github.com/josexy/mini-ss/geoip"
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
@@ -49,9 +50,9 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 	}
 
 	// check whether support auto-detect-interface
-	if transport.DefaultDialerOutboundOption.AutoDetectInterface {
+	if options.DefaultOptions.AutoDetectInterface {
 		if ifaceName, err := iface.DefaultRouteInterface(); err == nil {
-			transport.DefaultDialerOutboundOption.Interface = ifaceName
+			options.DefaultOptions.OutboundInterface = ifaceName
 			logger.Logger.Infof("auto detect outbound interface: %s", ifaceName)
 		}
 	}
@@ -134,7 +135,6 @@ func (ss *ShadowsocksClient) initServerOption(opt *serverOptions) {
 		logx.Bool("udp", opt.udp),
 	)
 	selector.ProxySelector.AddProxy(opt.name, item)
-	// enable udp relay for default tcp transport
 	if opt.udp {
 		selector.ProxySelector.AddPacketProxy(opt.name, item)
 	}

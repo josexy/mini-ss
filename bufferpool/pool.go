@@ -8,7 +8,7 @@ import (
 const (
 	MaxAddressBufferSize = 259
 	MaxSocksBufferSize   = 515
-	MaxUdpBufferSize     = 64 * 1024
+	MaxUdpBufferSize     = 16 * 1024
 	MaxTcpBufferSize     = 16 * 1024
 )
 

@@ -10,7 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/josexy/mini-ss/connection"
-	"github.com/josexy/mini-ss/transport"
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/util/logger"
 )
 
@@ -22,16 +22,16 @@ type WsServer struct {
 	srv      *http.Server
 	Addr     string
 	Handler  WsHandler
-	opts     *transport.WsOptions
+	opts     *options.WsOptions
 	upgrader *websocket.Upgrader
 	running  atomic.Bool
 }
 
-func NewWsServer(addr string, handler WsHandler, opts transport.Options) *WsServer {
+func NewWsServer(addr string, handler WsHandler, opts options.Options) *WsServer {
 	return &WsServer{
 		Addr:    addr,
 		Handler: handler,
-		opts:    opts.(*transport.WsOptions),
+		opts:    opts.(*options.WsOptions),
 	}
 }
 

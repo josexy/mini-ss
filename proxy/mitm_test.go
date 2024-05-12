@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/util/cert"
 	"github.com/stretchr/testify/assert"
 )
@@ -102,6 +103,7 @@ func genCACertAndKey(t *testing.T) {
 }
 
 func TestMitmHandlerForHTTPTraffic(t *testing.T) {
+	resolver.DefaultResolver = resolver.NewDnsResolver(nil)
 	genCACertAndKey(t)
 	defer os.RemoveAll("/tmp/cert")
 	handler, err := NewMitmHandler(MimtOption{

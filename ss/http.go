@@ -5,15 +5,16 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/bufferpool"
 	"github.com/josexy/mini-ss/connection"
 	"github.com/josexy/mini-ss/proxy"
+	proxyaddons "github.com/josexy/mini-ss/proxy-addons"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
 	"github.com/josexy/mini-ss/server"
@@ -81,7 +82,7 @@ func (r *httpReqHandler) handleHomeAccess(conn net.Conn, req *http.Request) erro
 	}
 	if r.owner.mitmHandler != nil && req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, caCertFileRequestUrl) {
 		resp := &http.Response{ProtoMajor: 1, ProtoMinor: 1, Header: make(http.Header), StatusCode: http.StatusOK}
-		resp.Header.Add(proxy.HttpHeaderContentType, "application/octet-stream")
+		resp.Header.Add(proxy.HttpHeaderContentType, "application/x-x509-ca-cert")
 		resp.Header.Add(proxy.HttpHeaderConnection, "close")
 		caFp, err := os.Open(r.owner.mitmHandler.CAPath())
 		if err != nil {
@@ -95,7 +96,7 @@ func (r *httpReqHandler) handleHomeAccess(conn net.Conn, req *http.Request) erro
 	resp := &http.Response{ProtoMajor: 1, ProtoMinor: 1, Header: make(http.Header), StatusCode: http.StatusOK}
 	resp.Header.Add(proxy.HttpHeaderConnection, "close")
 	resp.Write(conn)
-	return errHomeAccessed
+	return fmt.Errorf("%s, url: %s", errHomeAccessed, req.URL.String())
 }
 
 func (r *httpReqHandler) readRequest(conn net.Conn, req *http.Request) (proxy.ReqContext, net.Conn, error) {
@@ -170,37 +171,8 @@ func (hp *httpProxyServer) WithMitmMode(opt proxy.MimtOption) *httpProxyServer {
 		logger.Logger.ErrorBy(err)
 	}
 	if hp.mitmHandler != nil {
-		hp.mitmHandler.SetMutableHTTPInterceptor(func(req *http.Request, invoker proxy.HTTPDelegatedInvoker) (*http.Response, error) {
-			rsp, err := invoker.Invoke(req)
-			if err != nil {
-				return rsp, err
-			}
-			logger.Logger.Debug("http interceptor",
-				logx.String("method", req.Method),
-				logx.String("host", req.Host),
-				logx.String("path", req.URL.Path),
-				logx.String("content-type", req.Header.Get("Content-Type")),
-				logx.Int("status", rsp.StatusCode),
-				logx.Int64("size", rsp.ContentLength),
-			)
-			return rsp, err
-		})
-		hp.mitmHandler.SetMutableWebsocketInterceptor(func(dir proxy.WSDirection, req *http.Request,
-			msgType int, data []byte, invoker proxy.WebsocketDelegatedInvoker) error {
-			direction := "Send"
-			if dir == proxy.Receive {
-				direction = "Receive"
-			}
-			logger.Logger.Debug("ws interceptor",
-				logx.String("direction", direction),
-				logx.String("host", req.Host),
-				logx.String("path", req.URL.Path),
-				logx.Int("msg-type", msgType),
-				logx.Int("data-size", len(data)),
-				logx.String("data", string(data)),
-			)
-			return invoker.Invoke(msgType, data)
-		})
+		hp.mitmHandler.SetMutableHTTPInterceptor(proxyaddons.MutableHTTPInterceptor)
+		hp.mitmHandler.SetMutableWebsocketInterceptor(proxyaddons.MutableWSInterceptor)
 	}
 	return hp
 }
@@ -214,7 +186,6 @@ func (hp *httpProxyServer) ServeTCP(conn net.Conn) {
 		return
 	}
 
-	// TODO: in mitm mode, the client doesn't relay the data to remote ss server via transport
 	if hp.mitmHandler != nil {
 		ctx := context.WithValue(context.Background(), proxy.ReqCtxKey, reqCtx)
 		if err = hp.mitmHandler.HandleMIMT(ctx, conn); err != nil {

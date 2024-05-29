@@ -17,6 +17,8 @@ const (
 	HttpHeaderSecWebsocketKey        = "Sec-Websocket-Key"
 	HttpHeaderSecWebsocketVersion    = "Sec-Websocket-Version"
 	HttpHeaderSecWebsocketExtensions = "Sec-Websocket-Extensions"
+	HttpHeaderContentEncoding        = "Content-Encoding"
+	HttpHeaderContentLength          = "Content-Length"
 )
 
 var (

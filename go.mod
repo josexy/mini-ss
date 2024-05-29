@@ -3,6 +3,7 @@ module github.com/josexy/mini-ss
 go 1.22
 
 require (
+	github.com/andybalholm/brotli v1.1.0
 	github.com/fatih/color v1.16.0
 	github.com/golang/snappy v0.0.4
 	github.com/google/uuid v1.6.0
@@ -11,6 +12,7 @@ require (
 	github.com/josexy/logx v0.0.0-20240327003801-569dac32550f
 	github.com/josexy/netstackgo v0.0.0-20240512093137-f3a3a289fca8
 	github.com/josexy/proxyutil v0.0.0-20230321142224-a6e70ef9e37c
+	github.com/klauspost/compress v1.17.8
 	github.com/miekg/dns v1.1.50
 	github.com/oschwald/geoip2-golang v1.8.0
 	github.com/quic-go/quic-go v0.42.0
@@ -20,6 +22,7 @@ require (
 	github.com/xtaci/kcp-go v5.4.20+incompatible
 	github.com/xtaci/smux v1.5.16
 	golang.org/x/crypto v0.21.0
+	golang.org/x/net v0.23.0
 	golang.org/x/sync v0.7.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.0
@@ -50,7 +53,6 @@ require (
 	go.uber.org/mock v0.4.0 // indirect
 	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090 // indirect
 	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/net v0.23.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect

@@ -292,6 +292,12 @@ func WithMitm(enable bool) SSOption {
 	})
 }
 
+func WithMitmProxy(proxy string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmConfig.Proxy = proxy
+	})
+}
+
 func WithMitmCAPath(caPath string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.localOpts.mitmConfig.CaPath = caPath

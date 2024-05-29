@@ -98,6 +98,7 @@ type MitmFakeCertPool struct {
 
 type MitmOption struct {
 	Enable       bool              `yaml:"enable" json:"enable"`
+	Proxy        string            `yaml:"proxy" json:"proxy"`
 	CAPath       string            `yaml:"ca_path" json:"ca_path"`
 	KeyPath      string            `yaml:"key_path" json:"key_path"`
 	FakeCertPool *MitmFakeCertPool `yaml:"fake_cert_pool" json:"fake_cert_pool"`
@@ -428,6 +429,7 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 
 	if cfg.Local.Mitm != nil && cfg.Local.Mitm.Enable {
 		opts = append(opts, ss.WithMitm(cfg.Local.Mitm.Enable))
+		opts = append(opts, ss.WithMitmProxy(cfg.Local.Mitm.Proxy))
 		opts = append(opts, ss.WithMitmCAPath(cfg.Local.Mitm.CAPath))
 		opts = append(opts, ss.WithMitmKeyPath(cfg.Local.Mitm.KeyPath))
 		if cfg.Local.Mitm.FakeCertPool != nil {

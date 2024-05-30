@@ -10,13 +10,13 @@ import (
 
 type logEvent struct{}
 
-func (da *logEvent) Name() string { return "log_event" }
+func (da *logEvent) Request(ctx *Context) {
+	logger.Logger.Debug("addons[logEvent]: request")
+}
 
-func (da *logEvent) Init() {}
-
-func (da *logEvent) Request(*proxy.Flow) error { return nil }
-
-func (da *logEvent) Response(flow *proxy.Flow) error {
+func (da *logEvent) Response(ctx *Context) {
+	logger.Logger.Debug("addons[logEvent]: response")
+	flow := ctx.Flow
 	req := flow.HTTP.Request
 	rsp := flow.HTTP.Response
 	logger.Logger.Debug("http interceptor",
@@ -29,10 +29,10 @@ func (da *logEvent) Response(flow *proxy.Flow) error {
 		logx.Int("status", rsp.StatusCode),
 		logx.Int64("size", rsp.ContentLength),
 	)
-	return nil
 }
 
-func (da *logEvent) Message(flow *proxy.Flow) error {
+func (da *logEvent) Message(ctx *Context) {
+	flow := ctx.Flow
 	req := flow.WS.Request
 	direction := "Send"
 	if flow.WS.Direction == proxy.Receive {
@@ -48,5 +48,4 @@ func (da *logEvent) Message(flow *proxy.Flow) error {
 		logx.Int("data-size", len(flow.WS.FramedData)),
 		logx.String("data", string(flow.WS.FramedData)),
 	)
-	return nil
 }

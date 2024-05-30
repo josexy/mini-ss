@@ -34,21 +34,6 @@ type (
 )
 
 type (
-	ErrorFlowHandler interface {
-		Error(error)
-	}
-
-	HTTPFlowHandler interface {
-		Request(*Flow) error
-		Response(*Flow) error
-	}
-
-	WSFlowHandler interface {
-		Message(*Flow) error
-	}
-)
-
-type (
 	HTTPRequestView struct {
 		Method string
 		Uri    string

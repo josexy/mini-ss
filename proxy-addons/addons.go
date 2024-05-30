@@ -11,7 +11,11 @@ import (
 	"github.com/josexy/mini-ss/proxy"
 )
 
-var addonsList []ProxyAddons
+var (
+	requestProxyAddonsList  []RequestHandler
+	responseProxyAddonsList []ResponseHandler
+	messageProxyAddonsList  []MessageHandler
+)
 
 var (
 	MutableHTTPInterceptor proxy.MutableHTTPInterceptor
@@ -22,33 +26,16 @@ var uniqueId uint64
 
 func increaseId() uint64 { return atomic.AddUint64(&uniqueId, 1) }
 
-type ProxyAddons interface {
-	Name() string
-	Init()
-}
-
-func executeAddons(fn func(addons ProxyAddons) error) (err error) {
-	for _, addons := range addonsList {
-		if fn != nil {
-			if err = fn(addons); err != nil {
-				break
-			}
-		}
-	}
-	return
-}
+type (
+	ProxyAddons     interface{}
+	RequestHandler  interface{ Request(*Context) }
+	ResponseHandler interface{ Response(*Context) }
+	MessageHandler  interface{ Message(*Context) }
+)
 
 func init() {
 
-	addonsList = []ProxyAddons{
-		// &logEvent{},
-		&dumper{},
-	}
-
-	executeAddons(func(addons ProxyAddons) error {
-		addons.Init()
-		return nil
-	})
+	Use(&duration{}, &logEvent{}, &modifiedHeader{}, &dumper{})
 
 	MutableHTTPInterceptor = func(req *http.Request, invoker proxy.HTTPDelegatedInvoker) (*http.Response, error) {
 		var err error
@@ -60,12 +47,15 @@ func init() {
 				Request: req,
 			},
 		}
-		if err = executeAddons(func(addons ProxyAddons) error {
-			if handler, ok := addons.(proxy.HTTPFlowHandler); ok {
-				return handler.Request(flow)
-			}
-			return nil
-		}); err != nil {
+
+		ctx := &Context{
+			Flow:    flow,
+			ctxT:    requestCtx,
+			request: contextT[RequestHandler]{index: -1, chains: requestProxyAddonsList},
+		}
+
+		ctx.Next()
+		if err = ctx.error(); err != nil {
 			return nil, err
 		}
 
@@ -77,26 +67,20 @@ func init() {
 
 		rsp, err := invoker.Invoke(flow.HTTP.Request)
 		if err != nil {
-			executeAddons(func(addons ProxyAddons) error {
-				if handler, ok := addons.(proxy.ErrorFlowHandler); ok {
-					handler.Error(err)
-				}
-				return nil
-			})
 			return nil, err
 		}
 		flow.HTTP.Request = cloneReq
 		flow.HTTP.Response = rsp
-		if err = executeAddons(func(addons ProxyAddons) error {
-			if handler, ok := addons.(proxy.HTTPFlowHandler); ok {
-				return handler.Response(flow)
-			}
-			return nil
-		}); err != nil {
+
+		ctx.ctxT = responseCtx
+		ctx.response = contextT[ResponseHandler]{index: -1, chains: responseProxyAddonsList}
+		ctx.Next()
+		if err = ctx.error(); err != nil {
 			return nil, err
 		}
-		return rsp, err
+		return rsp, nil
 	}
+
 	MutableWSInterceptor = func(dir proxy.WSDirection, req *http.Request, msgType int, data []byte, invoker proxy.WebsocketDelegatedInvoker) error {
 		var err error
 		flow := &proxy.Flow{
@@ -109,22 +93,19 @@ func init() {
 				FramedData: data,
 			},
 		}
-		if err = executeAddons(func(addons ProxyAddons) error {
-			if handler, ok := addons.(proxy.WSFlowHandler); ok {
-				return handler.Message(flow)
-			}
-			return nil
-		}); err != nil {
+
+		ctx := &Context{
+			Flow:    flow,
+			ctxT:    messageCtx,
+			message: contextT[MessageHandler]{index: -1, chains: messageProxyAddonsList},
+		}
+
+		ctx.Next()
+		if err = ctx.error(); err != nil {
 			return err
 		}
 
 		if err = invoker.Invoke(flow.WS.MsgType, flow.WS.FramedData); err != nil {
-			executeAddons(func(addons ProxyAddons) error {
-				if handler, ok := addons.(proxy.ErrorFlowHandler); ok {
-					handler.Error(err)
-				}
-				return nil
-			})
 			return err
 		}
 		return nil

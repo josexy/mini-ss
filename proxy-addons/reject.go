@@ -1,25 +1,28 @@
 package proxyaddons
 
 import (
-	"fmt"
+	"errors"
+	"net/http"
 
-	"github.com/josexy/mini-ss/proxy"
+	"github.com/josexy/mini-ss/util/logger"
 )
 
 type reject struct{}
 
-func (da *reject) Name() string { return "reject" }
-
-func (da *reject) Init() {}
-
-func (da *reject) Request(flow *proxy.Flow) error {
-	return fmt.Errorf("reject http request: %s", flow.HTTP.Request.URL)
+func (da *reject) Request(ctx *Context) {
+	logger.Logger.Debug("addons[reject]: request")
+	if ctx.HTTP.Request.Method == http.MethodGet {
+		ctx.Reject(errors.New("reject request GET method"))
+	}
 }
 
-func (da *reject) Response(flow *proxy.Flow) error {
-	return fmt.Errorf("reject http response: %s", flow.HTTP.Request.URL)
+func (da *reject) Response(ctx *Context) {
+	logger.Logger.Debug("addons[reject]: response")
+	if ctx.HTTP.Response.StatusCode == 200 {
+		ctx.Reject(errors.New("reject response status code 200"))
+	}
 }
 
-func (da *reject) Message(flow *proxy.Flow) error {
-	return fmt.Errorf("reject ws message: %s", flow.WS.Request.URL)
+func (da *reject) Message(ctx *Context) {
+	ctx.Reject(errors.New("reject message"))
 }

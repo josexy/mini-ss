@@ -2,21 +2,17 @@ package proxyaddons
 
 import (
 	"strconv"
-
-	"github.com/josexy/mini-ss/util/logger"
 )
 
 type modifiedHeader struct{}
 
-func (mh *modifiedHeader) Request(ctx *Context) {
-	logger.Logger.Debug("addons[modifiedHeader]: request")
+func (*modifiedHeader) Request(ctx *Context) {
 	flow := ctx.Flow
 	req := flow.HTTP.Request
 	req.Header.Set("X-Request", strconv.Itoa(int(flow.FlowID)))
 }
 
-func (mh *modifiedHeader) Response(ctx *Context) {
-	logger.Logger.Debug("addons[modifiedHeader]: response")
+func (*modifiedHeader) Response(ctx *Context) {
 	flow := ctx.Flow
 	req := flow.HTTP.Response
 	req.Header.Set("X-Response", strconv.Itoa(int(flow.FlowID)))

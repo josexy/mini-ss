@@ -3,15 +3,11 @@ package proxyaddons
 import (
 	"fmt"
 	"strings"
-
-	"github.com/josexy/mini-ss/util/logger"
 )
 
 type dumper struct{}
 
-func (da *dumper) Request(ctx *Context) {
-	logger.Logger.Debug("addons[dumper]: request")
-}
+func (*dumper) Request(ctx *Context) {}
 
 func filter(contentType string) bool {
 	// https://www.iana.org/assignments/media-types/media-types.xhtml#image
@@ -29,8 +25,7 @@ func filter(contentType string) bool {
 	return false
 }
 
-func (da *dumper) Response(ctx *Context) {
-	logger.Logger.Debug("addons[dumper]: response")
+func (*dumper) Response(ctx *Context) {
 	flow := ctx.Flow
 	contentType := flow.HTTP.Response.Header.Get("Content-Type")
 	if filter(contentType) {
@@ -44,6 +39,6 @@ func (da *dumper) Response(ctx *Context) {
 	fmt.Printf("--------RSP---------\n%s\n--------------------\n", view.Response.Encode())
 }
 
-func (da *dumper) Message(ctx *Context) {
+func (*dumper) Message(ctx *Context) {
 	fmt.Printf("--------MSG---------\n%s\n--------------------\n", ctx.Flow.WS.FramedData)
 }

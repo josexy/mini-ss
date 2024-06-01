@@ -74,11 +74,11 @@ func (v *HTTPResponseView) Encode() []byte {
 }
 
 func (f *HTTPFlow) DumpHTTPView() (*HTTPView, error) {
-	reqView, err := f.dumpHTTPRequest()
+	reqView, err := f.DumpHTTPRequestView()
 	if err != nil {
 		return nil, err
 	}
-	rspView, err := f.dumpHTTPResponse()
+	rspView, err := f.DumpHTTPResponseView()
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (f *HTTPFlow) DumpHTTPView() (*HTTPView, error) {
 	}, nil
 }
 
-func (f *HTTPFlow) dumpHTTPRequest() (*HTTPRequestView, error) {
+func (f *HTTPFlow) DumpHTTPRequestView() (*HTTPRequestView, error) {
 	req := f.Request
 	var err error
 	var view = &HTTPRequestView{
@@ -119,7 +119,7 @@ func (f *HTTPFlow) dumpHTTPRequest() (*HTTPRequestView, error) {
 	return view, nil
 }
 
-func (f *HTTPFlow) dumpHTTPResponse() (*HTTPResponseView, error) {
+func (f *HTTPFlow) DumpHTTPResponseView() (*HTTPResponseView, error) {
 	resp := f.Response
 	var err error
 	var view = &HTTPResponseView{

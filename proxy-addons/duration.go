@@ -8,18 +8,23 @@ import (
 
 type duration struct{}
 
-func (d *duration) Request(ctx *Context) {
-	logger.Logger.Debug("addons[duration]: request")
+func (*duration) Request(ctx *Context) {
 	start := time.Now()
 	ctx.Next()
 	end := time.Now()
 	logger.Logger.Debugf("addons[duration]: request: %s", end.Sub(start))
 }
 
-func (d *duration) Response(ctx *Context) {
-	logger.Logger.Debug("addons[duration]: response")
+func (*duration) Response(ctx *Context) {
 	start := time.Now()
 	ctx.Next()
 	end := time.Now()
 	logger.Logger.Debugf("addons[duration]: response: %s", end.Sub(start))
+}
+
+func (*duration) Message(ctx *Context) {
+	start := time.Now()
+	ctx.Next()
+	end := time.Now()
+	logger.Logger.Debugf("addons[duration]: message: %s", end.Sub(start))
 }

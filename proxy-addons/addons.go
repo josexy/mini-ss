@@ -33,9 +33,23 @@ type (
 	MessageHandler  interface{ Message(*Context) }
 )
 
+func Use(addons ...ProxyAddons) {
+	for _, pa := range addons {
+		if h, ok := pa.(RequestHandler); ok {
+			requestProxyAddonsList = append(requestProxyAddonsList, h)
+		}
+		if h, ok := pa.(ResponseHandler); ok {
+			responseProxyAddonsList = append(responseProxyAddonsList, h)
+		}
+		if h, ok := pa.(MessageHandler); ok {
+			messageProxyAddonsList = append(messageProxyAddonsList, h)
+		}
+	}
+}
+
 func init() {
 
-	Use(&duration{}, &logEvent{}, &modifiedHeader{}, &dumper{})
+	Use(&duration{}, &logEvent{})
 
 	MutableHTTPInterceptor = func(req *http.Request, invoker proxy.HTTPDelegatedInvoker) (*http.Response, error) {
 		var err error

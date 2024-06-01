@@ -52,6 +52,7 @@ func (c *Context) Next() {
 	}
 }
 
+// Abort abort the addons chain
 func (c *Context) Abort() {
 	switch c.ctxT {
 	case requestCtx:
@@ -63,18 +64,7 @@ func (c *Context) Abort() {
 	}
 }
 
-func (c *Context) error() error {
-	switch c.ctxT {
-	case requestCtx:
-		return c.request.err
-	case responseCtx:
-		return c.response.err
-	case messageCtx:
-		return c.message.err
-	}
-	return nil
-}
-
+// Reject abort the addons chain and reject the request/response/message with error
 func (c *Context) Reject(err error) {
 	if err == nil {
 		err = errContextReject
@@ -92,16 +82,14 @@ func (c *Context) Reject(err error) {
 	}
 }
 
-func Use(addons ...ProxyAddons) {
-	for _, pa := range addons {
-		if h, ok := pa.(RequestHandler); ok {
-			requestProxyAddonsList = append(requestProxyAddonsList, h)
-		}
-		if h, ok := pa.(ResponseHandler); ok {
-			responseProxyAddonsList = append(responseProxyAddonsList, h)
-		}
-		if h, ok := pa.(MessageHandler); ok {
-			messageProxyAddonsList = append(messageProxyAddonsList, h)
-		}
+func (c *Context) error() error {
+	switch c.ctxT {
+	case requestCtx:
+		return c.request.err
+	case responseCtx:
+		return c.response.err
+	case messageCtx:
+		return c.message.err
 	}
+	return nil
 }

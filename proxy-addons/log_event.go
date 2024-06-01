@@ -10,16 +10,13 @@ import (
 
 type logEvent struct{}
 
-func (da *logEvent) Request(ctx *Context) {
-	logger.Logger.Debug("addons[logEvent]: request")
-}
+func (*logEvent) Request(ctx *Context) {}
 
-func (da *logEvent) Response(ctx *Context) {
-	logger.Logger.Debug("addons[logEvent]: response")
+func (*logEvent) Response(ctx *Context) {
 	flow := ctx.Flow
 	req := flow.HTTP.Request
 	rsp := flow.HTTP.Response
-	logger.Logger.Debug("http interceptor",
+	logger.Logger.Debug("http flow",
 		logx.UInt64("id", flow.FlowID),
 		logx.Time("timestamp", time.UnixMilli(flow.Timestamp)),
 		logx.String("method", req.Method),
@@ -31,14 +28,14 @@ func (da *logEvent) Response(ctx *Context) {
 	)
 }
 
-func (da *logEvent) Message(ctx *Context) {
+func (*logEvent) Message(ctx *Context) {
 	flow := ctx.Flow
 	req := flow.WS.Request
 	direction := "Send"
 	if flow.WS.Direction == proxy.Receive {
 		direction = "Receive"
 	}
-	logger.Logger.Debug("ws interceptor",
+	logger.Logger.Debug("ws flow",
 		logx.UInt64("id", flow.FlowID),
 		logx.Time("timestamp", time.UnixMilli(flow.Timestamp)),
 		logx.String("direction", direction),

@@ -11,6 +11,7 @@ import (
 	"github.com/josexy/mini-ss/address"
 	"github.com/josexy/mini-ss/bufferpool"
 	"github.com/josexy/mini-ss/proxy"
+	proxyaddons "github.com/josexy/mini-ss/proxy-addons"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
@@ -60,6 +61,10 @@ func (s *socks5Server) WithMitmMode(opt proxy.MimtOption) *socks5Server {
 	if err != nil {
 		logger.Logger.ErrorBy(err)
 	}
+	if s.mitmHandler != nil {
+		s.mitmHandler.SetMutableHTTPInterceptor(proxyaddons.MutableHTTPInterceptor)
+		s.mitmHandler.SetMutableWebsocketInterceptor(proxyaddons.MutableWSInterceptor)
+	}
 	return s
 }
 
@@ -70,7 +75,6 @@ func (s *socks5Server) ServeTCP(conn net.Conn) {
 		return
 	}
 	if cmd == CONNECT {
-		// TODO: in mitm mode, the client doesn't relay the data to remote ss server via transport
 		if s.mitmHandler != nil {
 			host, port, _ := net.SplitHostPort(dstAddr)
 			ctx := context.WithValue(context.Background(), proxy.ReqCtxKey, proxy.ReqContext{

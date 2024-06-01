@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -17,12 +18,14 @@ import (
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/cert"
 	"github.com/josexy/mini-ss/util/logger"
+	"golang.org/x/net/proxy"
 )
 
 var (
 	errServerCertUnavailable = errors.New("cannot found a available server tls certificate")
 	errShortPacket           = errors.New("short packet")
 	errMitmDisabled          = errors.New("mitm disabled")
+	errProxyTypeUnsupported  = errors.New("unsupported proxy type")
 )
 
 var (
@@ -76,6 +79,7 @@ func (f *fakeHttpResponseWriter) WriteHeader(int)           {}
 
 type MimtOption struct {
 	Enable       bool
+	Proxy        string
 	CaPath       string
 	KeyPath      string
 	FakeCertPool struct {
@@ -96,6 +100,7 @@ type mitmHandlerImpl struct {
 	mutHttpIntc   baseMutableHTTPInterceptor
 	immutWsIntc   baseImmutableWebsocketInterceptor
 	mutWsIntc     baseMutableWebsocketInterceptor
+	proxyInfo     *url.URL
 }
 
 func NewMitmHandler(opt MimtOption) (MitmHandler, error) {
@@ -107,8 +112,16 @@ func NewMitmHandler(opt MimtOption) (MitmHandler, error) {
 	if err != nil {
 		return nil, err
 	}
+	var proxyInfo *url.URL
+	if opt.Proxy != "" {
+		proxyInfo, err = url.Parse(opt.Proxy)
+		if err != nil {
+			return nil, err
+		}
+	}
 	handler := &mitmHandlerImpl{
 		mitmOpt:    opt,
+		proxyInfo:  proxyInfo,
 		priKeyPool: cert.NewPriKeyPool(10),
 		certPool: cert.NewCertPool(opt.FakeCertPool.Capacity,
 			time.Duration(opt.FakeCertPool.Interval)*time.Millisecond,
@@ -156,12 +169,37 @@ func (r *mitmHandlerImpl) HandleMIMT(ctx context.Context, conn net.Conn) error {
 	}
 }
 
-func (r *mitmHandlerImpl) getServerResponseCert(ctx context.Context, serverName string) (net.Conn, *tls.Config, error) {
+// useProxyDial only support socks5 proxy currently
+func (r *mitmHandlerImpl) useProxyDial(ctx context.Context) (newCtx context.Context, conn net.Conn, err error) {
 	reqCtx := ctx.Value(ReqCtxKey).(ReqContext)
-	dstConn, err := transport.DialTCP(ctx, reqCtx.Addr)
+	newCtx = ctx
+	if r.proxyInfo == nil {
+		conn, err = transport.DialTCP(ctx, reqCtx.Addr)
+		return
+	}
+	switch r.proxyInfo.Scheme {
+	case "socks5":
+		var proxyDialer proxy.Dialer
+		proxyDialer, err = proxy.SOCKS5("tcp", r.proxyInfo.Host, nil, nil)
+		if err != nil {
+			return
+		}
+		conn, err = proxyDialer.Dial("tcp", reqCtx.Addr)
+		if err != nil {
+			return
+		}
+	default:
+		err = errProxyTypeUnsupported
+	}
+	return
+}
+
+func (r *mitmHandlerImpl) getServerResponseCert(ctx context.Context, serverName string) (net.Conn, *tls.Config, error) {
+	ctx, dstConn, err := r.useProxyDial(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
+	reqCtx := ctx.Value(ReqCtxKey).(ReqContext)
 	tlsConfig := &tls.Config{}
 	if serverName != "" {
 		tlsConfig.ServerName = serverName

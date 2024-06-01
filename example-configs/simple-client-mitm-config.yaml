@@ -2,6 +2,7 @@ local:
   mixed_addr: :10088
   mitm:
     enable: true
+    proxy: socks5://127.0.0.1:7890
     ca_path: "certs/ca.crt"
     key_path: "certs/ca.key"
     fake_cert_pool:

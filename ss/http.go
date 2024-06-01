@@ -77,7 +77,10 @@ func (r *httpReqHandler) parseHostPort(req *http.Request) (host, port string) {
 
 // handleHomeAccess only handle GET/POST... common method
 func (r *httpReqHandler) handleHomeAccess(conn net.Conn, req *http.Request) error {
-	if req.Method == http.MethodConnect || req.Header.Get(proxy.HttpHeaderProxyConnection) != "" {
+	// 1. CONNECT xxxx
+	// 2. POST http://xxxx
+	// 3. POST /xxxx
+	if req.Method == http.MethodConnect || req.Header.Get(proxy.HttpHeaderProxyConnection) != "" || req.URL.Scheme != "" {
 		return nil
 	}
 	if r.owner.mitmHandler != nil && req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, caCertFileRequestUrl) {

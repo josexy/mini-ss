@@ -7,6 +7,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var _ net.Conn = (*WebsocketConn)(nil)
+
 type WebsocketConn struct {
 	conn *websocket.Conn
 	rbuf []byte // remaining buffer data

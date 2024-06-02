@@ -109,6 +109,8 @@ var DefaultGrpcOptions = &GrpcOptions{
 	TlsOptions: TlsOptions{Mode: None},
 }
 
+var DefaultSshOptions = &SshOptions{}
+
 type KcpOptions struct {
 	Key         string
 	Crypt       string
@@ -217,3 +219,13 @@ type GrpcOptions struct {
 }
 
 func (opts *GrpcOptions) Update() {}
+
+type SshOptions struct {
+	User          string
+	Password      string
+	PrivateKey    string
+	PublicKey     string // only used for client
+	AuthorizedKey string // only used for server
+}
+
+func (opts *SshOptions) Update() {}

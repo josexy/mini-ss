@@ -16,6 +16,8 @@ Generate golang code from proto buffer file:
 	--go-grpc_out=paths=source_relative:./proto ./proto/stream.proto
 */
 
+var _ net.Conn = (*GrpcStreamConn)(nil)
+
 type grpcStream interface {
 	SendMsg(interface{}) error
 	RecvMsg(interface{}) error

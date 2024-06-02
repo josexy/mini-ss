@@ -33,6 +33,7 @@ var (
 			Quic: &config.QuicOption{},
 			Obfs: &config.ObfsOption{},
 			Grpc: &config.GrpcOption{},
+			Ssh:  &config.SshOption{},
 			SSR:  &config.SSROption{},
 		}},
 		Local: &config.LocalConfig{
@@ -100,6 +101,12 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Grpc.TLS.CertPath, "grpc-tls-cert", "", "grpc tls cert path")
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Grpc.TLS.CAPath, "grpc-tls-ca", "", "grpc tls ca path")
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Grpc.TLS.Hostname, "grpc-tls-host", "", "grpc tls common name")
+	// ssh options
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Ssh.User, "ssh-user", "", "ssh user")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Ssh.Password, "ssh-password", "", "ssh password")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Ssh.PrivateKey, "ssh-prikey", "", "ssh private key")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Ssh.PublicKey, "ssh-pubkey", "", "ssh public key (only used for client)")
+	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Ssh.AuthorizedKey, "ssh-authorizedkey", "", "ssh authorized key (only used for server)")
 	// interface
 	rootCmd.PersistentFlags().StringVar(&cfg.Iface, "iface", "", "bind outbound interface")
 	rootCmd.PersistentFlags().BoolVar(&cfg.AutoDetectIface, "auto-detect-iface", false, "enable auto-detect interface")

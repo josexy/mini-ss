@@ -51,6 +51,14 @@ type GrpcOption struct {
 	TLS            TlsOption `yaml:"tls,omitempty" json:"tls,omitempty"`
 }
 
+type SshOption struct {
+	User          string `yaml:"user" json:"user"`
+	Password      string `yaml:"password" json:"password"`
+	PrivateKey    string `yaml:"private_key" json:"private_key"`
+	PublicKey     string `yaml:"public_key" json:"public_key"`
+	AuthorizedKey string `yaml:"authorized_key" json:"authorized_key"`
+}
+
 type SSROption struct {
 	Protocol      string `yaml:"protocol" json:"protocol"`
 	ProtocolParam string `yaml:"protocol_param,omitempty" json:"protocol_param,omitempty"`
@@ -72,6 +80,7 @@ type ServerConfig struct {
 	Obfs      *ObfsOption `yaml:"obfs,omitempty" json:"obfs,omitempty"`
 	Quic      *QuicOption `yaml:"quic,omitempty" json:"quic,omitempty"`
 	Grpc      *GrpcOption `yaml:"grpc,omitempty" json:"grpc,omitempty"`
+	Ssh       *SshOption  `yaml:"ssh,omitempty" json:"ssh,omitempty"`
 	SSR       *SSROption  `yaml:"ssr,omitempty" json:"ssr,omitempty"`
 }
 
@@ -372,6 +381,13 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 			case "mtls":
 				opts = append(opts, ss.WithGrpcTLS(options.MTLS))
 			}
+		case "ssh":
+			opts = append(opts, ss.WithSshTransport())
+			opts = append(opts, ss.WithSshUser(opt.Ssh.User))
+			opts = append(opts, ss.WithSshPassword(opt.Ssh.Password))
+			opts = append(opts, ss.WithSshPrivateKey(opt.Ssh.PrivateKey))
+			opts = append(opts, ss.WithSshPublicKey(opt.Ssh.PublicKey))
+			opts = append(opts, ss.WithSshAuthorizedKey(opt.Ssh.AuthorizedKey))
 		case "default":
 			// whether to support ssr
 			if opt.Type == "ssr" {

@@ -1,0 +1,19 @@
+server:
+  - name: ss
+    addr: ':8388'
+    password: "12345"
+    # method: chacha20-ietf-poly1305
+    method: none
+    transport: ssh
+    ssh:
+      user: root
+      # password: root
+      private_key: ssh-keys/pri.key
+      authorized_key: ssh-keys/authorized_keys
+log:
+  color: true
+  log_level: debug
+  verbose_level: 3
+
+# iface: en5
+# auto_detect_iface: true

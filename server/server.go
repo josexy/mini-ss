@@ -21,6 +21,7 @@ const (
 	Quic
 	Mixed
 	Grpc
+	Ssh
 )
 
 func (t ServerType) String() string {
@@ -43,6 +44,8 @@ func (t ServerType) String() string {
 		return "quic"
 	case Grpc:
 		return "grpc"
+	case Ssh:
+		return "ssh"
 	case Mixed:
 		return "mixed-socks-http"
 	}
@@ -69,12 +72,14 @@ type (
 	ObfsHandler     interface{ ServeOBFS(net.Conn) }
 	QuicHandler     interface{ ServeQUIC(net.Conn) }
 	GrpcHandler     interface{ ServeGRPC(net.Conn) }
+	SshHandler      interface{ ServeSSH(net.Conn) }
 	TcpHandlerFunc  func(net.Conn)
 	KcpHandlerFunc  func(net.Conn)
 	WsHandlerFunc   func(net.Conn)
 	ObfsHandlerFunc func(net.Conn)
 	QuicHandlerFunc func(net.Conn)
 	GrpcHandlerFunc func(net.Conn)
+	SshHandlerFunc  func(net.Conn)
 )
 
 func (f TcpHandlerFunc) ServeTCP(conn net.Conn)   { f(conn) }
@@ -83,6 +88,7 @@ func (f WsHandlerFunc) ServeWS(conn net.Conn)     { f(conn) }
 func (f ObfsHandlerFunc) ServeOBFS(conn net.Conn) { f(conn) }
 func (f QuicHandlerFunc) ServeQUIC(conn net.Conn) { f(conn) }
 func (f GrpcHandlerFunc) ServeGRPC(conn net.Conn) { f(conn) }
+func (f SshHandlerFunc) ServeSSH(conn net.Conn)   { f(conn) }
 
 func closeWithContextDoneErr(ctx context.Context, server Server) {
 	<-ctx.Done()

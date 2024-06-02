@@ -18,6 +18,8 @@ import (
 
 var keyGUID = []byte("258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
 
+var _ net.Conn = (*ObfsConn)(nil)
+
 type ObfsConn struct {
 	net.Conn
 	host          string

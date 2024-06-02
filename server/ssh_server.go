@@ -69,7 +69,13 @@ func (s *SshServer) Start(ctx context.Context) error {
 		if err != nil {
 			continue
 		}
-		go ssh.DiscardRequests(reqs)
+		go func(reqs <-chan *ssh.Request) {
+			for req := range reqs {
+				if req.Type == "keepalive@openssh.com" {
+					req.Reply(true, nil)
+				}
+			}
+		}(reqs)
 		go func(chs <-chan ssh.NewChannel, conn *ssh.ServerConn) {
 			for ch := range chs {
 				go s.handlePerChannel(ch, conn)

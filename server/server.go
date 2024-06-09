@@ -15,7 +15,6 @@ const (
 	Socks
 	Http
 	SimpleTcpTun
-	Kcp
 	Ws
 	Obfs
 	Quic
@@ -33,8 +32,6 @@ func (t ServerType) String() string {
 		return "http"
 	case SimpleTcpTun:
 		return "simple-tcp-tun"
-	case Kcp:
-		return "kcp"
 	case Ws:
 		return "ws"
 	case Obfs:
@@ -64,13 +61,11 @@ type (
 		Type() ServerType
 	}
 	TcpHandler      interface{ ServeTCP(net.Conn) }
-	KcpHandler      interface{ ServeKCP(net.Conn) }
 	WsHandler       interface{ ServeWS(net.Conn) }
 	ObfsHandler     interface{ ServeOBFS(net.Conn) }
 	QuicHandler     interface{ ServeQUIC(net.Conn) }
 	GrpcHandler     interface{ ServeGRPC(net.Conn) }
 	TcpHandlerFunc  func(net.Conn)
-	KcpHandlerFunc  func(net.Conn)
 	WsHandlerFunc   func(net.Conn)
 	ObfsHandlerFunc func(net.Conn)
 	QuicHandlerFunc func(net.Conn)
@@ -78,7 +73,6 @@ type (
 )
 
 func (f TcpHandlerFunc) ServeTCP(conn net.Conn)   { f(conn) }
-func (f KcpHandlerFunc) ServeKCP(conn net.Conn)   { f(conn) }
 func (f WsHandlerFunc) ServeWS(conn net.Conn)     { f(conn) }
 func (f ObfsHandlerFunc) ServeOBFS(conn net.Conn) { f(conn) }
 func (f QuicHandlerFunc) ServeQUIC(conn net.Conn) { f(conn) }

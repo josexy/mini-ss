@@ -59,8 +59,6 @@ func (ss *ShadowsocksServer) initServerHandler(opt *serverOptions) error {
 	switch opt.transport {
 	case transport.Tcp:
 		ss.srvGroup.AddServer(server.NewTcpServer(opt.addr, handler, server.Tcp))
-	case transport.Kcp:
-		ss.srvGroup.AddServer(server.NewKcpServer(opt.addr, handler, opt.opts))
 	case transport.Websocket:
 		ss.srvGroup.AddServer(server.NewWsServer(opt.addr, handler, opt.opts))
 	case transport.Quic:
@@ -130,12 +128,6 @@ func (h *serverHandler) ServeOBFS(conn net.Conn) {
 }
 
 func (h *serverHandler) ServeWS(conn net.Conn) {
-	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
-		logger.Logger.ErrorBy(err)
-	}
-}
-
-func (h *serverHandler) ServeKCP(conn net.Conn) {
 	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
 		logger.Logger.ErrorBy(err)
 	}

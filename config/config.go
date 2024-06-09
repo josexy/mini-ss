@@ -21,14 +21,6 @@ type TlsOption struct {
 	CAPath   string `yaml:"ca_path,omitempty" json:"ca_path,omitempty"`
 }
 
-type KcpOption struct {
-	Crypt    string `yaml:"crypt" json:"crypt"`
-	Key      string `yaml:"key" json:"key"`
-	Mode     string `yaml:"mode" json:"mode"`
-	Compress bool   `yaml:"compress,omitempty" json:"compress,omitempty"`
-	Conns    int    `yaml:"conns" json:"conns"`
-}
-
 type WsOption struct {
 	Path     string    `yaml:"path" json:"path"`
 	Host     string    `yaml:"host,omitempty" json:"host,omitempty"`
@@ -67,7 +59,6 @@ type ServerConfig struct {
 	Method    string      `yaml:"method" json:"method"`
 	Transport string      `yaml:"transport" json:"transport"`
 	Udp       bool        `yaml:"udp,omitempty" json:"udp,omitempty"`
-	Kcp       *KcpOption  `yaml:"kcp,omitempty" json:"kcp,omitempty"`
 	Ws        *WsOption   `yaml:"ws,omitempty" json:"ws,omitempty"`
 	Obfs      *ObfsOption `yaml:"obfs,omitempty" json:"obfs,omitempty"`
 	Quic      *QuicOption `yaml:"quic,omitempty" json:"quic,omitempty"`
@@ -317,15 +308,6 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 		var opts []ss.SSOption
 
 		switch opt.Transport {
-		case "kcp":
-			opts = append(opts, ss.WithKcpTransport())
-			opts = append(opts, ss.WithKcpCrypt(opt.Kcp.Crypt))
-			opts = append(opts, ss.WithKcpKey(opt.Kcp.Key))
-			opts = append(opts, ss.WithKcpMode(opt.Kcp.Mode))
-			opts = append(opts, ss.WithKcpConns(opt.Kcp.Conns))
-			if opt.Kcp.Compress {
-				opts = append(opts, ss.WithKcpCompress())
-			}
 		case "ws":
 			opts = append(opts, ss.WithWsTransport())
 			opts = append(opts, ss.WithWsHost(opt.Ws.Host))

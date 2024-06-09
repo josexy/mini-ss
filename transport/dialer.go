@@ -11,7 +11,6 @@ import (
 
 const (
 	Tcp Type = iota // default
-	Kcp
 	Quic
 	Websocket
 	Obfs
@@ -27,8 +26,6 @@ func (t Type) String() string {
 	switch t {
 	case Tcp:
 		return "tcp"
-	case Kcp:
-		return "kcp"
 	case Quic:
 		return "quic"
 	case Websocket:
@@ -53,8 +50,6 @@ func NewDialer(tr Type, opt options.Options) Dialer {
 	switch tr {
 	case Tcp:
 		dialer = &tcpDialer{}
-	case Kcp:
-		dialer = &kcpDialer{opts: opt.(*options.KcpOptions)}
 	case Websocket:
 		dialer = &wsDialer{opts: opt.(*options.WsOptions)}
 	case Quic:

@@ -34,7 +34,7 @@ func (echoSrv) ServeTCP(conn net.Conn) {
 	}
 }
 
-// tcp client <-> kcp/quic client <-> kcp/quic server <-> tcp server
+// tcp client <-> quic client <-> quic server <-> tcp server
 
 func echoMain() {
 	srv := server.NewTcpServer(":10002", &echoSrv{}, server.Tcp)

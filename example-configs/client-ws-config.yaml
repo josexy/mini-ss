@@ -19,6 +19,7 @@ server:
 local:
   socks_addr: 127.0.0.1:10086
   http_addr: 127.0.0.1:10087
+  mixed_addr: 127.0.0.1:10088
 log:
   color: true
   log_level: trace

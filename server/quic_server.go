@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
+	"sync"
 	"sync/atomic"
 
 	"github.com/josexy/mini-ss/connection"
@@ -21,6 +22,7 @@ type QuicServer struct {
 	Addr    string
 	Handler QuicHandler
 	running atomic.Bool
+	locker  sync.Mutex
 	conns   []quic.EarlyConnection
 	opts    *options.QuicOptions
 }
@@ -30,7 +32,7 @@ func NewQuicServer(addr string, handler QuicHandler, opts options.Options) *Quic
 		Addr:    addr,
 		Handler: handler,
 		opts:    opts.(*options.QuicOptions),
-		conns:   make([]quic.EarlyConnection, 0, 32),
+		conns:   make([]quic.EarlyConnection, 0, 1024),
 	}
 }
 
@@ -59,6 +61,7 @@ func (s *QuicServer) Start(ctx context.Context) error {
 		}
 		tlsConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
 	}
+	tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(100)
 
 	conn, err := transport.ListenUDP(ctx, s.Addr)
 	if err != nil {
@@ -66,9 +69,12 @@ func (s *QuicServer) Start(ctx context.Context) error {
 	}
 
 	ln, err := quic.ListenEarly(conn, transport.TlsConfigQuicALPN(tlsConfig), &quic.Config{
-		HandshakeIdleTimeout: s.opts.HandshakeIdleTimeout,
-		KeepAlivePeriod:      s.opts.KeepAlivePeriod,
-		MaxIdleTimeout:       s.opts.MaxIdleTimeout,
+		HandshakeIdleTimeout:  s.opts.HandshakeIdleTimeout,
+		KeepAlivePeriod:       s.opts.KeepAlivePeriod,
+		MaxIdleTimeout:        s.opts.MaxIdleTimeout,
+		MaxIncomingStreams:    1 << 32,
+		MaxIncomingUniStreams: 1 << 32,
+		Allow0RTT:             true,
 		Versions: []quic.VersionNumber{
 			quic.Version1,
 			quic.Version2,
@@ -88,14 +94,22 @@ func (s *QuicServer) Start(ctx context.Context) error {
 			}
 			continue
 		}
-		logger.Logger.Tracef("quic accept connection: %s", conn.RemoteAddr())
-		s.conns = append(s.conns, conn)
-		go s.acceptStreamForConn(ctx, conn)
+		go func() {
+			select {
+			case <-conn.HandshakeComplete():
+				logger.Logger.Tracef("quic accept connection: %s", conn.RemoteAddr())
+				s.locker.Lock()
+				s.conns = append(s.conns, conn)
+				s.locker.Unlock()
+				s.acceptStreamForConn(ctx, conn)
+			case <-conn.Context().Done():
+			}
+		}()
 	}
 	return nil
 }
 
-func (s *QuicServer) acceptStreamForConn(ctx context.Context, conn quic.Connection) {
+func (s *QuicServer) acceptStreamForConn(ctx context.Context, conn quic.EarlyConnection) {
 	for {
 		stream, err := conn.AcceptStream(ctx)
 		if err != nil {
@@ -118,6 +132,9 @@ func (s *QuicServer) Close() error {
 	}
 	s.running.Store(false)
 	err := s.EarlyListener.Close()
+
+	s.locker.Lock()
+	defer s.locker.Unlock()
 	for _, conn := range s.conns {
 		_ = conn.CloseWithError(quic.ApplicationErrorCode(0), "")
 	}

@@ -17,18 +17,22 @@ import (
 
 type echoSrv struct{}
 
-// multiplexing quic dialer
-var dialer = transport.NewDialer(transport.Quic, options.DefaultQuicOptions)
+var dialer = transport.NewDialer(transport.Quic, &options.QuicOptions{
+	Conns: 3,
+	// TlsOptions: options.TlsOptions{
+	// 	Mode:     options.TLS,
+	// 	Hostname: "127.0.0.1",
+	// 	CAFile:   "certs/ca.crt",
+	// },
+})
 
 func (echoSrv) ServeTCP(conn net.Conn) {
 	log.Println(conn.RemoteAddr().String())
-
 	quicConn, err := dialer.Dial(context.Background(), "127.0.0.1:10001")
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	// the Close() don't close the raw quic connection, it only closes the smux.Stream()
 	defer quicConn.Close()
 	relay.IoCopyBidirectionalForStream(conn, quicConn)
 }
@@ -45,5 +49,5 @@ func main() {
 	<-interrupt
 
 	srv.Close()
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Millisecond * 200)
 }

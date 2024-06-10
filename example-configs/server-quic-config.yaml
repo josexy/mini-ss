@@ -5,7 +5,8 @@ server:
     method: chacha20-ietf-poly1305
     transport: quic
     quic:
-      conns: 3
+      # max_idle_timeout: 0
+      # handshake_idle_timeout: 0
       tls:
         mode: "tls"
         cert_path: "certs/server.crt"

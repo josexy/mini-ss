@@ -81,6 +81,9 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Obfs.Host, "obfs-host", "www.baidu.com", "obfs host")
 	// quic options
 	rootCmd.PersistentFlags().IntVar(&cfg.Server[0].Quic.Conns, "quic-max-conn", 3, "maximum number of quic connections")
+	rootCmd.PersistentFlags().IntVar(&cfg.Server[0].Quic.KeepAlive, "quic-keepalive", 0, "quic connection keep alive")
+	rootCmd.PersistentFlags().IntVar(&cfg.Server[0].Quic.MaxIdleTimeout, "quic-max-idle-timeout", 0, "quic max idle timeout")
+	rootCmd.PersistentFlags().IntVar(&cfg.Server[0].Quic.HandshakeIdleTimeout, "quic-handshake-idle-timeout", 0, "quic handshake idle timeout")
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Quic.TLS.Mode, "quic-tls-mode", "", "quic tls mode (tls, mtls)")
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Quic.TLS.KeyPath, "quic-tls-key", "", "quic tls key path")
 	rootCmd.PersistentFlags().StringVar(&cfg.Server[0].Quic.TLS.CertPath, "quic-tls-cert", "", "quic tls cert path")

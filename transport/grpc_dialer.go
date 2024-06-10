@@ -15,37 +15,48 @@ import (
 
 type grpcDialer struct {
 	tcpDialer
-	opts *options.GrpcOptions
+	err      error
+	dialOpts []grpc.DialOption
+	opts     *options.GrpcOptions
 }
 
-func (d *grpcDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
+func newGRPCDialer(opt options.Options) *grpcDialer {
+	opt.Update()
+	grpcOpts := opt.(*options.GrpcOptions)
 	var dialOpts []grpc.DialOption
 	var callOpts []grpc.CallOption
 
-	if d.opts.SndBuffer > 0 {
-		dialOpts = append(dialOpts, grpc.WithWriteBufferSize(d.opts.SndBuffer))
+	if grpcOpts.SndBuffer > 0 {
+		dialOpts = append(dialOpts, grpc.WithWriteBufferSize(grpcOpts.SndBuffer))
 	}
-	if d.opts.RevBuffer > 0 {
-		dialOpts = append(dialOpts, grpc.WithReadBufferSize(d.opts.RevBuffer))
+	if grpcOpts.RevBuffer > 0 {
+		dialOpts = append(dialOpts, grpc.WithReadBufferSize(grpcOpts.RevBuffer))
 	}
 	callOpts = append(callOpts, grpc.UseCompressor(gzip.Name))
 
 	cred := insecure.NewCredentials()
-	tlsConfig, err := d.opts.TlsOptions.GetClientTlsConfig()
-	if err != nil {
-		return nil, err
-	}
+	tlsConfig, err := grpcOpts.TlsOptions.GetClientTlsConfig()
 	if tlsConfig != nil {
 		cred = credentials.NewTLS(tlsConfig)
 	}
-
+	grpcDialer := &grpcDialer{
+		err:  err,
+		opts: grpcOpts,
+	}
 	dialOpts = append(dialOpts,
 		grpc.WithDefaultCallOptions(callOpts...),
 		grpc.WithTransportCredentials(cred),
-		grpc.WithContextDialer(d.tcpDialer.Dial),
+		grpc.WithContextDialer(grpcDialer.tcpDialer.Dial),
 	)
+	grpcDialer.dialOpts = dialOpts
+	return grpcDialer
+}
 
-	conn, err := grpc.DialContext(ctx, addr, dialOpts...)
+func (d *grpcDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
+	if d.err != nil {
+		return nil, d.err
+	}
+	conn, err := grpc.DialContext(ctx, addr, d.dialOpts...)
 	if err != nil {
 		return nil, err
 	}

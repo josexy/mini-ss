@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"time"
 
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/address"
@@ -12,6 +13,8 @@ import (
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/logger"
 )
+
+const dialTimeout = time.Second * 30
 
 var (
 	tcpPool    = bufferpool.NewBufferPool(bufferpool.MaxTcpBufferSize)
@@ -54,7 +57,10 @@ func NewTCPDirectRelayer() *TCPDirectRelayer {
 }
 
 func (r *TCPDirectRelayer) RelayToServer(conn net.Conn, remoteServerAddr string) error {
-	dstConn, err := r.Dial(context.Background(), remoteServerAddr)
+	ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
+	defer cancel()
+
+	dstConn, err := r.Dial(ctx, remoteServerAddr)
 	if err != nil {
 		return err
 	}
@@ -87,7 +93,10 @@ func NewProxyTCPRelayer(proxyServerAddr string, typ transport.Type, opts options
 }
 
 func (r *ProxyTCPRelayer) RelayToProxyServer(conn net.Conn, remoteServerAddr string) error {
-	dstConn, err := r.Dial(context.Background(), r.proxyServerAddr)
+	ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
+	defer cancel()
+
+	dstConn, err := r.Dial(ctx, r.proxyServerAddr)
 	if err != nil {
 		return err
 	}
@@ -128,7 +137,10 @@ func (r *ProxyTCPRelayer) RelayToServer(conn net.Conn) error {
 	remoteAddr := addr.String()
 	addrPool.Put(buf)
 
-	dstConn, err := r.Dial(context.Background(), remoteAddr)
+	ctx, cancel := context.WithTimeout(context.Background(), dialTimeout)
+	defer cancel()
+
+	dstConn, err := r.Dial(ctx, remoteAddr)
 	if err != nil {
 		return err
 	}

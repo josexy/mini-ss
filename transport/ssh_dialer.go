@@ -4,82 +4,135 @@ import (
 	"context"
 	"net"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/josexy/mini-ss/options"
+	"github.com/josexy/mini-ss/util/logger"
 	"golang.org/x/crypto/ssh"
 )
 
-type sshDialer struct {
-	tcpDialer
-	opts       *options.SshOptions
-	signerOnce sync.Once
-	signer     ssh.Signer
-	signerErr  error
-	client     *ssh.Client
+type sshClient struct {
+	addr string
+	idx  int
+	*ssh.Client
 }
 
-func (d *sshDialer) initClient(ctx context.Context, addr string) (*ssh.Client, error) {
-	d.signerOnce.Do(func() {
-		if d.opts.PublicKey != "" {
-			var privateKey []byte
-			privateKey, d.signerErr = os.ReadFile(d.opts.PrivateKey)
-			if d.signerErr != nil {
-				return
-			}
-			d.signer, d.signerErr = ssh.ParsePrivateKey(privateKey)
-		}
-	})
+type sshDialer struct {
+	tcpDialer
+	err       error
+	sshConfig *ssh.ClientConfig
+	opts      *options.SshOptions
+	cpool     *connPool[*sshClient]
+}
 
+func newSSHDialer(opt options.Options) *sshDialer {
+	opt.Update()
+	sshOpts := opt.(*options.SshOptions)
 	var authMethod []ssh.AuthMethod
-	if d.opts.Password != "" {
-		authMethod = append(authMethod, ssh.Password(d.opts.Password))
+	if sshOpts.Password != "" {
+		authMethod = append(authMethod, ssh.Password(sshOpts.Password))
 	}
-	if d.opts.PublicKey != "" {
-		if d.signerErr != nil {
-			return nil, d.signerErr
+	var err error
+	if sshOpts.PublicKey != "" {
+		var privateKey []byte
+		if privateKey, err = os.ReadFile(sshOpts.PrivateKey); err == nil {
+			var signer ssh.Signer
+			if signer, err = ssh.ParsePrivateKey(privateKey); err == nil {
+				authMethod = append(authMethod, ssh.PublicKeys(signer))
+			}
 		}
-		authMethod = append(authMethod, ssh.PublicKeys(d.signer))
 	}
-	sshConfig := &ssh.ClientConfig{
-		User:            d.opts.User,
-		Auth:            authMethod,
-		Timeout:         30 * time.Second,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	return &sshDialer{
+		err:   err,
+		opts:  sshOpts,
+		cpool: newConnPool[*sshClient](3),
+		sshConfig: &ssh.ClientConfig{
+			User:            sshOpts.User,
+			Auth:            authMethod,
+			Timeout:         15 * time.Second,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		},
 	}
+}
+
+func (d *sshDialer) initClient(ctx context.Context, addr string) (*sshClient, error) {
 	conn, err := d.tcpDialer.Dial(ctx, addr)
 	if err != nil {
 		return nil, err
 	}
-	c, chans, reqs, err := ssh.NewClientConn(conn, addr, sshConfig)
+	c, chans, reqs, err := ssh.NewClientConn(conn, addr, d.sshConfig)
 	if err != nil {
 		conn.Close()
 		return nil, err
 	}
-	d.client = ssh.NewClient(c, chans, reqs)
-	go func() {
-		t := time.NewTimer(5 * time.Second)
-		defer t.Stop()
-		for range t.C {
-			_, _, err := d.client.SendRequest("keepalive@openssh.com", true, nil)
-			if err != nil {
-				d.client.Close()
-				d.client = nil
-				return
-			}
-			t.Reset(5 * time.Second)
-		}
-	}()
-	return d.client, nil
+	client := &sshClient{
+		addr:   addr,
+		Client: ssh.NewClient(c, chans, reqs),
+	}
+	return client, nil
 }
 
 func (d *sshDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
-	if d.client == nil {
-		_, err := d.initClient(ctx, addr)
+	if d.opts.PublicKey != "" {
+		if d.err != nil {
+			return nil, d.err
+		}
+	}
+
+	client, err := d.getAndDial(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.dial(ctx, client)
+}
+
+func (d *sshDialer) getAndDial(ctx context.Context, addr string) (*sshClient, error) {
+	return d.cpool.getConn(ctx, addr, func(ctx context.Context, addr string, idx int) (*sshClient, error) {
+		client, err := d.initClient(ctx, addr)
 		if err != nil {
 			return nil, err
 		}
+		client.idx = idx
+		return client, nil
+	})
+}
+
+func (d *sshDialer) retryDial(ctx context.Context, addr string, index int) (*sshClient, error) {
+	return d.cpool.getConnWithIndex(ctx, addr, index, false, func(ctx context.Context, addr string, idx int) (*sshClient, error) {
+		client, err := d.initClient(ctx, addr)
+		if err != nil {
+			return nil, err
+		}
+		client.idx = idx
+		return client, nil
+	})
+}
+
+func (d *sshDialer) dial(ctx context.Context, client *sshClient) (net.Conn, error) {
+	var err error
+	var conn net.Conn
+	var fails, retries = 0, 1
+	for {
+		newCtx, cancel := context.WithTimeout(ctx, time.Second*15)
+		if conn, err = client.DialContext(newCtx, "tcp", client.addr); err == nil {
+			cancel()
+			break
+		}
+		cancel()
+
+		if fails >= retries {
+			return nil, err
+		}
+		d.cpool.close(client.idx, func(sc *sshClient) error { return sc.Close() })
+		newCtx, cancel = context.WithTimeout(ctx, time.Second*15)
+		if client, err = d.retryDial(newCtx, client.addr, client.idx); err != nil {
+			cancel()
+			return nil, err
+		}
+		cancel()
+		fails++
 	}
-	return d.client.DialContext(ctx, "tcp", d.client.RemoteAddr().String())
+	logger.Logger.Tracef("ssh dial connection: %s, idx:[%d]", client.LocalAddr(), client.idx)
+	return conn, nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/rule"
@@ -33,8 +34,11 @@ type ObfsOption struct {
 }
 
 type QuicOption struct {
-	Conns int       `yaml:"conns" json:"conns"`
-	TLS   TlsOption `yaml:"tls,omitempty" json:"tls,omitempty"`
+	Conns                int       `yaml:"conns" json:"conns"`
+	KeepAlive            int       `yaml:"keep_alive" json:"keep_alive"`
+	MaxIdleTimeout       int       `yaml:"max_idle_timeout" json:"max_idle_timeout"`
+	HandshakeIdleTimeout int       `yaml:"handshake_idle_timeout" json:"handshake_idle_timeout"`
+	TLS                  TlsOption `yaml:"tls,omitempty" json:"tls,omitempty"`
 }
 
 type GrpcOption struct {
@@ -340,6 +344,9 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 		case "quic":
 			opts = append(opts, ss.WithQuicTransport())
 			opts = append(opts, ss.WithQuicConns(opt.Quic.Conns))
+			opts = append(opts, ss.WithQuicKeepAlivePeriod(time.Second*time.Duration(opt.Quic.KeepAlive)))
+			opts = append(opts, ss.WithQuicMaxIdleTimeout(time.Second*time.Duration(opt.Quic.MaxIdleTimeout)))
+			opts = append(opts, ss.WithQuicHandshakeIdleTimeout(time.Second*time.Duration(opt.Quic.HandshakeIdleTimeout)))
 			opts = append(opts, ss.WithQuicCertPath(opt.Quic.TLS.CertPath))
 			opts = append(opts, ss.WithQuicKeyPath(opt.Quic.TLS.KeyPath))
 			opts = append(opts, ss.WithQuicCAPath(opt.Quic.TLS.CAPath))

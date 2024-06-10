@@ -39,5 +39,5 @@ func main() {
 	signal.Notify(interrupt, syscall.SIGINT)
 	<-interrupt
 	srv.Close()
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Millisecond * 200)
 }

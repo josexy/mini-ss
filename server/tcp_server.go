@@ -58,14 +58,14 @@ func (s *TcpServer) Start(ctx context.Context) error {
 	s.running.Store(true)
 	go closeWithContextDoneErr(ctx, s)
 	for {
-		rwc, err := ln.Accept()
+		conn, err := ln.Accept()
 		if err != nil {
 			if !s.running.Load() {
 				break
 			}
 			continue
 		}
-		go newConn(rwc, s).serve()
+		go newConn(conn, s).serve()
 	}
 	return nil
 }

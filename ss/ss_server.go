@@ -67,6 +67,8 @@ func (ss *ShadowsocksServer) initServerHandler(opt *serverOptions) error {
 		ss.srvGroup.AddServer(server.NewObfsServer(opt.addr, handler, opt.opts))
 	case transport.Grpc:
 		ss.srvGroup.AddServer(server.NewGrpcServer(opt.addr, handler, opt.opts))
+	case transport.Ssh:
+		ss.srvGroup.AddServer(server.NewSshServer(opt.addr, handler, opt.opts))
 	default:
 	}
 
@@ -140,6 +142,12 @@ func (h *serverHandler) ServeTCP(conn net.Conn) {
 }
 
 func (h *serverHandler) ServeGRPC(conn net.Conn) {
+	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
+		logger.Logger.ErrorBy(err)
+	}
+}
+
+func (h *serverHandler) ServeSSH(conn net.Conn) {
 	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
 		logger.Logger.ErrorBy(err)
 	}

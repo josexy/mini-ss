@@ -13,6 +13,12 @@ type obfsDialer struct {
 	opts *options.ObfsOptions
 }
 
+func newOBFSDialer(opt options.Options) *obfsDialer {
+	return &obfsDialer{
+		opts: opt.(*options.ObfsOptions),
+	}
+}
+
 func (d *obfsDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
 	conn, err := d.tcpDialer.Dial(ctx, addr)
 	if err != nil {

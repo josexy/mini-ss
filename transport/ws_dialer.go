@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,16 +18,42 @@ var WsProxyFuncForTesting func(req *http.Request) (*url.URL, error)
 
 type wsDialer struct {
 	tcpDialer
-	opts *options.WsOptions
+	err       error
+	tlsConfig *tls.Config
+	opts      *options.WsOptions
+	dialer    *websocket.Dialer
+}
+
+func newWSDialer(opt options.Options) *wsDialer {
+	opt.Update()
+	wsOpts := opt.(*options.WsOptions)
+	tlsConfig, err := wsOpts.GetClientTlsConfig()
+	wsDialer := &wsDialer{
+		err:       err,
+		opts:      wsOpts,
+		tlsConfig: tlsConfig,
+	}
+	dialer := &websocket.Dialer{
+		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return wsDialer.tcpDialer.Dial(ctx, addr)
+		},
+		Proxy:             WsProxyFuncForTesting,
+		ReadBufferSize:    wsOpts.RevBuffer,
+		WriteBufferSize:   wsOpts.SndBuffer,
+		EnableCompression: wsOpts.Compress,
+		HandshakeTimeout:  30 * time.Second,
+		TLSClientConfig:   tlsConfig,
+	}
+	wsDialer.dialer = dialer
+	return wsDialer
 }
 
 func (d *wsDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
-	scheme := "ws"
-	tlsConfig, err := d.opts.GetClientTlsConfig()
-	if err != nil {
-		return nil, err
+	if d.err != nil {
+		return nil, d.err
 	}
-	if tlsConfig != nil {
+	scheme := "ws"
+	if d.tlsConfig != nil {
 		scheme = "wss"
 	}
 	urls := url.URL{
@@ -34,26 +61,15 @@ func (d *wsDialer) Dial(ctx context.Context, addr string) (net.Conn, error) {
 		Host:   addr,
 		Path:   d.opts.Path,
 	}
-	dialer := &websocket.Dialer{
-		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return d.tcpDialer.Dial(ctx, addr)
-		},
-		Proxy:             WsProxyFuncForTesting,
-		ReadBufferSize:    d.opts.RevBuffer,
-		WriteBufferSize:   d.opts.SndBuffer,
-		EnableCompression: d.opts.Compress,
-		TLSClientConfig:   tlsConfig,
-		HandshakeTimeout:  30 * time.Second,
-	}
 	header := http.Header{}
 	header.Set("Host", d.opts.Host)
 	if d.opts.UserAgent != "" {
 		header.Add("User-Agent", d.opts.UserAgent)
 	}
-	conn, resp, err := dialer.Dial(urls.String(), header)
+	conn, rsp, err := d.dialer.Dial(urls.String(), header)
 	if err != nil {
 		return nil, err
 	}
-	resp.Body.Close()
+	rsp.Body.Close()
 	return connection.NewWebsocketConn(conn), nil
 }

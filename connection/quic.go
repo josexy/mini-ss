@@ -6,6 +6,8 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
+var _ net.Conn = (*QuicConn)(nil)
+
 type QuicConn struct {
 	quic.Stream
 	laddr net.Addr

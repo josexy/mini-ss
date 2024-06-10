@@ -4,23 +4,20 @@ server:
     password: "12345" 
     # method: chacha20-ietf-poly1305
     method: none
-    transport: grpc
-    grpc:
-      send_buffer_size: 4096
-      receive_buffer_size: 4096
-      tls:
-        mode: ""
-        cert_path: "certs/client.crt"
-        key_path: "certs/client.key"
-        ca_path: "certs/ca.crt"
-        hostname: www.helloworld.com
+    transport: ssh 
+    ssh:
+      user: root
+      # password: root
+      private_key: ssh-keys/test-key
+      public_key: ssh-keys/test-key.pub
+  
 local:
   socks_addr: 127.0.0.1:10086
   http_addr: 127.0.0.1:10087
   mixed_addr: 127.0.0.1:10088
 log:
   color: true
-  log_level: info
+  log_level: trace
   verbose_level: 2
 iface: en5
 auto_detect_iface: true

@@ -6,6 +6,9 @@ server:
     transport: quic
     quic:
       conns: 3
+      keep_alive: 5
+      max_idle_timeout: 0
+      handshake_idle_timeout: 0
       tls:
         mode: "tls"
         cert_path: "certs/client.crt"
@@ -15,6 +18,7 @@ server:
 local:
   socks_addr: 127.0.0.1:10086
   http_addr: 127.0.0.1:10087
+  mixed_addr: 127.0.0.1:10088
 log:
   color: true
   log_level: trace

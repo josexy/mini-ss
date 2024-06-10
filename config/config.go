@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/rule"
@@ -33,14 +34,25 @@ type ObfsOption struct {
 }
 
 type QuicOption struct {
-	Conns int       `yaml:"conns" json:"conns"`
-	TLS   TlsOption `yaml:"tls,omitempty" json:"tls,omitempty"`
+	Conns                int       `yaml:"conns" json:"conns"`
+	KeepAlive            int       `yaml:"keep_alive" json:"keep_alive"`
+	MaxIdleTimeout       int       `yaml:"max_idle_timeout" json:"max_idle_timeout"`
+	HandshakeIdleTimeout int       `yaml:"handshake_idle_timeout" json:"handshake_idle_timeout"`
+	TLS                  TlsOption `yaml:"tls,omitempty" json:"tls,omitempty"`
 }
 
 type GrpcOption struct {
 	SendBufferSize int       `yaml:"send_buffer_size,omitempty" json:"send_buffer_size,omitempty"`
 	RecvBufferSize int       `yaml:"receive_buffer_size,omitempty" json:"receive_buffer_size,omitempty"`
 	TLS            TlsOption `yaml:"tls,omitempty" json:"tls,omitempty"`
+}
+
+type SshOption struct {
+	User          string `yaml:"user" json:"user"`
+	Password      string `yaml:"password" json:"password"`
+	PrivateKey    string `yaml:"private_key" json:"private_key"`
+	PublicKey     string `yaml:"public_key" json:"public_key"`
+	AuthorizedKey string `yaml:"authorized_key" json:"authorized_key"`
 }
 
 type SSROption struct {
@@ -63,6 +75,7 @@ type ServerConfig struct {
 	Obfs      *ObfsOption `yaml:"obfs,omitempty" json:"obfs,omitempty"`
 	Quic      *QuicOption `yaml:"quic,omitempty" json:"quic,omitempty"`
 	Grpc      *GrpcOption `yaml:"grpc,omitempty" json:"grpc,omitempty"`
+	Ssh       *SshOption  `yaml:"ssh,omitempty" json:"ssh,omitempty"`
 	SSR       *SSROption  `yaml:"ssr,omitempty" json:"ssr,omitempty"`
 }
 
@@ -331,6 +344,9 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 		case "quic":
 			opts = append(opts, ss.WithQuicTransport())
 			opts = append(opts, ss.WithQuicConns(opt.Quic.Conns))
+			opts = append(opts, ss.WithQuicKeepAlivePeriod(time.Second*time.Duration(opt.Quic.KeepAlive)))
+			opts = append(opts, ss.WithQuicMaxIdleTimeout(time.Second*time.Duration(opt.Quic.MaxIdleTimeout)))
+			opts = append(opts, ss.WithQuicHandshakeIdleTimeout(time.Second*time.Duration(opt.Quic.HandshakeIdleTimeout)))
 			opts = append(opts, ss.WithQuicCertPath(opt.Quic.TLS.CertPath))
 			opts = append(opts, ss.WithQuicKeyPath(opt.Quic.TLS.KeyPath))
 			opts = append(opts, ss.WithQuicCAPath(opt.Quic.TLS.CAPath))
@@ -354,6 +370,13 @@ func (cfg *Config) BuildServerOptions() []ss.SSOption {
 			case "mtls":
 				opts = append(opts, ss.WithGrpcTLS(options.MTLS))
 			}
+		case "ssh":
+			opts = append(opts, ss.WithSshTransport())
+			opts = append(opts, ss.WithSshUser(opt.Ssh.User))
+			opts = append(opts, ss.WithSshPassword(opt.Ssh.Password))
+			opts = append(opts, ss.WithSshPrivateKey(opt.Ssh.PrivateKey))
+			opts = append(opts, ss.WithSshPublicKey(opt.Ssh.PublicKey))
+			opts = append(opts, ss.WithSshAuthorizedKey(opt.Ssh.AuthorizedKey))
 		case "default":
 			// whether to support ssr
 			if opt.Type == "ssr" {

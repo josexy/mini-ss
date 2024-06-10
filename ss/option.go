@@ -510,3 +510,41 @@ func WithGrpcSndRevBuffer(sndBuffer, revBuffer int) SSOption {
 		so.serverOpts[0].opts.(*options.GrpcOptions).RevBuffer = revBuffer
 	})
 }
+
+func WithSshTransport() SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].transport = transport.Ssh
+		clone := *options.DefaultSshOptions
+		so.serverOpts[0].opts = &clone
+	})
+}
+
+func WithSshUser(user string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*options.SshOptions).User = user
+	})
+}
+
+func WithSshPassword(password string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*options.SshOptions).Password = password
+	})
+}
+
+func WithSshPrivateKey(key string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*options.SshOptions).PrivateKey = key
+	})
+}
+
+func WithSshPublicKey(key string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*options.SshOptions).PublicKey = key
+	})
+}
+
+func WithSshAuthorizedKey(key string) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.serverOpts[0].opts.(*options.SshOptions).AuthorizedKey = key
+	})
+}

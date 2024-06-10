@@ -29,7 +29,13 @@ func (customSrv) ServeQUIC(conn net.Conn) {
 }
 
 func main() {
-	srv := server.NewQuicServer(":10001", &customSrv{}, options.DefaultQuicOptions)
+	srv := server.NewQuicServer(":10001", &customSrv{}, &options.QuicOptions{
+		// TlsOptions: options.TlsOptions{
+		// 	Mode:     options.TLS,
+		// 	KeyFile:  "certs/server.key",
+		// 	CertFile: "certs/server.crt",
+		// },
+	})
 
 	go func() {
 		err := srv.Start(context.Background())
@@ -41,5 +47,5 @@ func main() {
 	<-interrupt
 
 	srv.Close()
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Millisecond * 200)
 }

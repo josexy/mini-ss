@@ -15,6 +15,7 @@ const (
 	Websocket
 	Obfs
 	Grpc
+	Ssh
 )
 
 const DefaultDialTimeout = 10 * time.Second
@@ -33,6 +34,8 @@ func (t Type) String() string {
 		return "obfs"
 	case Grpc:
 		return "grpc"
+	case Ssh:
+		return "ssh"
 	default:
 		return "unknown"
 	}
@@ -46,15 +49,17 @@ func NewDialer(tr Type, opt options.Options) Dialer {
 	var dialer Dialer
 	switch tr {
 	case Tcp:
-		dialer = &tcpDialer{}
+		dialer = new(tcpDialer)
 	case Websocket:
-		dialer = &wsDialer{opts: opt.(*options.WsOptions)}
+		dialer = newWSDialer(opt)
 	case Quic:
-		dialer = &quicDialer{opts: opt.(*options.QuicOptions)}
-	case Obfs:
-		dialer = &obfsDialer{opts: opt.(*options.ObfsOptions)}
+		dialer = newQUICDialer(opt)
 	case Grpc:
-		dialer = &grpcDialer{opts: opt.(*options.GrpcOptions)}
+		dialer = newGRPCDialer(opt)
+	case Ssh:
+		dialer = newSSHDialer(opt)
+	case Obfs:
+		dialer = newOBFSDialer(opt)
 	default:
 		panic("unsupported transport dialer type")
 	}

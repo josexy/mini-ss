@@ -66,7 +66,9 @@ func WithTunName(name string) SSOption {
 
 func WithTunCIDR(cidr string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.enhancerConfig.Tun.Addr = cidr
+		if prefix, err := netip.ParsePrefix(cidr); err == nil {
+			so.localOpts.enhancerConfig.Tun.Inet4Address = []netip.Prefix{prefix}
+		}
 	})
 }
 

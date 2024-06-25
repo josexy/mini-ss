@@ -20,7 +20,7 @@ func randStr(n int) string {
 
 func TestIPPool_AllocateAndRelease(t *testing.T) {
 	testFn := func(cidr string) {
-		pool, err := newIPPool(cidr)
+		pool, err := newIPPool(netip.MustParsePrefix(cidr))
 		assert.Nil(t, err)
 
 		t.Logf("new ip pool for cidr: %s", cidr)
@@ -62,7 +62,7 @@ func TestIPPool_AllocateAndRelease(t *testing.T) {
 		assert.Equal(t, pool.Available(), pool.Capacity())
 	}
 	testFn2 := func(cidr string) {
-		pool, err := newIPPool(cidr)
+		pool, err := newIPPool(netip.MustParsePrefix(cidr))
 		assert.Nil(t, err)
 		prefix := netip.MustParsePrefix(cidr)
 		ip, ok := pool.allocateFor(prefix.Addr())

@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -75,7 +76,7 @@ func StartLocal() {
 				logger.Logger.FatalBy(e)
 			}
 		}
-		if cfg.Local.Tun != nil && cfg.Local.Tun.Enable && cfg.Local.DNS != nil && !cfg.Local.DNS.DisableRewrite {
+		if runtime.GOOS == "darwin" && cfg.Local.Tun != nil && cfg.Local.Tun.Enable && cfg.Local.DNS != nil && !cfg.Local.DNS.DisableRewrite {
 			dnsutil.UnsetLocalDnsServer()
 		}
 		if cfg.Local.SystemProxy {

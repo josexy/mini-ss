@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	tun "github.com/josexy/cropstun"
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/bufferpool"
 	"github.com/josexy/mini-ss/resolver"
@@ -15,7 +16,6 @@ import (
 	"github.com/josexy/mini-ss/selector"
 	"github.com/josexy/mini-ss/statistic"
 	"github.com/josexy/mini-ss/util/logger"
-	"github.com/josexy/netstackgo"
 	"github.com/miekg/dns"
 )
 
@@ -25,6 +25,8 @@ const (
 )
 
 var stackTraceBufferPool = bufferpool.NewBufferPool(4096)
+
+var _ tun.Handler = (*enhancerHandler)(nil)
 
 type enhancerHandler struct {
 	owner *Enhancer
@@ -38,7 +40,7 @@ func newEnhancerHandler(eh *Enhancer) *enhancerHandler {
 	}
 }
 
-func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn net.Conn) {
+func (handler *enhancerHandler) HandleTCPConnection(conn net.Conn, metadata tun.Metadata) error {
 	// the target address(info.DstAddr.Addr()) may be a fake ip address or real ip address
 	// for example `curl www.google.com` or `curl 74.125.24.103:80`
 
@@ -61,52 +63,53 @@ func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn ne
 		}
 	}()
 
-	if handler.isNeedHijackDNS(info.DstAddr) {
+	if handler.isNeedHijackDNS(metadata.Destination) {
 		if err := handler.hijackDNSForTCP(conn); err != nil {
 			logger.Logger.ErrorBy(err)
+			return err
 		}
-		return
+		return nil
 	}
 
 	var remote string
-	dstIp := info.DstAddr.Addr()
+	dstIp := metadata.Destination.Addr()
 	if resolver.DefaultResolver.IsFakeIP(dstIp) {
 		if fakeDnsRecord, err := resolver.DefaultResolver.FindByIP(dstIp); err == nil {
 			remote = fakeDnsRecord.Domain
 			logger.Logger.Debug("find the domain from fake ip",
 				logx.String("fakeip", dstIp.String()),
-				logx.UInt16("port", info.DstAddr.Port()),
+				logx.UInt16("port", metadata.Destination.Port()),
 				logx.String("domain", fakeDnsRecord.Domain))
 		} else {
 			// fake ip/record not found or expired
 			logger.Logger.ErrorBy(err)
-			return
+			return err
 		}
 	} else {
 		remote = dstIp.String()
 	}
 
 	if !rule.MatchRuler.Match(&remote) {
-		return
+		return rule.ErrRuleMatchDropped
 	}
 
 	proxy, err := rule.MatchRuler.Select()
 	if err != nil {
 		logger.Logger.ErrorBy(err)
-		return
+		return err
 	}
 
-	remoteAddr := net.JoinHostPort(remote, strconv.FormatUint(uint64(info.DstAddr.Port()), 10))
+	remoteAddr := net.JoinHostPort(remote, strconv.FormatUint(uint64(metadata.Destination.Port()), 10))
 
 	logger.Logger.Info("tcp-tun",
-		logx.String("src", info.Src()),
-		logx.String("dst", info.Dst()),
+		logx.String("src", metadata.Source.String()),
+		logx.String("dst", metadata.Destination.String()),
 		logx.String("remote", remoteAddr),
 	)
 
 	if statistic.EnableStatistic {
 		tcpTracker := statistic.NewTCPTracker(conn, statistic.Context{
-			Src:     info.Src(),
+			Src:     metadata.Source.String(),
 			Dst:     remoteAddr,
 			Type:    "TCP-TUN",
 			Network: "TCP",
@@ -119,9 +122,10 @@ func (handler *enhancerHandler) HandleTCPConn(info netstackgo.ConnTuple, conn ne
 	if err := selector.ProxySelector.Select(proxy).Invoke(conn, remoteAddr); err != nil {
 		logger.Logger.ErrorBy(err)
 	}
+	return nil
 }
 
-func (handler *enhancerHandler) HandleUDPConn(info netstackgo.ConnTuple, conn net.PacketConn) {
+func (handler *enhancerHandler) HandleUDPConnection(conn net.PacketConn, metadata tun.Metadata) error {
 
 	defer func() {
 		if err := recover(); err != nil {
@@ -135,36 +139,37 @@ func (handler *enhancerHandler) HandleUDPConn(info netstackgo.ConnTuple, conn ne
 		}
 	}()
 
-	if handler.isNeedHijackDNS(info.DstAddr) {
+	if handler.isNeedHijackDNS(metadata.Destination) {
 		if err := handler.hijackDNSForUDP(conn); err != nil {
 			logger.Logger.ErrorBy(err)
+			return err
 		}
-		return
+		return nil
 	}
 
 	// discard udp fake ip
-	if resolver.DefaultResolver.IsFakeIP(info.DstAddr.Addr()) {
-		return
+	if resolver.DefaultResolver.IsFakeIP(metadata.Destination.Addr()) {
+		return nil
 	}
 
 	// for UDP request matching, support GeoIP and IP-CIDR
-	remote := info.DstAddr.Addr().String()
+	remote := metadata.Destination.Addr().String()
 	if !rule.MatchRuler.Match(&remote) {
-		return
+		return rule.ErrRuleMatchDropped
 	}
 
 	proxy, err := rule.MatchRuler.Select()
 	if err != nil {
 		logger.Logger.ErrorBy(err)
-		return
+		return err
 	}
 
-	logger.Logger.Info("udp-tun", logx.String("src", info.Src()), logx.String("dst", info.Dst()))
+	logger.Logger.Info("udp-tun", logx.String("src", metadata.Source.String()), logx.String("dst", metadata.Destination.String()))
 
 	if statistic.EnableStatistic {
 		udpTracker := statistic.NewUDPTracker(conn, statistic.Context{
-			Src:     info.Src(),
-			Dst:     info.Dst(),
+			Src:     metadata.Source.String(),
+			Dst:     metadata.Destination.String(),
 			Type:    "UDP-TUN",
 			Network: "UDP",
 			Rule:    string(rule.MatchRuler.MatcherResult().RuleType),
@@ -173,7 +178,8 @@ func (handler *enhancerHandler) HandleUDPConn(info netstackgo.ConnTuple, conn ne
 		defer statistic.DefaultManager.Remove(udpTracker)
 		conn = udpTracker
 	}
-	selector.ProxySelector.SelectPacket(proxy).Invoke(conn, info.Dst())
+	selector.ProxySelector.SelectPacket(proxy).Invoke(conn, metadata.Destination.String())
+	return nil
 }
 
 // isNeedHijackDNS check whether the dns request should be hijacked

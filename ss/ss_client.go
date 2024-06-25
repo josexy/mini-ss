@@ -2,8 +2,11 @@ package ss
 
 import (
 	"net"
+	"net/netip"
 	"net/url"
 
+	tun "github.com/josexy/cropstun"
+	"github.com/josexy/cropstun/route"
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/cipher"
 	"github.com/josexy/mini-ss/enhancer"
@@ -17,18 +20,15 @@ import (
 	"github.com/josexy/mini-ss/ssr"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/logger"
-	"github.com/josexy/netstackgo/iface"
-	"github.com/josexy/netstackgo/tun"
 	"github.com/josexy/proxyutil"
 )
 
 var defaultSSLocalOpts = ssOptions{
 	localOpts: localOptions{
 		enhancerConfig: enhancer.EnhancerConfig{
-			Tun: tun.TunConfig{
-				Name: "utun3",
-				Addr: "198.18.0.1/16",
-				MTU:  tun.DefaultMTU,
+			Tun: tun.Options{
+				Name:         "utun3",
+				Inet4Address: []netip.Prefix{netip.MustParsePrefix("198.18.0.1/16")},
 			},
 		},
 	},
@@ -51,9 +51,9 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 
 	// check whether support auto-detect-interface
 	if options.DefaultOptions.AutoDetectInterface {
-		if ifaceName, err := iface.DefaultRouteInterface(); err == nil {
-			options.DefaultOptions.OutboundInterface = ifaceName
-			logger.Logger.Infof("auto detect outbound interface: %s", ifaceName)
+		if defaultRoute, err := route.DefaultRouteInterface(); err == nil {
+			options.DefaultOptions.OutboundInterface = defaultRoute.InterfaceName
+			logger.Logger.Infof("auto detect outbound interface: %s", defaultRoute.InterfaceName)
 		}
 	}
 

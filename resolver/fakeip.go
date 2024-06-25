@@ -35,15 +35,14 @@ type fakeIPResolver struct {
 	tunPrefix netip.Prefix
 }
 
-func newFakeIPResolver(cidr string) (*fakeIPResolver, error) {
+func newFakeIPResolver(cidr netip.Prefix) (*fakeIPResolver, error) {
 	pool, err := newIPPool(cidr)
 	if err != nil {
 		return nil, err
 	}
 
 	// pre-allocated tun ip and fake dns ip
-	prefix := netip.MustParsePrefix(cidr)
-	tunIP, ok := pool.allocateFor(prefix.Addr())
+	tunIP, ok := pool.allocateFor(cidr.Addr())
 	if !ok {
 		return nil, errors.New("can not allocate ip for tun device")
 	}

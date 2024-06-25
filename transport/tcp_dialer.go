@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net"
 
+	"github.com/josexy/cropstun/bind"
 	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/resolver"
-	"github.com/josexy/netstackgo/bind"
 )
 
 type tcpDialer struct{}

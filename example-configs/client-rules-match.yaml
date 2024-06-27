@@ -88,12 +88,13 @@ local:
     name: ""
     cidr: 198.18.0.1/16
     mtu: 9000
+    auto_route: true
     dns_hijack:
       - 8.8.8.8:53 
       - any:53
   dns:
-    listen: ':53'
-    # disable_rewrite: true
+    listen: ':5380'
+    disable_rewrite: true
     domain_filter:
       - www.example.com
     nameservers:

@@ -78,6 +78,12 @@ func WithTunMTU(mtu uint32) SSOption {
 	})
 }
 
+func WithTunAutoRoute(autoRoute bool) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.enhancerConfig.Tun.AutoRoute = autoRoute
+	})
+}
+
 func WithTunDnsHijack(dns []string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		for _, addr := range dns {

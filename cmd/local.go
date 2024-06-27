@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -12,9 +11,7 @@ import (
 	"github.com/josexy/mini-ss/geoip"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/ss"
-	"github.com/josexy/mini-ss/util/dnsutil"
 	"github.com/josexy/mini-ss/util/logger"
-	"github.com/josexy/proxyutil"
 	"github.com/spf13/cobra"
 )
 
@@ -56,6 +53,7 @@ func init() {
 	localCmd.Flags().StringVar(&cfg.Local.Tun.Cidr, "tun-cidr", "198.18.0.1/16", "tun interface cidr")
 	localCmd.Flags().IntVar(&cfg.Local.Tun.Mtu, "tun-mtu", enhancer.DefaultMTU, "tun interface mtu")
 	localCmd.Flags().StringSliceVar(&cfg.Local.Tun.DnsHijack, "tun-dns-hijack", nil, "tun dns hijack")
+	localCmd.Flags().BoolVar(&cfg.Local.Tun.AutoRoute, "tun-dns-auto-route", true, "tun auto route configured")
 
 	// fake dns mode
 	localCmd.Flags().StringVar(&cfg.Local.DNS.Listen, "fake-dns-listen", ":53", "fake-dns listening address")
@@ -75,12 +73,6 @@ func StartLocal() {
 			if e, ok := err.(error); ok {
 				logger.Logger.FatalBy(e)
 			}
-		}
-		if runtime.GOOS == "darwin" && cfg.Local.Tun != nil && cfg.Local.Tun.Enable && cfg.Local.DNS != nil && !cfg.Local.DNS.DisableRewrite {
-			dnsutil.UnsetLocalDnsServer()
-		}
-		if cfg.Local.SystemProxy {
-			proxyutil.UnsetSystemProxy()
 		}
 	}()
 	startLocal()

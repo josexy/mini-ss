@@ -29,8 +29,8 @@ github.com/inconshreveable/mousetrap v1.0.1 h1:U3uMjPSQEBMNp1lFxmllqCPM6P5u/Xq7P
 github.com/inconshreveable/mousetrap v1.0.1/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/jaytaylor/go-hostsfile v0.0.0-20220426042432-61485ac1fa6c h1:kbTQ8oGf+BVFvt/fM+ECI+NbZDCqoi0vtZTfB2p2hrI=
 github.com/jaytaylor/go-hostsfile v0.0.0-20220426042432-61485ac1fa6c/go.mod h1:k6+89xKz7BSMJ+DzIerBdtpEUeTlBMugO/hcVSzahog=
-github.com/josexy/cropstun v0.0.0-20240624125012-6f6fd7db5b58 h1:bufqq+yvrLKeBlt6ztEgXJEvNbGHTRJzU5TJPo68W8o=
-github.com/josexy/cropstun v0.0.0-20240624125012-6f6fd7db5b58/go.mod h1:jUeaBMBOKLttLnYi5WSM63izCiaOuStQQo4RwlSS/Kk=
+github.com/josexy/cropstun v0.0.0-20240626122937-1d5542642b4a h1:DfZSt4v+xtSELaQPfUIuZH5zPuNZ5a8wGNZaRXdpV9g=
+github.com/josexy/cropstun v0.0.0-20240626122937-1d5542642b4a/go.mod h1:jUeaBMBOKLttLnYi5WSM63izCiaOuStQQo4RwlSS/Kk=
 github.com/josexy/logx v0.0.0-20240327003801-569dac32550f h1:gQ2rFC0pq4/rGZoExupOQajIFQWCy66YKRN6ZjA3B78=
 github.com/josexy/logx v0.0.0-20240327003801-569dac32550f/go.mod h1:N1PLHofANbzMOB/DOIlfNLUeZQTDced29bH2HolqrAc=
 github.com/josexy/proxyutil v0.0.0-20230321142224-a6e70ef9e37c h1:6+sPVaYY+mtxs+QcheOGTGda2hDhZjWbRbU20rITJI4=

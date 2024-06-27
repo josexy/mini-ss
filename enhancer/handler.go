@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	DefaultMTU    = 1350
+	DefaultMTU    = tun.DefaultMTU
 	dnsMsgTimeout = time.Second * 5
 )
 
@@ -190,7 +190,7 @@ func (handler *enhancerHandler) isNeedHijackDNS(addr netip.AddrPort) bool {
 		return true
 	}
 	// Over fake dns ip
-	if addr.Port() == uint16(handler.owner.fakeDns.Port) && addr.Addr().Compare(handler.owner.nameserver) == 0 {
+	if addr.Port() == uint16(handler.owner.fakeDns.Port) && addr.Addr().Compare(handler.owner.dnsAddress) == 0 {
 		return true
 	}
 	// Over others dns ip

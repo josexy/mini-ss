@@ -173,7 +173,9 @@ func (ss *ShadowsocksClient) setSystemProxy() {
 			}
 		}
 	}
-	proxyutil.SetSystemProxy(http, socks)
+	if err := proxyutil.SetSystemProxy(http, socks); err != nil {
+		logger.Logger.ErrorBy(err)
+	}
 }
 
 func (ss *ShadowsocksClient) initEnhancer() error {
@@ -183,7 +185,7 @@ func (ss *ShadowsocksClient) initEnhancer() error {
 	return nil
 }
 
-func (ss *ShadowsocksClient) closeTun() error {
+func (ss *ShadowsocksClient) closeEnhancer() error {
 	if ss.Opts.localOpts.enableTun {
 		return ss.enhancer.Close()
 	}
@@ -197,14 +199,14 @@ func (ss *ShadowsocksClient) Start() error {
 	if err := ss.initEnhancer(); err != nil {
 		return err
 	}
-	if err := ss.srvGroup.Start(); err != nil {
-		return err
-	}
-	// set system proxy
 	if ss.Opts.localOpts.systemProxy {
 		ss.setSystemProxy()
 	}
-
+	if err := ss.srvGroup.Start(); err != nil {
+		proxyutil.UnsetSystemProxy()
+		ss.closeEnhancer()
+		return err
+	}
 	return nil
 }
 
@@ -214,8 +216,11 @@ func (ss *ShadowsocksClient) Close() error {
 	if ss.srvGroup.Len() == 0 {
 		return nil
 	}
-	if err := ss.closeTun(); err != nil {
-		return err
+	if ss.Opts.localOpts.systemProxy {
+		proxyutil.UnsetSystemProxy()
+	}
+	if ss.Opts.localOpts.enableTun {
+		_ = ss.enhancer.Close()
 	}
 	if err := ss.srvGroup.Close(); err != nil {
 		return err

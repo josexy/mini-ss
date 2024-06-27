@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/jaytaylor/go-hostsfile v0.0.0-20220426042432-61485ac1fa6c
-	github.com/josexy/cropstun v0.0.0-20240624125012-6f6fd7db5b58
+	github.com/josexy/cropstun v0.0.0-20240626122937-1d5542642b4a
 	github.com/josexy/logx v0.0.0-20240327003801-569dac32550f
 	github.com/josexy/proxyutil v0.0.0-20230321142224-a6e70ef9e37c
 	github.com/klauspost/compress v1.17.8
@@ -22,6 +22,7 @@ require (
 	golang.org/x/crypto v0.24.0
 	golang.org/x/net v0.26.0
 	golang.org/x/sync v0.7.0
+	golang.org/x/sys v0.21.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -46,7 +47,6 @@ require (
 	go.uber.org/mock v0.4.0 // indirect
 	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090 // indirect
 	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect

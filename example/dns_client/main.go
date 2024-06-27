@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/miekg/dns"
@@ -71,19 +72,24 @@ func httpMain() {
 }
 
 func queryMain() {
-	c := &dns.Client{
-		Net: "udp",
-	}
 	m := new(dns.Msg)
 	m.SetQuestion(dns.Fqdn(os.Args[3]), dns.StringToType[os.Args[4]])
 	m.RecursionDesired = true
 
-	r, _, err := c.Exchange(m, os.Args[2])
+	dnsAddr := os.Args[2]
+	protocol := "udp"
+	if strings.Contains(dnsAddr, "://") {
+		parts := strings.Split(dnsAddr, "://")
+		protocol, dnsAddr = parts[0], parts[1]
+	}
+	log.Println(protocol, dnsAddr)
+	c := &dns.Client{
+		Net:     protocol,
+		UDPSize: 4096,
+	}
+	r, _, err := c.Exchange(m, dnsAddr)
 	if err != nil {
 		panic(err)
-	}
-	if r.Rcode != dns.RcodeSuccess {
-		return
 	}
 	for _, x := range r.Answer {
 		log.Println(x.String())

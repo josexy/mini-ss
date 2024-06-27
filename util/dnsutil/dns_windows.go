@@ -1,75 +1,50 @@
 package dnsutil
 
 import (
-	"fmt"
-	"net"
-	"syscall"
+	"strings"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
-func SetLocalDnsServer(string) {}
-
-func UnsetLocalDnsServer() {}
-
-const MAX_HOSTNAME_LEN = 128
-const MAX_DOMAIN_NAME_LEN = 128
-const MAX_SCOPE_ID_LEN = 256
-const ValueOverflow = 11
-
-type DWORD uint32
-type CHAR byte
-type UINT uint32
-type IP_ADDRESS_STRING struct{ String [4 * 4]CHAR }
-type IP_MASK_STRING struct{ String [4 * 4]CHAR }
-type PIP_ADDR_STRING *IP_ADDR_STRING
-type IP_ADDR_STRING struct {
-	Next      *IP_ADDR_STRING
-	IpAddress IP_ADDRESS_STRING
-	IpMask    IP_MASK_STRING
-	Context   DWORD
-}
-type FIXED_INFO_W2KSP1 struct {
-	HostName         [MAX_HOSTNAME_LEN + 4]CHAR
-	DomainName       [MAX_DOMAIN_NAME_LEN + 4]CHAR
-	CurrentDnsServer PIP_ADDR_STRING
-	DnsServerList    IP_ADDR_STRING
-	NodeType         UINT
-	ScopeId          [MAX_SCOPE_ID_LEN + 4]CHAR
-	EnableRouting    UINT
-	EnableProxy      UINT
-	EnableDns        UINT
-}
-type PFIXED_INFO *FIXED_INFO_W2KSP1
-
-/*
-IPHLPAPI_DLL_LINKAGE DWORD GetNetworkParams(
-
-	[out] PFIXED_INFO pFixedInfo,
-	[in]  PULONG      pOutBufLen
-
-);
-*/
 func GetLocalDnsList() []string {
-	var iphlpapi = syscall.NewLazyDLL("Iphlpapi.dll")
-	var getNetworkParams = iphlpapi.NewProc("GetNetworkParams")
+	l := uint32(20000)
+	b := make([]byte, l)
 
-	info := FIXED_INFO_W2KSP1{}
-	size := uint32(unsafe.Sizeof(info))
-	r, _, _ := getNetworkParams.Call(uintptr(unsafe.Pointer(&info)), uintptr(unsafe.Pointer(&size)))
-	var dns []string
-	if r == 0 {
-		for ai := &info.DnsServerList; ai != nil; ai = ai.Next {
-			d := fmt.Sprintf("%v.%v.%v.%v", ai.Context&0xFF, (ai.Context>>8)&0xFF, (ai.Context>>16)&0xFF, (ai.Context>>24)&0xFF)
-			dns = append(dns, net.JoinHostPort(d, "53"))
-		}
-	} else if r == ValueOverflow {
-		newBuffers := make([]byte, size)
-		netParams := (PFIXED_INFO)(unsafe.Pointer(&newBuffers[0]))
-		getNetworkParams.Call(uintptr(unsafe.Pointer(&netParams)), uintptr(unsafe.Pointer(&size)))
-		for ai := &netParams.DnsServerList; ai != nil; ai = ai.Next {
-			d := fmt.Sprintf("%v.%v.%v.%v", ai.Context&0xFF, (ai.Context>>8)&0xFF, (ai.Context>>16)&0xFF, (ai.Context>>24)&0xFF)
-			dns = append(dns, net.JoinHostPort(d, "53"))
+	if err := windows.GetAdaptersAddresses(windows.AF_UNSPEC, windows.GAA_FLAG_INCLUDE_PREFIX, 0,
+		(*windows.IpAdapterAddresses)(unsafe.Pointer(&b[0])), &l); err != nil {
+		return nil
+	}
+	var addresses []*windows.IpAdapterAddresses
+	for addr := (*windows.IpAdapterAddresses)(unsafe.Pointer(&b[0])); addr != nil; addr = addr.Next {
+		addresses = append(addresses, addr)
+	}
+
+	resolvers := map[string]struct{}{}
+	for _, addr := range addresses {
+		for next := addr.FirstUnicastAddress; next != nil; next = next.Next {
+			if addr.OperStatus != windows.IfOperStatusUp {
+				continue
+			}
+			if next.Address.IP() != nil {
+				for dnsServer := addr.FirstDnsServerAddress; dnsServer != nil; dnsServer = dnsServer.Next {
+					ip := dnsServer.Address.IP()
+					if ip.IsMulticast() || ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+						continue
+					}
+					if ip.To16() != nil && strings.HasPrefix(ip.To16().String(), "fec0:") {
+						continue
+					}
+					resolvers[ip.String()] = struct{}{}
+				}
+				break
+			}
 		}
 	}
-	return dns
+
+	servers := []string{}
+	for server := range resolvers {
+		servers = append(servers, server)
+	}
+	return servers
 }

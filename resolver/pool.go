@@ -15,12 +15,10 @@ type ipPool struct {
 	flags []bool
 }
 
-func newIPPool(cidr string) (*ipPool, error) {
-	prefix, err := netip.ParsePrefix(cidr)
-	if err != nil {
-		return nil, err
+func newIPPool(prefix netip.Prefix) (*ipPool, error) {
+	if !prefix.IsValid() {
+		return nil, errNoAvailableFakeIP
 	}
-
 	var hmin, hmax uint32
 	var base uint32 = ipToInt(prefix.Masked().Addr())
 	var mask uint32 = (0xFFFFFFFF << (32 - prefix.Bits())) & 0xFFFFFFFF

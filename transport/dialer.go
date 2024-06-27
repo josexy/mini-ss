@@ -5,8 +5,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/josexy/cropstun/bind"
 	"github.com/josexy/mini-ss/options"
-	"github.com/josexy/netstackgo/bind"
 )
 
 const (

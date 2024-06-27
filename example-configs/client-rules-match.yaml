@@ -1,23 +1,21 @@
 server:
   - disable: true
-    name: server-ws
-    addr: 127.0.0.1:10086
-    password: '12345'
-    method: chacha20-ietf-poly1305
-    transport: ws
-    ws:
-      host: www.baidu.com
-      path: /ws-chat
-      compress: true
-      tls: true
-  - disable: true
-    name: server-quic
+    name: ss
     addr: 127.0.0.1:8388
     password: '12345'
     method: chacha20-ietf-poly1305
-    transport: quic
-    quic:
-      conns: 3
+    transport: ws
+    udp: true
+    ws:
+      host: www.baidu.com
+      path: /ws
+      compress: false
+      tls:
+        mode: "tls"
+        cert_path: "certs/client.crt"
+        key_path: "certs/client.key"
+        ca_path: "certs/ca.crt"
+        hostname: www.helloworld.com
   - disable: true
     name: server-obfs
     addr: 127.0.0.1:8388
@@ -45,10 +43,43 @@ server:
       protocol_param: ''
       obfs: tls1.2_ticket_auth
       obfs_param: ''
+  - disable: false
+    name: grpc
+    addr: 127.0.0.1:8388
+    password: "12345" 
+    method: chacha20-ietf-poly1305
+    transport: grpc
+    udp: true
+    grpc:
+      send_buffer_size: 4096
+      receive_buffer_size: 4096
+      tls:
+        mode: ""
+        cert_path: "certs/client.crt"
+        key_path: "certs/client.key"
+        ca_path: "certs/ca.crt"
+        hostname: www.helloworld.com
+  - disable: false 
+    name: quic
+    addr: 127.0.0.1:8388
+    password: '12345'
+    method: chacha20-ietf-poly1305
+    transport: quic
+    quic:
+      conns: 3
+      keep_alive: 5
+      max_idle_timeout: 0
+      handshake_idle_timeout: 0
+      tls:
+        mode: "none"
+        cert_path: "certs/client.crt"
+        key_path: "certs/client.key"
+        ca_path: "certs/ca.crt"
+        hostname: www.helloworld.com
 local:
   socks_addr: 127.0.0.1:10086
   http_addr: 127.0.0.1:10087
-  mixed_addr: 127.0.0.1:10088
+  mixed_addr: :10088
   tcp_tun_addr:
     - ':10002=www.google.com:80'
   system_proxy: false
@@ -57,12 +88,13 @@ local:
     name: ""
     cidr: 198.18.0.1/16
     mtu: 9000
+    auto_route: true
     dns_hijack:
       - 8.8.8.8:53 
       - any:53
   dns:
-    listen: ':53'
-    # disable_rewrite: true
+    listen: ':5380'
+    disable_rewrite: true
     domain_filter:
       - www.example.com
     nameservers:
@@ -81,7 +113,7 @@ auto_detect_iface: true
 rules:
   mode: match
   direct_to: ''
-  global_to: 'free-ssr'
+  global_to: 'grpc'
   match:
     others: global
     domain:

@@ -84,6 +84,7 @@ type TunOption struct {
 	Name      string   `yaml:"name" json:"name"`
 	Cidr      string   `yaml:"cidr" json:"cidr"`
 	Mtu       int      `yaml:"mtu" json:"mtu"`
+	AutoRoute bool     `yaml:"auto_route" json:"auto_route"`
 	DnsHijack []string `yaml:"dns_hijack,omitempty" json:"dns_hijack,omitempty"`
 }
 
@@ -454,6 +455,7 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 		opts = append(opts, ss.WithTunCIDR(cfg.Local.Tun.Cidr))
 		opts = append(opts, ss.WithTunMTU(uint32(cfg.Local.Tun.Mtu)))
 		opts = append(opts, ss.WithTunDnsHijack(cfg.Local.Tun.DnsHijack))
+		opts = append(opts, ss.WithTunAutoRoute(cfg.Local.Tun.AutoRoute))
 	}
 	if cfg.Local.DNS != nil {
 		opts = append(opts, ss.WithFakeDnsServer(cfg.Local.DNS.Listen))

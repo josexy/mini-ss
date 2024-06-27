@@ -1,33 +1,29 @@
 package enhancer
 
 import (
-	"net"
 	"net/netip"
-	"runtime"
-	"strconv"
-	"strings"
+	"sync/atomic"
 
+	tun "github.com/josexy/cropstun"
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/resolver"
-	"github.com/josexy/mini-ss/util/dnsutil"
 	"github.com/josexy/mini-ss/util/logger"
-	"github.com/josexy/netstackgo"
-	"github.com/josexy/netstackgo/tun"
 )
 
 type EnhancerConfig struct {
-	Tun            tun.TunConfig
+	Tun            tun.Options
 	FakeDNS        string
 	DisableRewrite bool
 	DnsHijack      []netip.AddrPort
 }
 
 type Enhancer struct {
-	nameserver netip.Addr
+	dnsAddress netip.Addr
 	config     EnhancerConfig
-	nt         *netstackgo.TunNetstack
+	stack      tun.Stack
 	fakeDns    *resolver.DnsServer
 	handler    *enhancerHandler
+	running    atomic.Bool
 }
 
 func NewEnhancer(config EnhancerConfig) *Enhancer {
@@ -40,69 +36,69 @@ func NewEnhancer(config EnhancerConfig) *Enhancer {
 }
 
 func (eh *Enhancer) Start() (err error) {
-	// init fake ip pool and cache
-	if err = resolver.DefaultResolver.EnableEnhancerMode(eh.config.Tun.Addr); err != nil {
+	if eh.running.Load() {
 		return
 	}
 
-	eh.config.Tun.Name = calcTunName(eh.config.Tun.Name)
-	eh.config.Tun.Addr = resolver.DefaultResolver.GetAllocatedTunPrefix().String()
-	eh.nt = netstackgo.New(eh.config.Tun)
-	eh.nt.RegisterConnHandler(eh.handler)
+	// init fake ip pool and cache
+	if err = resolver.DefaultResolver.EnableEnhancerMode(eh.config.Tun.Inet4Address[0]); err != nil {
+		return
+	}
 
-	// start low-level gVisor netstack
-	if err = eh.nt.Start(); err != nil {
+	eh.config.Tun.Inet4Address[0] = resolver.DefaultResolver.GetAllocatedTunPrefix()
+	eh.config.Tun.IPRoute2TableIndex = 10086
+	eh.config.Tun.IPRoute2RuleIndex = 5000
+
+	var tunDevice tun.Tun
+	if tunDevice, err = tun.NewTunDevice(nil, &eh.config.Tun); err != nil {
+		return
+	}
+
+	if eh.stack, err = tun.NewStack(tun.StackOptions{
+		Tun:        tunDevice,
+		TunOptions: &eh.config.Tun,
+		Handler:    eh.handler,
+	}); err != nil {
+		return
+	}
+
+	if err = eh.stack.Start(); err != nil {
 		return
 	}
 
 	go func() {
 		if err := eh.fakeDns.Start(); err != nil {
-			logger.Logger.Warnf("%s", err.Error())
+			logger.Logger.ErrorBy(err)
 		}
 	}()
 
-	eh.nameserver = resolver.DefaultResolver.GetAllocatedDnsIP()
+	eh.dnsAddress = resolver.DefaultResolver.GetAllocatedDnsIP()
 
-	// set local dns server configuration
-	if runtime.GOOS != "windows" && !eh.config.DisableRewrite && eh.nameserver.IsValid() {
-		logger.Logger.Infof("rewrite dns fake ip %s to system config file", eh.nameserver)
-		dnsutil.SetLocalDnsServer(eh.nameserver.String())
+	if !eh.config.DisableRewrite && eh.dnsAddress.IsValid() {
+		logger.Logger.Infof("setup dns address: %s", eh.dnsAddress.String())
+		eh.stack.TunDevice().SetupDNS([]netip.Addr{eh.dnsAddress})
 	}
 
 	logger.Logger.Info("create tun device",
 		logx.String("name", eh.config.Tun.Name),
-		logx.String("address", eh.config.Tun.Addr),
-		logx.UInt32("mtu", eh.config.Tun.MTU))
+		logx.String("address", eh.config.Tun.Inet4Address[0].String()),
+		logx.UInt32("mtu", eh.config.Tun.MTU),
+		logx.Slice3("dns-hijack", eh.config.DnsHijack),
+		logx.Bool("auto-route", eh.config.Tun.AutoRoute))
+
+	eh.running.Store(true)
 	return
 }
 
 func (eh *Enhancer) Close() error {
+	if !eh.running.Load() {
+		return nil
+	}
+	if !eh.config.DisableRewrite {
+		eh.stack.TunDevice().TeardownDNS()
+	}
 	eh.fakeDns.Close()
-	return eh.nt.Close()
-}
-
-func calcTunName(name string) string {
-	if name != "" {
-		return name
-	}
-	var tunName string
-	if runtime.GOOS == "darwin" {
-		tunName = "utun"
-	} else {
-		tunName = "tun"
-	}
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		return tunName
-	}
-	var tunIndex int
-	for _, iface := range interfaces {
-		if strings.HasPrefix(iface.Name, tunName) {
-			index, err := strconv.ParseInt(iface.Name[len(tunName):], 10, 16)
-			if err == nil {
-				tunIndex = int(index) + 1
-			}
-		}
-	}
-	return tunName + strconv.FormatInt(int64(tunIndex), 10)
+	err := eh.stack.Close()
+	eh.running.Store(false)
+	return err
 }

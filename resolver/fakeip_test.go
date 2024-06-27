@@ -24,7 +24,7 @@ func doQuery(t *testing.T, r *fakeIPResolver, host string) netip.Addr {
 func TestFakeIPResolverQueryTTL(t *testing.T) {
 	DefaultFakeIPCacheInterval = time.Millisecond * 1500
 	DefaultFakeIPDnsRecordTTL = time.Second
-	r, err := newFakeIPResolver("198.18.2.22/24")
+	r, err := newFakeIPResolver(netip.MustParsePrefix("198.18.2.22/24"))
 	assert.Nil(t, err)
 
 	host := "www.example.com"

@@ -3,6 +3,7 @@ package ss
 import (
 	"net"
 
+	"github.com/josexy/cropstun/route"
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/cipher"
 	"github.com/josexy/mini-ss/options"
@@ -11,7 +12,6 @@ import (
 	"github.com/josexy/mini-ss/server"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/logger"
-	"github.com/josexy/netstackgo/iface"
 )
 
 var defaultSSServerOpts = ssOptions{}
@@ -41,9 +41,9 @@ func NewShadowsocksServer(opts ...SSOption) *ShadowsocksServer {
 	}
 	// check whether support auto-detect-interface
 	if options.DefaultOptions.AutoDetectInterface {
-		if ifaceName, err := iface.DefaultRouteInterface(); err == nil {
-			options.DefaultOptions.OutboundInterface = ifaceName
-			logger.Logger.Infof("auto detect outbound interface: %s", ifaceName)
+		if defaultRoute, err := route.DefaultRouteInterface(); err == nil {
+			options.DefaultOptions.OutboundInterface = defaultRoute.InterfaceName
+			logger.Logger.Infof("auto detect outbound interface: %s", defaultRoute.InterfaceName)
 		}
 	}
 	return s

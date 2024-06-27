@@ -2,8 +2,11 @@ package ss
 
 import (
 	"net"
+	"net/netip"
 	"net/url"
 
+	tun "github.com/josexy/cropstun"
+	"github.com/josexy/cropstun/route"
 	"github.com/josexy/logx"
 	"github.com/josexy/mini-ss/cipher"
 	"github.com/josexy/mini-ss/enhancer"
@@ -17,18 +20,15 @@ import (
 	"github.com/josexy/mini-ss/ssr"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/logger"
-	"github.com/josexy/netstackgo/iface"
-	"github.com/josexy/netstackgo/tun"
 	"github.com/josexy/proxyutil"
 )
 
 var defaultSSLocalOpts = ssOptions{
 	localOpts: localOptions{
 		enhancerConfig: enhancer.EnhancerConfig{
-			Tun: tun.TunConfig{
-				Name: "utun3",
-				Addr: "198.18.0.1/16",
-				MTU:  tun.DefaultMTU,
+			Tun: tun.Options{
+				Name:         "utun3",
+				Inet4Address: []netip.Prefix{netip.MustParsePrefix("198.18.0.1/16")},
 			},
 		},
 	},
@@ -51,9 +51,9 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 
 	// check whether support auto-detect-interface
 	if options.DefaultOptions.AutoDetectInterface {
-		if ifaceName, err := iface.DefaultRouteInterface(); err == nil {
-			options.DefaultOptions.OutboundInterface = ifaceName
-			logger.Logger.Infof("auto detect outbound interface: %s", ifaceName)
+		if defaultRoute, err := route.DefaultRouteInterface(); err == nil {
+			options.DefaultOptions.OutboundInterface = defaultRoute.InterfaceName
+			logger.Logger.Infof("auto detect outbound interface: %s", defaultRoute.InterfaceName)
 		}
 	}
 
@@ -173,7 +173,9 @@ func (ss *ShadowsocksClient) setSystemProxy() {
 			}
 		}
 	}
-	proxyutil.SetSystemProxy(http, socks)
+	if err := proxyutil.SetSystemProxy(http, socks); err != nil {
+		logger.Logger.ErrorBy(err)
+	}
 }
 
 func (ss *ShadowsocksClient) initEnhancer() error {
@@ -183,7 +185,7 @@ func (ss *ShadowsocksClient) initEnhancer() error {
 	return nil
 }
 
-func (ss *ShadowsocksClient) closeTun() error {
+func (ss *ShadowsocksClient) closeEnhancer() error {
 	if ss.Opts.localOpts.enableTun {
 		return ss.enhancer.Close()
 	}
@@ -197,14 +199,14 @@ func (ss *ShadowsocksClient) Start() error {
 	if err := ss.initEnhancer(); err != nil {
 		return err
 	}
-	if err := ss.srvGroup.Start(); err != nil {
-		return err
-	}
-	// set system proxy
 	if ss.Opts.localOpts.systemProxy {
 		ss.setSystemProxy()
 	}
-
+	if err := ss.srvGroup.Start(); err != nil {
+		proxyutil.UnsetSystemProxy()
+		ss.closeEnhancer()
+		return err
+	}
 	return nil
 }
 
@@ -214,8 +216,11 @@ func (ss *ShadowsocksClient) Close() error {
 	if ss.srvGroup.Len() == 0 {
 		return nil
 	}
-	if err := ss.closeTun(); err != nil {
-		return err
+	if ss.Opts.localOpts.systemProxy {
+		proxyutil.UnsetSystemProxy()
+	}
+	if ss.Opts.localOpts.enableTun {
+		_ = ss.enhancer.Close()
 	}
 	if err := ss.srvGroup.Close(); err != nil {
 		return err

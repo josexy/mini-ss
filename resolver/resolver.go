@@ -136,7 +136,7 @@ func (r *Resolver) IsEnhancerMode() bool {
 	return r.fakeIPResolver != nil
 }
 
-func (r *Resolver) EnableEnhancerMode(tunCIDR string) (err error) {
+func (r *Resolver) EnableEnhancerMode(tunCIDR netip.Prefix) (err error) {
 	r.fakeIPResolver, err = newFakeIPResolver(tunCIDR)
 	return
 }

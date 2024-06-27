@@ -13,11 +13,11 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/josexy/cropstun/bind"
 	"github.com/josexy/mini-ss/bufferpool"
 	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/util/dnsutil"
 	"github.com/josexy/mini-ss/util/logger"
-	"github.com/josexy/netstackgo/bind"
 	"github.com/miekg/dns"
 )
 

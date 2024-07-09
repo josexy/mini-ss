@@ -28,16 +28,17 @@ type serverOptions struct {
 }
 
 type localOptions struct {
-	socksAddr      string
-	httpAddr       string
-	mixedAddr      string
-	socksAuth      *Auth
-	httpAuth       *Auth
-	tcpTunAddr     [][]string
-	systemProxy    bool
-	enableTun      bool
-	enhancerConfig enhancer.EnhancerConfig
-	mitmConfig     proxy.MimtOption
+	socksAddr       string
+	httpAddr        string
+	mixedAddr       string
+	socksAuth       *Auth
+	httpAuth        *Auth
+	tcpTunAddr      [][]string
+	systemProxy     bool
+	enableTun       bool
+	lookupHostsFile bool
+	enhancerConfig  enhancer.EnhancerConfig
+	mitmConfig      proxy.MimtOption
 }
 
 type ssOptions struct {
@@ -254,6 +255,12 @@ func WithRuler(ruler *rule.Ruler) SSOption {
 func WithSystemProxy() SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
 		so.localOpts.systemProxy = true
+	})
+}
+
+func WithLookupHostsFile() SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.lookupHostsFile = true
 	})
 }
 

@@ -23,8 +23,10 @@ func initHostsMap() {
 	}
 	for ip, hosts := range mp {
 		for _, host := range hosts {
-			logger.Logger.Infof("read hosts record: [%s]->[%s]", ip, host)
-			hostsMap[host] = append(hostsMap[host], netip.MustParseAddr(ip))
+			if addr, err := netip.ParseAddr(ip); err == nil {
+				logger.Logger.Infof("read hosts record: [%s]->[%s]", host, ip)
+				hostsMap[host] = append(hostsMap[host], addr)
+			}
 		}
 	}
 }

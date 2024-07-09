@@ -24,7 +24,7 @@ func TestDnsResolver(t *testing.T) {
 		"https://dns.alidns.com/dns-query",
 	}
 	logger.Logger = logger.LogContext.Copy().WithCaller(false, true, false, true).BuildConsoleLogger(logx.LevelTrace)
-	r := NewDnsResolver(nameservers)
+	r := NewDnsResolver(nameservers, false)
 
 	for _, ns := range nameservers {
 		for i := 0; i < 2; i++ {

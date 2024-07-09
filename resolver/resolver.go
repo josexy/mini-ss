@@ -37,9 +37,10 @@ type nameserverExt struct {
 type Resolver struct {
 	*fakeIPResolver
 	// UDP/TCP/DoT/DoH
-	nameservers []nameserverExt
-	clients     map[string]*DnsClient
-	lookupGroup singleflight.Group
+	nameservers    []nameserverExt
+	clients        map[string]*DnsClient
+	lookupGroup    singleflight.Group
+	lookupHostPref bool
 }
 
 func parseNameserver(nameservers []string) []nameserverExt {
@@ -112,7 +113,7 @@ func parseNameserver(nameservers []string) []nameserverExt {
 	return list
 }
 
-func NewDnsResolver(nameservers []string) *Resolver {
+func NewDnsResolver(nameservers []string, lookupHostsFile bool) *Resolver {
 	nameserver := parseNameserver(nameservers)
 	// default system config dns
 	fallback := parseNameserver(dnsutil.GetLocalDnsList())
@@ -121,8 +122,9 @@ func NewDnsResolver(nameservers []string) *Resolver {
 	}
 
 	resolver := &Resolver{
-		clients:     make(map[string]*DnsClient),
-		nameservers: append(nameserver, fallback...),
+		clients:        make(map[string]*DnsClient),
+		nameservers:    append(nameserver, fallback...),
+		lookupHostPref: lookupHostsFile,
 	}
 
 	for _, ns := range resolver.nameservers {
@@ -157,6 +159,12 @@ func (r *Resolver) LookupHost(ctx context.Context, host string) netip.Addr {
 }
 
 func (r *Resolver) LookupIP(ctx context.Context, host string) ([]netip.Addr, error) {
+	if r.lookupHostPref {
+		ip := hostsutil.LookupIP(host)
+		if ip.IsValid() {
+			return []netip.Addr{ip}, nil
+		}
+	}
 	ipsCh := make(chan []netip.Addr, 1)
 	// lookup ipv6 address
 	go func() {

@@ -110,16 +110,17 @@ type MitmOption struct {
 }
 
 type LocalConfig struct {
-	SocksAddr   string      `yaml:"socks_addr,omitempty" json:"socks_addr,omitempty"`
-	HTTPAddr    string      `yaml:"http_addr,omitempty" json:"http_addr,omitempty"`
-	SocksAuth   string      `yaml:"socks_auth,omitempty" json:"socks_auth,omitempty"`
-	HTTPAuth    string      `yaml:"http_auth,omitempty" json:"http_auth,omitempty"`
-	MixedAddr   string      `yaml:"mixed_addr,omitempty" json:"mixed_addr,omitempty"`
-	TCPTunAddr  []string    `yaml:"tcp_tun_addr,omitempty" json:"tcp_tun_addr,omitempty"`
-	SystemProxy bool        `yaml:"system_proxy,omitempty" json:"system_proxy,omitempty"`
-	Mitm        *MitmOption `yaml:"mitm,omitempty" json:"mitm,omitempty"`
-	Tun         *TunOption  `yaml:"tun,omitempty" json:"tun,omitempty"`
-	DNS         *DnsOption  `yaml:"dns,omitempty" json:"dns,omitempty"`
+	SocksAddr       string      `yaml:"socks_addr,omitempty" json:"socks_addr,omitempty"`
+	HTTPAddr        string      `yaml:"http_addr,omitempty" json:"http_addr,omitempty"`
+	SocksAuth       string      `yaml:"socks_auth,omitempty" json:"socks_auth,omitempty"`
+	HTTPAuth        string      `yaml:"http_auth,omitempty" json:"http_auth,omitempty"`
+	MixedAddr       string      `yaml:"mixed_addr,omitempty" json:"mixed_addr,omitempty"`
+	TCPTunAddr      []string    `yaml:"tcp_tun_addr,omitempty" json:"tcp_tun_addr,omitempty"`
+	SystemProxy     bool        `yaml:"system_proxy,omitempty" json:"system_proxy,omitempty"`
+	LookupHostsFile bool        `yaml:"lookup_hostsfile,omitempty" json:"lookup_hostsfile,omitempty"`
+	Mitm            *MitmOption `yaml:"mitm,omitempty" json:"mitm,omitempty"`
+	Tun             *TunOption  `yaml:"tun,omitempty" json:"tun,omitempty"`
+	DNS             *DnsOption  `yaml:"dns,omitempty" json:"dns,omitempty"`
 }
 
 type Domain struct {
@@ -466,6 +467,10 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 
 	if cfg.Local.SystemProxy {
 		opts = append(opts, ss.WithSystemProxy())
+	}
+
+	if cfg.Local.LookupHostsFile {
+		opts = append(opts, ss.WithLookupHostsFile())
 	}
 
 	return opts

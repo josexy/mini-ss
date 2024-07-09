@@ -39,6 +39,7 @@ func init() {
 	localCmd.Flags().StringVarP(&cfg.Local.MixedAddr, "mixed", "M", "", "mixed proxy for SOCKS and HTTP")
 	localCmd.Flags().StringSliceVar(&cfg.Local.TCPTunAddr, "tcp-tun", nil, "simple tcp tun listening address (format: \"local:port=remote:port\")")
 	localCmd.Flags().BoolVar(&cfg.Local.SystemProxy, "system-proxy", false, "enable system proxy settings")
+	localCmd.Flags().BoolVar(&cfg.Local.LookupHostsFile, "lookup-hostsfile", false, "dns lookup local hosts file")
 
 	// ssr
 	localCmd.Flags().StringVarP(&cfg.Server[0].Type, "type", "T", "", "enable shadowsocksr")

@@ -33,7 +33,7 @@ func NewShadowsocksServer(opts ...SSOption) *ShadowsocksServer {
 	if len(s.Opts.serverOpts) == 0 {
 		logger.Logger.Fatal("ss-server need configuration")
 	}
-	resolver.DefaultResolver = resolver.NewDnsResolver(nil)
+	resolver.DefaultResolver = resolver.NewDnsResolver(nil, false)
 	for _, opt := range s.Opts.serverOpts {
 		if err := s.initServerHandler(&opt); err != nil {
 			logger.Logger.Error("init server failed", logx.Error("error", err))

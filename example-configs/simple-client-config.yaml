@@ -12,6 +12,7 @@ local:
   mixed_addr: :10088
   # socks_auth: "123:123"
   # http_auth: '123:123'
+  lookup_hostsfile: true
 log:
   color: true
   log_level: trace

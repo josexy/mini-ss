@@ -103,7 +103,7 @@ func genCACertAndKey(t *testing.T) {
 }
 
 func TestMitmHandlerForHTTPTraffic(t *testing.T) {
-	resolver.DefaultResolver = resolver.NewDnsResolver(nil)
+	resolver.DefaultResolver = resolver.NewDnsResolver(nil, false)
 	genCACertAndKey(t)
 	defer os.RemoveAll("/tmp/cert")
 	handler, err := NewMitmHandler(MimtOption{

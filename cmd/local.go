@@ -72,7 +72,7 @@ func StartLocal() {
 	defer func() {
 		if err := recover(); err != nil {
 			if e, ok := err.(error); ok {
-				logger.Logger.FatalBy(e)
+				logger.Logger.FatalWith(e)
 			}
 		}
 	}()
@@ -82,7 +82,7 @@ func StartLocal() {
 func startLocal() {
 	logger.Logger.Info("build info", logx.String("version", Version), logx.String("git_commit", GitCommit))
 	if err := geoip.OpenDB("Country.mmdb"); err != nil {
-		logger.Logger.FatalBy(err)
+		logger.Logger.FatalWith(err)
 		return
 	}
 
@@ -90,7 +90,7 @@ func startLocal() {
 
 	go func() {
 		if err := srv.Start(); err != nil {
-			logger.Logger.FatalBy(err)
+			logger.Logger.FatalWith(err)
 		}
 	}()
 

@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"time"
 
@@ -48,8 +47,7 @@ func NewDnsClient(dnsNet string, addr string, defaultDnsTimeout time.Duration) *
 				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 					dialer := &net.Dialer{Timeout: defaultDnsTimeout}
 					if options.DefaultOptions.OutboundInterface != "" {
-						ip, _ := netip.ParseAddr(client.host)
-						bind.BindToDeviceForConn(options.DefaultOptions.OutboundInterface, dialer, "tcp", ip)
+						bind.BindToDeviceForConn(options.DefaultOptions.OutboundInterface, dialer)
 					}
 					return dialer.DialContext(ctx, network, addr)
 				},
@@ -62,12 +60,7 @@ func NewDnsClient(dnsNet string, addr string, defaultDnsTimeout time.Duration) *
 
 		dialer := &net.Dialer{Timeout: defaultDnsTimeout}
 		if options.DefaultOptions.OutboundInterface != "" {
-			ip, _ := netip.ParseAddr(client.host)
-			network := "tcp"
-			if dnsNet == "udp" {
-				network = "udp"
-			}
-			bind.BindToDeviceForConn(options.DefaultOptions.OutboundInterface, dialer, network, ip)
+			bind.BindToDeviceForConn(options.DefaultOptions.OutboundInterface, dialer)
 		}
 
 		client.dnsC = &dns.Client{

@@ -435,7 +435,6 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 	opts = append(opts, ss.WithRuler(cfg.BuildRuler()))
 
 	if cfg.Local.Mitm != nil && cfg.Local.Mitm.Enable {
-		opts = append(opts, ss.WithMitm(cfg.Local.Mitm.Enable))
 		opts = append(opts, ss.WithMitmProxy(cfg.Local.Mitm.Proxy))
 		opts = append(opts, ss.WithMitmCAPath(cfg.Local.Mitm.CAPath))
 		opts = append(opts, ss.WithMitmKeyPath(cfg.Local.Mitm.KeyPath))

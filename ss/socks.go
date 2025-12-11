@@ -10,8 +10,7 @@ import (
 
 	"github.com/josexy/mini-ss/address"
 	"github.com/josexy/mini-ss/bufferpool"
-	"github.com/josexy/mini-ss/proxy"
-	proxyaddons "github.com/josexy/mini-ss/proxy-addons"
+	"github.com/josexy/mini-ss/interceptor"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/selector"
@@ -19,6 +18,7 @@ import (
 	"github.com/josexy/mini-ss/statistic"
 	"github.com/josexy/mini-ss/transport"
 	"github.com/josexy/mini-ss/util/logger"
+	"github.com/josexy/mitmpgo"
 )
 
 const (
@@ -41,7 +41,7 @@ type socks5Server struct {
 	server.Server
 	addr        string
 	socksAuth   *Auth
-	mitmHandler proxy.MitmHandler
+	mitmHandler mitmpgo.MitmProxyHandler
 	pool        *bufferpool.BufferPool
 }
 
@@ -55,15 +55,19 @@ func newSocksProxyServer(addr string, socksAuth *Auth) *socks5Server {
 	return ss
 }
 
-func (s *socks5Server) WithMitmMode(opt proxy.MimtOption) *socks5Server {
-	var err error
-	s.mitmHandler, err = proxy.NewMitmHandler(opt)
-	if err != nil {
-		logger.Logger.ErrorBy(err)
+func (s *socks5Server) WithMitmMode(opts []mitmpgo.Option) *socks5Server {
+	if len(opts) == 0 {
+		return s
 	}
-	if s.mitmHandler != nil {
-		s.mitmHandler.SetMutableHTTPInterceptor(proxyaddons.MutableHTTPInterceptor)
-		s.mitmHandler.SetMutableWebsocketInterceptor(proxyaddons.MutableWSInterceptor)
+	opts = append(opts,
+		mitmpgo.WithErrorHandler(interceptor.ErrHandler),
+		mitmpgo.WithHTTPInterceptor(interceptor.HttpInterceptor),
+		mitmpgo.WithWebsocketInterceptor(interceptor.WebsocketInterceptor),
+	)
+	var err error
+	s.mitmHandler, err = mitmpgo.NewMitmProxyHandler(opts...)
+	if err != nil {
+		logger.Logger.ErrorWith(err)
 	}
 	return s
 }
@@ -71,27 +75,21 @@ func (s *socks5Server) WithMitmMode(opt proxy.MimtOption) *socks5Server {
 func (s *socks5Server) ServeTCP(conn net.Conn) {
 	dstAddr, cmd, err := s.handshake(conn)
 	if err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 		return
 	}
 	if cmd == CONNECT {
 		if s.mitmHandler != nil {
-			host, port, _ := net.SplitHostPort(dstAddr)
-			ctx := context.WithValue(context.Background(), proxy.ReqCtxKey, proxy.ReqContext{
-				ConnMethod: true, // ConnMethod is true for socks5 proxy
-				Host:       host,
-				Port:       port,
-				Addr:       dstAddr,
-			})
-			if err = s.mitmHandler.HandleMIMT(ctx, conn); err != nil {
-				logger.Logger.ErrorBy(err)
+			ctx := mitmpgo.AppendToRequestContext(context.Background(), dstAddr, nil)
+			if err = s.mitmHandler.Serve(ctx, conn); err != nil {
+				logger.Logger.ErrorWith(err)
 			}
 			return
 		}
 
 		proxy, err := rule.MatchRuler.Select()
 		if err != nil {
-			logger.Logger.ErrorBy(err)
+			logger.Logger.ErrorWith(err)
 			return
 		}
 
@@ -109,7 +107,7 @@ func (s *socks5Server) ServeTCP(conn net.Conn) {
 		}
 
 		if err = selector.ProxySelector.Select(proxy).Invoke(conn, dstAddr); err != nil {
-			logger.Logger.ErrorBy(err)
+			logger.Logger.ErrorWith(err)
 		}
 	}
 }
@@ -274,7 +272,7 @@ func (s *socks5Server) request(conn net.Conn) (addr string, cmd byte, err error)
 
 func (s *socks5Server) handshake(conn net.Conn) (dstAddr string, cmd byte, err error) {
 	if err = s.negotiate(conn); err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 		return
 	}
 	return s.request(conn)

@@ -16,7 +16,7 @@ import (
 type quicConn struct {
 	addr string
 	idx  int
-	quic.EarlyConnection
+	*quic.Conn
 }
 
 type quicDialer struct {
@@ -48,7 +48,7 @@ func newQUICDialer(opt options.Options) *quicDialer {
 	}
 }
 
-func (d *quicDialer) dial(ctx context.Context, addr string) (quic.EarlyConnection, error) {
+func (d *quicDialer) dial(ctx context.Context, addr string) (*quic.Conn, error) {
 	var raddr *net.UDPAddr
 	var err error
 	if raddr, err = resolver.DefaultResolver.ResolveUDPAddr(ctx, addr); err != nil {
@@ -89,7 +89,7 @@ func (d *quicDialer) getAndDial(ctx context.Context, addr string) (*quicConn, er
 		if err != nil {
 			return nil, err
 		}
-		return &quicConn{addr: addr, idx: idx, EarlyConnection: c}, nil
+		return &quicConn{addr: addr, idx: idx, Conn: c}, nil
 	})
 }
 
@@ -99,13 +99,13 @@ func (d *quicDialer) retryDial(ctx context.Context, addr string, index int) (*qu
 		if err != nil {
 			return nil, err
 		}
-		return &quicConn{addr: addr, idx: idx, EarlyConnection: c}, nil
+		return &quicConn{addr: addr, idx: idx, Conn: c}, nil
 	})
 }
 
 func (d *quicDialer) openStreamConn(ctx context.Context, conn *quicConn) (net.Conn, error) {
 	var err error
-	var stream quic.Stream
+	var stream *quic.Stream
 	var fails, retries = 0, 1
 	for {
 		newCtx, cancel := context.WithTimeout(ctx, time.Second*15)

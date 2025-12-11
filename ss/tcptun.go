@@ -32,7 +32,7 @@ func (tt *tcpTunServer) ServeTCP(conn net.Conn) {
 	}
 	proxy, err := rule.MatchRuler.Select()
 	if err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 		return
 	}
 	if statistic.EnableStatistic {
@@ -48,6 +48,6 @@ func (tt *tcpTunServer) ServeTCP(conn net.Conn) {
 		conn = tcpTracker
 	}
 	if err = selector.ProxySelector.Select(proxy).Invoke(conn, tt.RemoteAddr); err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 	}
 }

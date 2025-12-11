@@ -1,13 +1,19 @@
 package enhancer
 
 import (
+	"net"
 	"net/netip"
 	"sync/atomic"
+	"time"
 
 	tun "github.com/josexy/cropstun"
+	"github.com/josexy/cropstun/bind"
 	"github.com/josexy/logx"
+	"github.com/josexy/mini-ss/interceptor"
+	"github.com/josexy/mini-ss/options"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/util/logger"
+	"github.com/josexy/mitmpgo"
 )
 
 type EnhancerConfig struct {
@@ -32,6 +38,28 @@ func NewEnhancer(config EnhancerConfig) *Enhancer {
 		fakeDns: resolver.NewDnsServer(config.FakeDNS),
 	}
 	eh.handler = newEnhancerHandler(eh)
+	return eh
+}
+
+func (eh *Enhancer) WithMitmMode(opts []mitmpgo.Option) *Enhancer {
+	if len(opts) == 0 {
+		return eh
+	}
+	dialer := &net.Dialer{Timeout: time.Second * 10}
+	if err := bind.BindToDeviceForConn(options.DefaultOptions.OutboundInterface, dialer); err != nil {
+		logger.Logger.ErrorWith(err)
+	}
+	opts = append(opts,
+		mitmpgo.WithDialer(dialer),
+		mitmpgo.WithErrorHandler(interceptor.ErrHandler),
+		mitmpgo.WithHTTPInterceptor(interceptor.HttpInterceptor),
+		mitmpgo.WithWebsocketInterceptor(interceptor.WebsocketInterceptor),
+	)
+	var err error
+	eh.handler.mitmHandler, err = mitmpgo.NewMitmProxyHandler(opts...)
+	if err != nil {
+		logger.Logger.ErrorWith(err)
+	}
 	return eh
 }
 
@@ -68,7 +96,7 @@ func (eh *Enhancer) Start() (err error) {
 
 	go func() {
 		if err := eh.fakeDns.Start(); err != nil {
-			logger.Logger.ErrorBy(err)
+			logger.Logger.ErrorWith(err)
 		}
 	}()
 
@@ -83,7 +111,7 @@ func (eh *Enhancer) Start() (err error) {
 		logx.String("name", eh.config.Tun.Name),
 		logx.String("address", eh.config.Tun.Inet4Address[0].String()),
 		logx.UInt32("mtu", eh.config.Tun.MTU),
-		logx.Slice3("dns-hijack", eh.config.DnsHijack),
+		logx.ArrayT("dns-hijack", eh.config.DnsHijack...),
 		logx.Bool("auto-route", eh.config.Tun.AutoRoute))
 
 	eh.running.Store(true)

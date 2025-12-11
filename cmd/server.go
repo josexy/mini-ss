@@ -33,13 +33,13 @@ func init() {
 
 func StartServer() {
 	if len(cfg.Server) == 0 || cfg.Server[0].Addr == "" {
-		logger.Logger.FatalBy(errors.New("server node is empty"))
+		logger.Logger.FatalWith(errors.New("server node is empty"))
 		return
 	}
 	defer func() {
 		if err := recover(); err != nil {
 			if e, ok := err.(error); ok {
-				logger.Logger.FatalBy(e)
+				logger.Logger.FatalWith(e)
 			}
 		}
 	}()
@@ -54,7 +54,7 @@ func startServer() {
 
 	go func() {
 		if err := srv.Start(); err != nil {
-			logger.Logger.FatalBy(err)
+			logger.Logger.FatalWith(err)
 		}
 	}()
 

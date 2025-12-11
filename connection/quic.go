@@ -9,12 +9,12 @@ import (
 var _ net.Conn = (*QuicConn)(nil)
 
 type QuicConn struct {
-	quic.Stream
+	*quic.Stream
 	laddr net.Addr
 	raddr net.Addr
 }
 
-func NewQuicConn(stream quic.Stream, laddr, raddr net.Addr) *QuicConn {
+func NewQuicConn(stream *quic.Stream, laddr, raddr net.Addr) *QuicConn {
 	return &QuicConn{
 		Stream: stream,
 		laddr:  laddr,

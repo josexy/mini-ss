@@ -18,7 +18,7 @@ func initHostsMap() {
 	hostsMap = make(map[string][]netip.Addr)
 	mp, err := hostsfile.ParseHosts(hostsfile.ReadHostsFile())
 	if err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 		return
 	}
 	for ip, hosts := range mp {

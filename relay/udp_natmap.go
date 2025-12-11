@@ -117,7 +117,7 @@ func (r *NatmapUDPRelayer) relayUDP(conn net.PacketConn, udpReadFromSrc udpProxy
 			dstConn.SetDeadline(time.Now().Add(udpPacketTimeout))
 			n, addr, err := dstConn.ReadFrom(*buf)
 			if err != nil {
-				logger.Logger.ErrorBy(err)
+				logger.Logger.ErrorWith(err)
 				return
 			}
 			// filter illegal data from the outside world
@@ -126,7 +126,7 @@ func (r *NatmapUDPRelayer) relayUDP(conn net.PacketConn, udpReadFromSrc udpProxy
 			}
 			b, err := udpWriteToSrc(addr, *buf, n)
 			if err != nil {
-				logger.Logger.ErrorBy(err)
+				logger.Logger.ErrorWith(err)
 				continue
 			}
 			conn.WriteTo(b, srcAddr)
@@ -140,13 +140,13 @@ func (r *NatmapUDPRelayer) relayUDP(conn net.PacketConn, udpReadFromSrc udpProxy
 	for {
 		n, srcAddr, err := conn.ReadFrom(*buf)
 		if err != nil {
-			logger.Logger.ErrorBy(err)
+			logger.Logger.ErrorWith(err)
 			return err
 		}
 
 		b, targetAddr, err := udpReadFromSrc(srcAddr, *buf, n)
 		if err != nil {
-			logger.Logger.ErrorBy(err)
+			logger.Logger.ErrorWith(err)
 			continue
 		}
 
@@ -157,7 +157,7 @@ func (r *NatmapUDPRelayer) relayUDP(conn net.PacketConn, udpReadFromSrc udpProxy
 		if !ok || dstConn == nil {
 			dstConn, err = transport.ListenLocalUDP(context.Background())
 			if err != nil {
-				logger.Logger.ErrorBy(err)
+				logger.Logger.ErrorWith(err)
 				continue
 			}
 

@@ -1,6 +1,7 @@
 package enhancer
 
 import (
+	"context"
 	"io"
 	"net"
 	"net/netip"
@@ -16,6 +17,7 @@ import (
 	"github.com/josexy/mini-ss/selector"
 	"github.com/josexy/mini-ss/statistic"
 	"github.com/josexy/mini-ss/util/logger"
+	"github.com/josexy/mitmpgo"
 	"github.com/miekg/dns"
 )
 
@@ -29,8 +31,9 @@ var stackTraceBufferPool = bufferpool.NewBufferPool(4096)
 var _ tun.Handler = (*enhancerHandler)(nil)
 
 type enhancerHandler struct {
-	owner *Enhancer
-	pool  *bufferpool.BufferPool
+	owner       *Enhancer
+	pool        *bufferpool.BufferPool
+	mitmHandler mitmpgo.MitmProxyHandler
 }
 
 func newEnhancerHandler(eh *Enhancer) *enhancerHandler {
@@ -40,7 +43,7 @@ func newEnhancerHandler(eh *Enhancer) *enhancerHandler {
 	}
 }
 
-func (handler *enhancerHandler) HandleTCPConnection(conn net.Conn, metadata tun.Metadata) error {
+func (handler *enhancerHandler) HandleTCPConnection(conn tun.TCPConn, metadata tun.Metadata) error {
 	// the target address(info.DstAddr.Addr()) may be a fake ip address or real ip address
 	// for example `curl www.google.com` or `curl 74.125.24.103:80`
 
@@ -65,7 +68,7 @@ func (handler *enhancerHandler) HandleTCPConnection(conn net.Conn, metadata tun.
 
 	if handler.isNeedHijackDNS(metadata.Destination) {
 		if err := handler.hijackDNSForTCP(conn); err != nil {
-			logger.Logger.ErrorBy(err)
+			logger.Logger.ErrorWith(err)
 			return err
 		}
 		return nil
@@ -82,7 +85,7 @@ func (handler *enhancerHandler) HandleTCPConnection(conn net.Conn, metadata tun.
 				logx.String("domain", fakeDnsRecord.Domain))
 		} else {
 			// fake ip/record not found or expired
-			logger.Logger.ErrorBy(err)
+			logger.Logger.ErrorWith(err)
 			return err
 		}
 	} else {
@@ -93,9 +96,14 @@ func (handler *enhancerHandler) HandleTCPConnection(conn net.Conn, metadata tun.
 		return rule.ErrRuleMatchDropped
 	}
 
+	if handler.mitmHandler != nil {
+		ctx := mitmpgo.AppendToRequestContext(context.Background(), metadata.Destination.String(), nil)
+		return handler.mitmHandler.Serve(ctx, conn)
+	}
+
 	proxy, err := rule.MatchRuler.Select()
 	if err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 		return err
 	}
 
@@ -120,12 +128,12 @@ func (handler *enhancerHandler) HandleTCPConnection(conn net.Conn, metadata tun.
 		conn = tcpTracker
 	}
 	if err := selector.ProxySelector.Select(proxy).Invoke(conn, remoteAddr); err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 	}
 	return nil
 }
 
-func (handler *enhancerHandler) HandleUDPConnection(conn net.PacketConn, metadata tun.Metadata) error {
+func (handler *enhancerHandler) HandleUDPConnection(conn tun.UDPConn, metadata tun.Metadata) error {
 
 	defer func() {
 		if err := recover(); err != nil {
@@ -141,7 +149,7 @@ func (handler *enhancerHandler) HandleUDPConnection(conn net.PacketConn, metadat
 
 	if handler.isNeedHijackDNS(metadata.Destination) {
 		if err := handler.hijackDNSForUDP(conn); err != nil {
-			logger.Logger.ErrorBy(err)
+			logger.Logger.ErrorWith(err)
 			return err
 		}
 		return nil
@@ -160,12 +168,13 @@ func (handler *enhancerHandler) HandleUDPConnection(conn net.PacketConn, metadat
 
 	proxy, err := rule.MatchRuler.Select()
 	if err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 		return err
 	}
 
 	logger.Logger.Info("udp-tun", logx.String("src", metadata.Source.String()), logx.String("dst", metadata.Destination.String()))
 
+	var netPackConn net.PacketConn = conn
 	if statistic.EnableStatistic {
 		udpTracker := statistic.NewUDPTracker(conn, statistic.Context{
 			Src:     metadata.Source.String(),
@@ -176,9 +185,9 @@ func (handler *enhancerHandler) HandleUDPConnection(conn net.PacketConn, metadat
 			Proxy:   proxy,
 		})
 		defer statistic.DefaultManager.Remove(udpTracker)
-		conn = udpTracker
+		netPackConn = udpTracker
 	}
-	selector.ProxySelector.SelectPacket(proxy).Invoke(conn, metadata.Destination.String())
+	selector.ProxySelector.SelectPacket(proxy).Invoke(netPackConn, metadata.Destination.String())
 	return nil
 }
 

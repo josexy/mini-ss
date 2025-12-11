@@ -4,8 +4,8 @@ import (
 	"net"
 
 	"github.com/josexy/mini-ss/connection"
-	"github.com/josexy/mini-ss/proxy"
 	"github.com/josexy/mini-ss/server"
+	"github.com/josexy/mitmpgo"
 )
 
 type mixedServer struct {
@@ -28,9 +28,9 @@ func newMixedServer(addr string, httpAuth *Auth, socksAuth *Auth) *mixedServer {
 	return ms
 }
 
-func (s *mixedServer) WithMitmMode(opt proxy.MimtOption) *mixedServer {
-	s.httpSrv = s.httpSrv.WithMitmMode(opt)
-	s.socksSrv = s.socksSrv.WithMitmMode(opt)
+func (s *mixedServer) WithMitmMode(opts []mitmpgo.Option) *mixedServer {
+	s.httpSrv = s.httpSrv.WithMitmMode(opts)
+	s.socksSrv = s.socksSrv.WithMitmMode(opts)
 	return s
 }
 

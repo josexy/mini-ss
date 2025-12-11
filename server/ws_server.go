@@ -71,7 +71,7 @@ func (s *WsServer) Start(ctx context.Context) error {
 	serveMux.HandleFunc(s.opts.Path, func(w http.ResponseWriter, r *http.Request) {
 		err := s.wsUpgrade(w, r)
 		if err != nil {
-			logger.Logger.ErrorBy(err)
+			logger.Logger.ErrorWith(err)
 		}
 	})
 	s.srv = &http.Server{

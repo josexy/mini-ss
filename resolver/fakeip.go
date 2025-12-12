@@ -48,7 +48,7 @@ func newFakeIPResolver(cidr netip.Prefix) (*fakeIPResolver, error) {
 	}
 	dnsIP, ok := pool.allocateFor(tunIP.Next())
 	if !ok {
-		logger.Logger.ErrorBy(errors.New("can not allocate ip for fake dns"))
+		logger.Logger.ErrorWith(errors.New("can not allocate ip for fake dns"))
 	}
 	logger.Logger.Infof("pre-allocated ip for tun device: %s, dns: %s", tunIP.String(), dnsIP.String())
 

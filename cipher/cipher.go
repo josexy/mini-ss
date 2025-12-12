@@ -135,6 +135,6 @@ func Kdf(password string, keyLen int) []byte {
 func hkdfSha1(key, salt, info, outKey []byte) {
 	r := hkdf.New(sha1.New, key, salt, info)
 	if _, err := io.ReadFull(r, outKey); err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 	}
 }

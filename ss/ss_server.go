@@ -119,37 +119,37 @@ type serverHandler struct {
 
 func (h *serverHandler) ServeQUIC(conn net.Conn) {
 	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 	}
 }
 
 func (h *serverHandler) ServeOBFS(conn net.Conn) {
 	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 	}
 }
 
 func (h *serverHandler) ServeWS(conn net.Conn) {
 	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 	}
 }
 
 func (h *serverHandler) ServeTCP(conn net.Conn) {
 	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 	}
 }
 
 func (h *serverHandler) ServeGRPC(conn net.Conn) {
 	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 	}
 }
 
 func (h *serverHandler) ServeSSH(conn net.Conn) {
 	if err := h.tcpRelayer.RelayToServer(conn); err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 	}
 }
 
@@ -170,6 +170,6 @@ func (r *udpRelayer) start() error {
 	defer conn.Close()
 	logger.Logger.Info("udp relayer", logx.String("listen", r.addr))
 	err = r.relayer.RelayToServer(conn)
-	logger.Logger.ErrorBy(err)
+	logger.Logger.ErrorWith(err)
 	return err
 }

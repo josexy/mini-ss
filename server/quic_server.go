@@ -23,7 +23,7 @@ type QuicServer struct {
 	Handler QuicHandler
 	running atomic.Bool
 	locker  sync.Mutex
-	conns   []quic.EarlyConnection
+	conns   []*quic.Conn
 	opts    *options.QuicOptions
 }
 
@@ -32,7 +32,7 @@ func NewQuicServer(addr string, handler QuicHandler, opts options.Options) *Quic
 		Addr:    addr,
 		Handler: handler,
 		opts:    opts.(*options.QuicOptions),
-		conns:   make([]quic.EarlyConnection, 0, 1024),
+		conns:   make([]*quic.Conn, 0, 1024),
 	}
 }
 
@@ -75,7 +75,7 @@ func (s *QuicServer) Start(ctx context.Context) error {
 		MaxIncomingStreams:    1 << 32,
 		MaxIncomingUniStreams: 1 << 32,
 		Allow0RTT:             true,
-		Versions: []quic.VersionNumber{
+		Versions: []quic.Version{
 			quic.Version1,
 			quic.Version2,
 		},
@@ -109,7 +109,7 @@ func (s *QuicServer) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *QuicServer) acceptStreamForConn(ctx context.Context, conn quic.EarlyConnection) {
+func (s *QuicServer) acceptStreamForConn(ctx context.Context, conn *quic.Conn) {
 	for {
 		stream, err := conn.AcceptStream(ctx)
 		if err != nil {

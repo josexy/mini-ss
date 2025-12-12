@@ -60,7 +60,7 @@ func (s *DnsServer) LocalAddress() string {
 func (s *DnsServer) serveDNS(w dns.ResponseWriter, r *dns.Msg) {
 	reply, err := DefaultResolver.Query(r)
 	if err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 		dns.HandleFailed(w, r)
 	} else {
 		w.WriteMsg(reply)

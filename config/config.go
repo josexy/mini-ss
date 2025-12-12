@@ -10,6 +10,7 @@ import (
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/ss"
 	"github.com/josexy/mini-ss/util/logger"
+	"github.com/josexy/mitmpgo"
 	"gopkg.in/yaml.v3"
 )
 
@@ -96,17 +97,26 @@ type DnsOption struct {
 }
 
 type MitmFakeCertPool struct {
-	Capacity     int `yaml:"capacity" json:"capacity"`
-	Interval     int `yaml:"interval" json:"interval"`
-	ExpireSecond int `yaml:"expire_second" json:"expire_second"`
+	Capacity       int `yaml:"capacity" json:"capacity"`
+	IntervalSecond int `yaml:"interval_second" json:"interval_second"`
+	ExpireSecond   int `yaml:"expire_second" json:"expire_second"`
+}
+
+type MitmClientCert struct {
+	CertPath string `yaml:"cert_path" json:"cert_path"`
+	KeyPath  string `yaml:"key_path" json:"key_path"`
 }
 
 type MitmOption struct {
-	Enable       bool              `yaml:"enable" json:"enable"`
-	Proxy        string            `yaml:"proxy" json:"proxy"`
-	CAPath       string            `yaml:"ca_path" json:"ca_path"`
-	KeyPath      string            `yaml:"key_path" json:"key_path"`
-	FakeCertPool *MitmFakeCertPool `yaml:"fake_cert_pool" json:"fake_cert_pool"`
+	Enable                  bool                       `yaml:"enable" json:"enable"`
+	Proxy                   string                     `yaml:"proxy" json:"proxy"`
+	CAPath                  string                     `yaml:"ca_path" json:"ca_path"`
+	KeyPath                 string                     `yaml:"key_path" json:"key_path"`
+	RootCACerts             []string                   `yaml:"root_ca_certs" json:"root_ca_certs"`
+	DisableHTTP2            bool                       `yaml:"disable_http2" json:"disable_http2"`
+	SkipVerifySSLFromServer bool                       `yaml:"skip_verify_ssl_from_server" json:"skip_verify_ssl_from_server"`
+	FakeCertPool            *MitmFakeCertPool          `yaml:"fake_cert_pool" json:"fake_cert_pool"`
+	ClientCerts             map[string]*MitmClientCert `yaml:"client_certs" json:"client_certs"`
 }
 
 type LocalConfig struct {
@@ -435,16 +445,32 @@ func (cfg *Config) BuildLocalOptions() []ss.SSOption {
 	opts = append(opts, ss.WithRuler(cfg.BuildRuler()))
 
 	if cfg.Local.Mitm != nil && cfg.Local.Mitm.Enable {
-		opts = append(opts, ss.WithMitm(cfg.Local.Mitm.Enable))
 		opts = append(opts, ss.WithMitmProxy(cfg.Local.Mitm.Proxy))
 		opts = append(opts, ss.WithMitmCAPath(cfg.Local.Mitm.CAPath))
 		opts = append(opts, ss.WithMitmKeyPath(cfg.Local.Mitm.KeyPath))
+		opts = append(opts, ss.WithMitmRootCACerts(cfg.Local.Mitm.RootCACerts))
+		if cfg.Local.Mitm.DisableHTTP2 {
+			opts = append(opts, ss.WithMitmDisableHTTP2())
+		}
+		if cfg.Local.Mitm.SkipVerifySSLFromServer {
+			opts = append(opts, ss.WithMitmSkipVerifySSLFromServer())
+		}
 		if cfg.Local.Mitm.FakeCertPool != nil {
 			opts = append(opts, ss.WithMitmFakeCertPool(
 				cfg.Local.Mitm.FakeCertPool.Capacity,
-				cfg.Local.Mitm.FakeCertPool.Interval,
+				cfg.Local.Mitm.FakeCertPool.IntervalSecond,
 				cfg.Local.Mitm.FakeCertPool.ExpireSecond,
 			))
+		}
+		if cfg.Local.Mitm.ClientCerts != nil {
+			clientCerts := make(map[string]mitmpgo.ClientCert, len(cfg.Local.Mitm.ClientCerts))
+			for hostname, cc := range cfg.Local.Mitm.ClientCerts {
+				clientCerts[hostname] = mitmpgo.ClientCert{
+					CertPath: cc.CertPath,
+					KeyPath:  cc.KeyPath,
+				}
+			}
+			opts = append(opts, ss.WithMitmClientCerts(clientCerts))
 		}
 	}
 	if cfg.Local.Tun != nil && cfg.Local.Tun.Enable {

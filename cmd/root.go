@@ -121,28 +121,13 @@ func initConfig() {
 
 	// disable logger
 	if cfg.Log == nil || cfg.Log.VerboseLevel == 0 {
-		logger.Logger = logx.NewLogContext().BuildConsoleLogger(logx.LevelTrace)
+		logger.Logger = logx.NewLogContext().Build()
 		return
 	}
 
 	var writer io.Writer = os.Stdout
 	if cfg.Log.Color {
 		writer = color.Output
-	}
-	logCtx := logx.NewLogContext().
-		WithColor(cfg.Log.Color).
-		WithTime(true, func(t time.Time) any { return t.Format(time.DateTime) }).
-		WithCaller(true, true, true, true).
-		WithLevel(true, true).
-		WithEncoder(logx.Json).
-		WithEscapeQuote(true).
-		WithWriter(writer)
-
-	switch cfg.Log.VerboseLevel {
-	case 1:
-		logCtx.WithCaller(false, false, false, false).WithTime(true, func(t time.Time) any { return t.Format(time.TimeOnly) })
-	case 2:
-		logCtx.WithCaller(true, true, false, true).WithTime(true, func(t time.Time) any { return t.Format(time.DateTime) })
 	}
 	var logLevel logx.LevelType
 	switch cfg.Log.LogLevel {
@@ -161,5 +146,21 @@ func initConfig() {
 	default:
 		logLevel = logx.LevelInfo
 	}
-	logger.Logger = logCtx.BuildConsoleLogger(logLevel)
+	logCtx := logx.NewLogContext().
+		WithColorfulset(cfg.Log.Color, logx.TextColorAttri{}).
+		WithTimeKey(true, logx.TimeOption{Formatter: func(t time.Time) any { return t.Format("2006/01/02 15:04:05.000") }}).
+		WithCallerKey(true, logx.CallerOption{Formatter: logx.ShortFileFunc}).
+		WithLevelKey(true, logx.LevelOption{LowerKey: true}).
+		WithEscapeQuote(true).
+		WithReflectValue(true).
+		WithWriter(logx.AddSync(writer)).
+		WithEncoder(logx.Console).WithLevel(logLevel)
+
+	switch cfg.Log.VerboseLevel {
+	case 1:
+		logCtx = logCtx.WithCallerKey(true, logx.CallerOption{Formatter: logx.ShortFile})
+	case 2:
+		logCtx = logCtx.WithCallerKey(true, logx.CallerOption{Formatter: logx.FullFileFunc})
+	}
+	logger.Logger = logCtx.Build()
 }

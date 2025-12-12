@@ -8,11 +8,11 @@ import (
 
 	"github.com/josexy/mini-ss/enhancer"
 	"github.com/josexy/mini-ss/options"
-	"github.com/josexy/mini-ss/proxy"
 	"github.com/josexy/mini-ss/resolver"
 	"github.com/josexy/mini-ss/rule"
 	"github.com/josexy/mini-ss/ssr"
 	"github.com/josexy/mini-ss/transport"
+	"github.com/josexy/mitmpgo"
 )
 
 type serverOptions struct {
@@ -38,7 +38,7 @@ type localOptions struct {
 	enableTun       bool
 	lookupHostsFile bool
 	enhancerConfig  enhancer.EnhancerConfig
-	mitmConfig      proxy.MimtOption
+	mitmOptions     []mitmpgo.Option
 }
 
 type ssOptions struct {
@@ -301,35 +301,53 @@ func WithTcpTunAddr(addrs [][]string) SSOption {
 	})
 }
 
-func WithMitm(enable bool) SSOption {
-	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.mitmConfig.Enable = enable
-	})
-}
-
 func WithMitmProxy(proxy string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.mitmConfig.Proxy = proxy
+		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithProxy(proxy))
 	})
 }
 
 func WithMitmCAPath(caPath string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.mitmConfig.CaPath = caPath
+		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithCACertPath(caPath))
 	})
 }
 
 func WithMitmKeyPath(keyPath string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.mitmConfig.KeyPath = keyPath
+		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithCAKeyPath(keyPath))
 	})
 }
 
-func WithMitmFakeCertPool(capacity, interval, expireSecond int) SSOption {
+func WithMitmRootCACerts(rootCAs []string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.mitmConfig.FakeCertPool.Capacity = capacity
-		so.localOpts.mitmConfig.FakeCertPool.Interval = interval
-		so.localOpts.mitmConfig.FakeCertPool.ExpireSecond = expireSecond
+		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithRootCAs(rootCAs...))
+	})
+}
+
+func WithMitmDisableHTTP2() SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithDisableHTTP2())
+	})
+}
+
+func WithMitmClientCerts(clientCerts map[string]mitmpgo.ClientCert) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		for hostname, cc := range clientCerts {
+			so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithClientCert(hostname, cc))
+		}
+	})
+}
+
+func WithMitmSkipVerifySSLFromServer() SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithSkipVerifySSLFromServer())
+	})
+}
+
+func WithMitmFakeCertPool(capacity, intervalSecond, expireSecond int) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithCertCachePool(capacity, intervalSecond, expireSecond))
 	})
 }
 

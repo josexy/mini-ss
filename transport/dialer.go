@@ -77,8 +77,7 @@ func ListenUDP(ctx context.Context, addr string) (net.PacketConn, error) {
 		return (&net.ListenConfig{}).ListenPacket(ctx, "udp", addr)
 	}
 	var lc net.ListenConfig
-	addr, err := bind.BindToDeviceForPacket(options.DefaultOptions.OutboundInterface, &lc, "udp", addr)
-	if err != nil {
+	if err := bind.BindToDeviceForPacket(options.DefaultOptions.OutboundInterface, &lc); err != nil {
 		return nil, err
 	}
 	return lc.ListenPacket(ctx, "udp", addr)

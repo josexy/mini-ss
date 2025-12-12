@@ -76,7 +76,7 @@ func parseNameserver(nameservers []string) []nameserverExt {
 		ns = addPrefix(ns)
 		urlres, err := url.Parse(ns)
 		if err != nil {
-			logger.Logger.ErrorBy(err)
+			logger.Logger.ErrorWith(err)
 			continue
 		}
 		var addr, dnsNet string
@@ -102,7 +102,7 @@ func parseNameserver(nameservers []string) []nameserverExt {
 			continue
 		}
 		if err != nil {
-			logger.Logger.ErrorBy(err)
+			logger.Logger.ErrorWith(err)
 			continue
 		}
 		list = append(list, nameserverExt{
@@ -233,7 +233,7 @@ func (r *Resolver) lookupIP(ctx context.Context, host string, dnsType uint16) ([
 		logx.String("query", host),
 		logx.String("type", dns.TypeToString[dnsType]),
 		logx.String("rcode", dns.RcodeToString[reply.Rcode]),
-		logx.Slice3("ips", addrs),
+		logx.ArrayT("ips", addrs...),
 	)
 	return addrs, nil
 }

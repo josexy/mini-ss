@@ -9,13 +9,15 @@ import (
 
 // default global LogContext
 var LogContext = logx.NewLogContext().
-	WithColor(true).
-	WithTime(true, func(t time.Time) any { return t.Format(time.DateTime) }).
-	WithCaller(true, true, true, true).
-	WithLevel(true, true).
-	WithEncoder(logx.Json).
+	WithLevel(logx.LevelTrace).
+	WithColorfulset(true, logx.TextColorAttri{}).
+	WithCallerKey(true, logx.CallerOption{Formatter: logx.ShortFileFunc}).
+	WithTimeKey(true, logx.TimeOption{Formatter: func(t time.Time) any { return t.Format("2006/01/02 15:04:05.000") }}).
+	WithLevelKey(true, logx.LevelOption{LowerKey: true}).
 	WithEscapeQuote(true).
-	WithWriter(color.Output)
+	WithWriter(logx.AddSync(color.Output)).
+	WithEncoder(logx.Console).
+	WithReflectValue(true)
 
 // default global Logger
-var Logger = LogContext.BuildConsoleLogger(logx.LevelTrace)
+var Logger = LogContext.Build()

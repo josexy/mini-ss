@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/josexy/logx"
-	"github.com/josexy/mini-ss/util/logger"
 )
 
 func TestDnsResolver(t *testing.T) {
@@ -23,7 +20,6 @@ func TestDnsResolver(t *testing.T) {
 		"https://223.6.6.6/dns-query",
 		"https://dns.alidns.com/dns-query",
 	}
-	logger.Logger = logger.LogContext.Copy().WithCaller(false, true, false, true).BuildConsoleLogger(logx.LevelTrace)
 	r := NewDnsResolver(nameservers, false)
 
 	for _, ns := range nameservers {

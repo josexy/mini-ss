@@ -76,20 +76,20 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 
 	// enable mixed proxy
 	if s.Opts.localOpts.mixedAddr != "" {
-		s.srvGroup.AddServer(newMixedServer(s.Opts.localOpts.mixedAddr, s.Opts.localOpts.httpAuth, s.Opts.localOpts.socksAuth).WithMitmMode(s.Opts.localOpts.mitmConfig))
+		s.srvGroup.AddServer(newMixedServer(s.Opts.localOpts.mixedAddr, s.Opts.localOpts.httpAuth, s.Opts.localOpts.socksAuth).WithMitmMode(s.Opts.localOpts.mitmOptions))
 	} else {
 		if s.Opts.localOpts.httpAddr != "" {
 			// http proxy
-			s.srvGroup.AddServer(newHttpProxyServer(s.Opts.localOpts.httpAddr, s.Opts.localOpts.httpAuth).WithMitmMode(s.Opts.localOpts.mitmConfig))
+			s.srvGroup.AddServer(newHttpProxyServer(s.Opts.localOpts.httpAddr, s.Opts.localOpts.httpAuth).WithMitmMode(s.Opts.localOpts.mitmOptions))
 		}
 		if s.Opts.localOpts.socksAddr != "" {
 			// socks proxy
-			s.srvGroup.AddServer(newSocksProxyServer(s.Opts.localOpts.socksAddr, s.Opts.localOpts.socksAuth).WithMitmMode(s.Opts.localOpts.mitmConfig))
+			s.srvGroup.AddServer(newSocksProxyServer(s.Opts.localOpts.socksAddr, s.Opts.localOpts.socksAuth).WithMitmMode(s.Opts.localOpts.mitmOptions))
 		}
 	}
 
 	if s.Opts.localOpts.enableTun {
-		s.enhancer = enhancer.NewEnhancer(s.Opts.localOpts.enhancerConfig)
+		s.enhancer = enhancer.NewEnhancer(s.Opts.localOpts.enhancerConfig).WithMitmMode(s.Opts.localOpts.mitmOptions)
 	}
 	return s
 }
@@ -97,7 +97,7 @@ func NewShadowsocksClient(opts ...SSOption) *ShadowsocksClient {
 func (ss *ShadowsocksClient) initServerOption(opt *serverOptions) {
 	sc, ac, err := cipher.GetCipher(opt.method, opt.password)
 	if err != nil {
-		logger.Logger.FatalBy(err)
+		logger.Logger.FatalWith(err)
 	}
 	var tcpBound transport.TcpConnBound
 	var udpBound transport.UdpConnBound
@@ -113,7 +113,7 @@ func (ss *ShadowsocksClient) initServerOption(opt *serverOptions) {
 			opt.ssrOpt.Obfs, opt.ssrOpt.ObfsParam) // obfs,obfs-param
 
 		if err != nil {
-			logger.Logger.FatalBy(err)
+			logger.Logger.FatalWith(err)
 		}
 
 		tcpBound = makeSSRClientStreamConn(cp)
@@ -174,7 +174,7 @@ func (ss *ShadowsocksClient) setSystemProxy() {
 		}
 	}
 	if err := proxyutil.SetSystemProxy(http, socks); err != nil {
-		logger.Logger.ErrorBy(err)
+		logger.Logger.ErrorWith(err)
 	}
 }
 

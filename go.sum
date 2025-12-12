@@ -28,8 +28,8 @@ github.com/josexy/cropstun v0.0.0-20251210025130-e29be4fa8c66 h1:+5cp2aZOO3w4x8T
 github.com/josexy/cropstun v0.0.0-20251210025130-e29be4fa8c66/go.mod h1:+QlyKoWfwnl7JZ3brp/4wTM8jWGH+NYor6c3Br2FdEQ=
 github.com/josexy/logx v0.0.0-20250806084921-f14d83aa95fb h1:7bHGxZaGVKu+8gzJaXZH9RW7JVP6FIxybVcjhPK6UFI=
 github.com/josexy/logx v0.0.0-20250806084921-f14d83aa95fb/go.mod h1:TPP4KHLAAEJmDK3ynPssDWwD0gcvQDjpq/FY09g1icA=
-github.com/josexy/mitmpgo v0.0.0-20251211031353-fe4483ece037 h1:rXUeMY5MS4vYdovomoENunNxIw/dAsEsb4citKg8zZI=
-github.com/josexy/mitmpgo v0.0.0-20251211031353-fe4483ece037/go.mod h1:hiCYGTlPIJxLM8yN2/tpywp2my0AlhcAmBAZIALqdIo=
+github.com/josexy/mitmpgo v0.0.0-20251212084526-80f5bdf5e0c1 h1:JGC5QOGIgg6Fs2o4p59tDUuSFCXl2u6I2Xbwr3PjT+Q=
+github.com/josexy/mitmpgo v0.0.0-20251212084526-80f5bdf5e0c1/go.mod h1:hiCYGTlPIJxLM8yN2/tpywp2my0AlhcAmBAZIALqdIo=
 github.com/josexy/proxyutil v0.0.0-20230321142224-a6e70ef9e37c h1:6+sPVaYY+mtxs+QcheOGTGda2hDhZjWbRbU20rITJI4=
 github.com/josexy/proxyutil v0.0.0-20230321142224-a6e70ef9e37c/go.mod h1:+Ox49VTIsAT1JvST8BfaEhZZcaymfSrBN5KlLVLTZxM=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=

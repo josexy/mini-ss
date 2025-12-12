@@ -6,9 +6,17 @@ local:
     ca_path: "certs/ca.crt"
     key_path: "certs/ca.key"
     fake_cert_pool:
-      capacity: 50
-      interval: 30000
-      expire_second: 15000
+      capacity: 2048
+      interval_second: 30
+      expire_second: 15
+    # disable_http2: true
+    # skip_verify_ssl_from_server: true
+    root_ca_certs:
+      - /tmp/curl_ca.crt
+    client_certs:
+      "127.0.0.1":
+        cert_path: /tmp/curl_client.crt
+        key_path: /tmp/curl_client.key
   tun:
     enable: true
     name: ""

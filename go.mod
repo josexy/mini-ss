@@ -10,7 +10,7 @@ require (
 	github.com/jaytaylor/go-hostsfile v0.0.0-20220426042432-61485ac1fa6c
 	github.com/josexy/cropstun v0.0.0-20251210025130-e29be4fa8c66
 	github.com/josexy/logx v0.0.0-20250806084921-f14d83aa95fb
-	github.com/josexy/mitmpgo v0.0.0-20251211031353-fe4483ece037
+	github.com/josexy/mitmpgo v0.0.0-20251212084526-80f5bdf5e0c1
 	github.com/josexy/proxyutil v0.0.0-20230321142224-a6e70ef9e37c
 	github.com/miekg/dns v1.1.68
 	github.com/oschwald/geoip2-golang v1.13.0

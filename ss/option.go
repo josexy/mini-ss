@@ -319,9 +319,35 @@ func WithMitmKeyPath(keyPath string) SSOption {
 	})
 }
 
-func WithMitmFakeCertPool(capacity, interval, expireSecond int) SSOption {
+func WithMitmRootCACerts(rootCAs []string) SSOption {
 	return ssOptionFunc(func(so *ssOptions) {
-		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithCertCachePool(capacity, interval, expireSecond))
+		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithRootCAs(rootCAs...))
+	})
+}
+
+func WithMitmDisableHTTP2() SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithDisableHTTP2())
+	})
+}
+
+func WithMitmClientCerts(clientCerts map[string]mitmpgo.ClientCert) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		for hostname, cc := range clientCerts {
+			so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithClientCert(hostname, cc))
+		}
+	})
+}
+
+func WithMitmSkipVerifySSLFromServer() SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithSkipVerifySSLFromServer())
+	})
+}
+
+func WithMitmFakeCertPool(capacity, intervalSecond, expireSecond int) SSOption {
+	return ssOptionFunc(func(so *ssOptions) {
+		so.localOpts.mitmOptions = append(so.localOpts.mitmOptions, mitmpgo.WithCertCachePool(capacity, intervalSecond, expireSecond))
 	})
 }
 

@@ -47,11 +47,6 @@ var hopByHopHeaders = []string{
 	mitmpgo.HttpHeaderProxyConnection,
 }
 
-type httpReqContext struct {
-	request  *http.Request
-	hostport string
-}
-
 type httpReqHandler struct {
 	owner    *httpProxyServer
 	httpAuth *Auth
